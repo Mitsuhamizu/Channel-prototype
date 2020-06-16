@@ -1,0 +1,46 @@
+{
+  "version": "0x0",
+  "cell_deps": [
+    {
+      "out_point": {
+        "tx_hash": "0xfcd1b3ddcca92b1e49783769e9bf606112b3f8cf36b96cac05bf44edcf5377e6",
+        "index": "0x0"
+      },
+      "dep_type": "code"
+    },
+    {
+      "out_point": {
+        "tx_hash": "0xfcd1b3ddcca92b1e49783769e9bf606112b3f8cf36b96cac05bf44edcf5377e0",
+        "index": "0x0"
+      },
+      "dep_type": "code"
+    }
+  ],
+  "header_deps": [],
+  "inputs": [
+    {
+      "previous_output": {
+        "tx_hash": "0xa98c57135830e1b91345948df6c4b8870828199a786b26f09f7dec4bc27a73da",
+        "index": "0x0"
+      },
+      "since": "0x0"
+    }
+  ],
+  "outputs": [
+    {
+      "capacity": "0x0",
+      "lock": {
+        "args": "0x009a02000000000000d2000000000000006a2144cee303c27e28cccf07d6b602b53468024229155e5705b294183141822de52f657771009763",
+        "code_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "hash_type": "data"
+      },
+      "type": null
+    }
+  ],
+  "witnesses": [
+    "@FIB_ARG"
+  ],
+  "outputs_data": [
+    "0x"
+  ]
+}
