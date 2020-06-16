@@ -27,7 +27,8 @@ elsif ARGV[0] == "start"
     if type == "quit"
       break
     elsif type == "listen"
-      t_listen = Thread.new(communicator.listen(command_split[1], command_file))
+      # t_listen = Thread.new(communicator.listen(command_split[1], command_file))
+      communicator.listen(command_split[1], command_file)
       command_file.close
       t_listen.join
     elsif type == "send"

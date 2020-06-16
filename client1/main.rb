@@ -37,7 +37,7 @@ elsif ARGV[0] == "start"
       capacity = command_split[5].to_i
       fee = command_split[6].to_i
       # t_send = Thread.new(communicator.send(src_ip, src_pbk, trg_ip, trg_port, capacity, fee))
-      communicator.send(src_pbk, trg_ip, trg_port, capacity, fee)
+      communicator.send_establish_channel(trg_ip, trg_port, capacity, fee)
       # t_send.join
       return 0
     end

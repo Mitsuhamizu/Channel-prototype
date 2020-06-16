@@ -1,21 +1,16 @@
-#!/usr/bin/ruby -w
 require "rubygems"
 require "bundler/setup"
 require "ckb"
 
-api = CKB::API::new
+api = CKB::API.new
 
-pub_key = ""
-pri_key = ""
-lock_hash = ""
+private_key1 = "0xd986d7bf901e50368cbe565f239c224934cd554805357338abcef177efadc08d"
+private_key2 = "0x82dede298f916ced53bf5aa87cea8a7e44e8898eaedcff96606579f7bf84d99d"
+# private_key = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
 
-lock_hash = "0xa8518131344d1cd10c3b43838e5eb9f733c98b5aa63f18af7b220759f35844aa"
-# lock_hash = "0x5e1e5fcfd10989b14f31436dd5fb875eb0d2940bd17e2e65cb76688608fa51b4"
-# lock_hash = "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947"
+sender = CKB::Wallet.from_hex(api, private_key1)
+receiver = CKB::Wallet.from_hex(api, private_key2)
 
-api.index_lock_hash(lock_hash)
-
-cell1 = api.get_live_cells_by_lock_hash(lock_hash, "0x0", "0x32")
-puts cell1
-cell2 = api.get_live_cells_by_lock_hash(lock_hash, "0x0", "0x51")
-puts cell2
+# puts sender.address
+# puts receiver.address
+tx = sender.generate_tx(receiver.address, CKB::Utils.byte_to_shannon(100), fee: 5000)
