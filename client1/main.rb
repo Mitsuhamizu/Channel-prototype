@@ -30,6 +30,7 @@ elsif ARGV[0] == "start"
       # t_send = Thread.new(communicator.send(src_ip, src_pbk, trg_ip, trg_port, capacity, fee))
       communicator.send_establish_channel(remote_ip, remote_port, capacity, fee, command_file)
       # t_send.join
+      
       return 0
     end
   end

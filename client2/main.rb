@@ -11,7 +11,6 @@ require "mongo"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-
 if ARGV[0] == "init"
   priv_key = ARGV[1]
   init = Init.new(priv_key)

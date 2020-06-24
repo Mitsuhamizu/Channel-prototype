@@ -20,8 +20,8 @@ class Communication
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
-    @gpc_code_hash = "0x3982bfaca9cd36a652f7133ae47e2f446d543bac449d20a9f1e7f7a6fd484dc0"
-    @gpc_tx = "0x7f6a792503f9bc4a73f6db61afa7fadf5332cc7ecf21140ff75b6312356e0ac5"
+    @gpc_code_hash = "0xf3bdd1340f8db1fa67c3e87dad9ee9fe39b3cecc5afcfb380805245184bbc36f"
+    @gpc_tx = "0x411d9b0b468d650cb0a577b3d93a18eac6ccff7b7515c41bd59b906606981568"
   end
 
   def insert_with_check(coll, doc)
@@ -87,67 +87,86 @@ class Communication
     return capacity_check
   end
 
+  def verify_cell_dep(tx) # make sure the tx can be accepted by blockchain.
+    # deps has is right.
+
+    # about the outputdata, just ignore it.
+
+  end
+
   def verify_info(info, sig_index)
     fund_tx = @coll_sessions.find({ id: info[:id] }).first[:fund_tx]
     fund_tx = CKB::Types::Transaction.from_h(fund_tx)
 
+    # for UDT.
+    input_type = ""
+    output_type = ""
+
     # load the blake2b hash of remote pubkey.
     gpc_lock = fund_tx.outputs[0].lock.args
     lock_info = @tx_generator.parse_lock_args(gpc_lock)
-    remote_pubkey = lock_info[:pubkey_A]
+    remote_pubkey = case sig_index
+      when 0
+        lock_info[:pubkey_A]
+      when 1
+        lock_info[:pubkey_B]
+      end
 
-    ctx_info_h = JSON.parse(info[:ctx], symbolize_names: true)
-
-    ctx_info_h[:outputs] = ctx_info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+    ctx_info = json_to_info (info[:ctx])
 
     # verify the ctx.
 
     # get the signature
-    remote_closing_witness = @tx_generator.parse_witness(ctx_info_h[:witness])
+    remote_closing_witness = @tx_generator.parse_witness(ctx_info[:witness])
+    remote_closing_witness_lock = @tx_generator.parse_witness_lock(remote_closing_witness.lock)
     remote_sig_closing = case sig_index
       when 0
-        remote_closing_witness[:sig_A]
+        remote_closing_witness_lock[:sig_A]
       when 1
-        remote_closing_witness[:sig_B]
+        remote_closing_witness_lock[:sig_B]
       end
 
     # generate the signed content.
-    msg_signed_closing = CKB::Serializers::OutputSerializer.new(ctx_info_h[:outputs][0]).serialize
+    msg_signed_closing = CKB::Serializers::OutputSerializer.new(ctx_info[:outputs][0]).serialize
 
     # add the length of witness
-    witness_len = (ctx_info_h[:witness].bytesize - 2) / 2
+    witness_len = (ctx_info[:witness].bytesize - 2) / 2
     witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
 
     # add the empty witness
-    empty_witness = @tx_generator.generate_raw_witness(remote_closing_witness[:flag], remote_closing_witness[:nounce])
+    empty_witness = @tx_generator.generate_empty_witness(remote_closing_witness_lock[:flag], remote_closing_witness_lock[:nounce], input_type, output_type)
+    empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
     msg_signed_closing = (msg_signed_closing + witness_len + empty_witness).strip
 
     # verify stx
-    stx_info_h = JSON.parse(info[:stx], symbolize_names: true)
-    stx_info_h[:outputs] = stx_info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+
+    stx_info = json_to_info (info[:stx])
 
     # load the signature of settlement info.
-    remote_settlement_witness = @tx_generator.parse_witness(stx_info_h[:witness])
+
+    remote_settlement_witness = @tx_generator.parse_witness(stx_info[:witness])
+    remote_settlement_witness_lock = @tx_generator.parse_witness_lock(remote_settlement_witness.lock)
     remote_sig_settlement = case sig_index
       when 0
-        remote_settlement_witness[:sig_A]
+        remote_settlement_witness_lock[:sig_A]
       when 1
-        remote_settlement_witness[:sig_B]
+        remote_settlement_witness_lock[:sig_B]
       end
 
     # generate the msg of settlement
     msg_signed_settlement = "0x"
-    for output in stx_info_h[:outputs]
+    for output in stx_info[:outputs]
       data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
       msg_signed_settlement += data
     end
 
     # add the length of witness
-    witness_len = (stx_info_h[:witness].bytesize - 2) / 2
+    witness_len = (stx_info[:witness].bytesize - 2) / 2
     witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
 
     # add the empty witness
-    empty_witness = @tx_generator.generate_raw_witness(remote_settlement_witness[:flag], remote_settlement_witness[:nounce])
+    empty_witness = @tx_generator.generate_empty_witness(remote_settlement_witness_lock[:flag], remote_settlement_witness_lock[:nounce], input_type, output_type)
+    empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
     msg_signed_settlement = (msg_signed_settlement + witness_len + empty_witness).strip
 
     if @tx_generator.verify_signature(msg_signed_closing, remote_sig_closing, remote_pubkey) != 0
@@ -159,6 +178,20 @@ class Communication
     end
 
     return 0
+  end
+
+  def info_to_json(info)
+    info_h = info
+    info_h[:outputs] = info[:outputs].map(&:to_h)
+    info_json = info_h.to_json
+    return info_json
+  end
+
+  def json_to_info(json)
+    info_h = JSON.parse(json, symbolize_names: true)
+    info = info_h
+    info[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+    return info
   end
 
   def process_recv_message(client, msg, command_file)
@@ -182,7 +215,8 @@ class Communication
     when -1 # Reset the status.
     when 0 # Just the plain text.
       puts msg[:text]
-    when 1 # 1. check the msg.  2. accept the opening request and generate the unsign fund tx.
+    when 1 # 1. check the msg.  2. accept the opening request and generate the unsigned fund tx.
+
       # parse the msg
       remote_pubkey = msg[:pubkey]
       remote_capacity = msg[:fund_capacity]
@@ -190,17 +224,21 @@ class Communication
       remote_fund_cells = msg[:fund_cells].map { |cell| CKB::Types::Input.from_h(cell) }
       timeout = msg[:timeout]
 
+      # the type_script is nil in CkByte
+      type_script = nil
+
       # check the cell is live and the capacity is enough.
-      capacity_check = check_cells(remote_fund_cells, remote_capacity + remote_fee)
+      capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
       if capacity_check == -1
-        msg = generate_text_msg("sry, your capacity is not enough or your cells are not alive.")
-        client.puts msg
+        client.puts = generate_text_msg("sry, your capacity is not enough or your cells are not alive.")
         client.close
         return -1
       end
-      remote_change = capacity_check - remote_capacity - remote_fee
 
-      #Ask whether willing to accept the request.
+      remote_change = capacity_check - CKB::Utils.byte_to_shannon(remote_capacity) - remote_fee
+
+      # ask whether willing to accept the request, the capacity is same as negotiations.
+      puts "The remote capacity: #{remote_capacity}. The remote fee:#{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
       while true
         # response = STDIN.gets.chomp
@@ -215,7 +253,7 @@ class Communication
         end
       end
 
-      #the capacity and fee.
+      # get the capacity and fee.
       while true
         puts "Please input the capacity and fee you want to use for funding"       #these code need to be more robust.
         local_capacity = command_file.gets.gsub("\n", "").to_i
@@ -226,23 +264,27 @@ class Communication
       #gather the fund input.
       local_fund_cells = gather_inputs(local_capacity, local_fee)
       local_fund_cells_h = local_fund_cells.inputs.map(&:to_h)
+      local_change = local_fund_cells.capacities - CKB::Utils.byte_to_shannon(local_capacity) - local_fee
 
-      local_change = local_fund_cells.capacities - local_capacity - local_fee
+      # generate the info of fund.
       gpc_capacity = remote_capacity + local_capacity
-
-      #merge the fund cells and the witness.
       fund_cells = remote_fund_cells + local_fund_cells.inputs
+      fund_witnesses = Array.new()
+      for iter in fund_cells
+        fund_witnesses << CKB::Types::Witness.new       # the witness will be customized in UDT.
+      end
 
-      # Let us create the tx.
-      fund_tx = @tx_generator.generate_fund_tx(fund_cells, gpc_capacity, local_change, remote_change, remote_pubkey, timeout)
+      # Let us create the fund tx!
+      fund_tx = @tx_generator.generate_fund_tx(fund_cells, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
 
-      # create new record.
-      doc = { id: msg[:id], privkey: @key.privkey, status: 3, nounce: 0, ctx: 0, stx: 0, gpc_scirpt_hash: fund_tx.outputs[0].lock.compute_hash, local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h }
+      # update database.
+      doc = { id: msg[:id], privkey: @key.privkey, local_pubkey: CKB::Key.blake160(@key.pubkey), remote_pubkey: remote_pubkey, status: 3, nounce: 0, ctx: 0, stx: 0, gpc_scirpt_hash: fund_tx.outputs[0].lock.compute_hash, local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, timeout: timeout }
       ret = insert_with_check(@coll_sessions, doc)
       if ret == -1
         puts "double insert."
         return -1
       end
+
       # send it
       msg = { id: msg[:id], type: 2, fee: local_fee, fund_tx: fund_tx.to_h, capacity: local_capacity }.to_json
       client.puts(msg)
@@ -253,10 +295,30 @@ class Communication
       local_fund_cells = @coll_sessions.find({ id: msg[:id] }).first[:local_fund_cells]
       remote_fund_cells = fund_tx.inputs.map(&:to_h) - local_fund_cells
       remote_fund_cells = remote_fund_cells.map { |cell| CKB::Types::Input.from_h(cell) }
+      local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
+      timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout]
 
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { gpc_scirpt_hash: fund_tx.outputs[0].lock.compute_hash } })
+      # check the depend cells, version, input since, type.
 
-      capacity_check = check_cells(remote_fund_cells, remote_capacity + remote_fee)
+      # get the remote pubkey (blake120). Assumption, there are only two pubkey.
+      input_group = @tx_generator.group_tx_input(fund_tx)
+      for key in input_group.keys
+        if key != CKB::Key.blake160(@key.pubkey)
+          remote_pubkey = key
+        end
+      end
+
+      # compute the gpc script hash by myself, and check it. So here, we can make sure that the GPC args are right.
+      init_args = @tx_generator.generate_lock_args(0, timeout, 0, local_pubkey[2..-1], remote_pubkey[2..-1])
+      gpc_lock_script = CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
+
+      if fund_tx.outputs[0].lock.compute_hash != gpc_lock_script.compute_hash
+        return -1
+      end
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { gpc_scirpt_hash: gpc_lock_script.compute_hash, remote_pubkey: remote_pubkey } })
+
+      # check the cells are alive and the capacity is enough.
+      capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
       if capacity_check == -1
         msg = generate_text_msg("sry, your capacity is not enough or your cells are not alive.")
         client.puts msg
@@ -264,109 +326,149 @@ class Communication
         return -1
       end
 
-      # I need the pubkey!!!!
+      # check the remote capcity is satisfactory.
+      puts "remote capacity #{remote_capacity}, remote fee: #{remote_fee}"
+
+      # generate the output locks in closing tx.
       init_args = fund_tx.outputs[0].lock.args
       lock_info = @tx_generator.parse_lock_args(init_args)
+      lock_info[:nounce] += 1
 
-      local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
-      remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
+      # generate the output locks in settlement tx.
+      local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: "0x" + lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
+      remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: "0x" + lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
 
-      fee = 1000
+      fee = 20000
 
-      local = { capacity: fund_tx.outputs[1].capacity - fee / 2, data: "0x", lock: local_default_lock }
-      remote = { capacity: fund_tx.outputs[2].capacity - fee / 2, data: "0x", lock: remote_default_lock }
-      closing_capacity = local[:capacity] + remote[:capacity]
+      # generate the output info in settlement tx.
+      local = { capacity: fund_tx.outputs[0].capacity - CKB::Utils.byte_to_shannon(remote_capacity) - fee, data: "0x", lock: local_default_lock }
+      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity) - fee, data: "0x", lock: remote_default_lock }
+      closing_capacity = fund_tx.outputs[0].capacity - fee
+
+      input_type = ""
+      output_type = ""
+      closing_output_data = "0x"
+
+      witness_closing = @tx_generator.generate_empty_witness(1, lock_info[:nounce], input_type, output_type)
+      witness_settlement = @tx_generator.generate_empty_witness(0, lock_info[:nounce], input_type, output_type)
 
       # generate and sign ctx and stx.
-      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity, "0x", 0, 0) # 0: output 1: output_data 2: witness
-      stx_info = @tx_generator.generate_settlement_info(local, remote, lock_info[:nounce], 0, 0) # 0: output 1: output_data 2: witness
-      ctx_info_h = ctx_info
-      stx_info_h = stx_info
-      ctx_info_h[:outputs] = ctx_info[:outputs].map(&:to_h)
-      stx_info_h[:outputs] = stx_info[:outputs].map(&:to_h)
-      ctx_info_h = ctx_info_h.to_json
-      stx_info_h = stx_info_h.to_json
+      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity, closing_output_data, witness_closing, 0) # 0: output 1: output_data 2: witness
+      stx_info = @tx_generator.generate_settlement_info(local, remote, witness_settlement, 0) # 0: output 1: output_data 2: witness
+
+      ctx_info_json = info_to_json(ctx_info)
+      stx_info_json = info_to_json(stx_info)
 
       # update the database.
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx: ctx_info_h } })
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stx: ctx_info_h } })
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { status: 4 } })
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: msg[:fund_tx], ctx: ctx_info_json, stx: ctx_info_json, status: 4 } })
 
       # send the info
-      msg = { id: msg[:id], type: 3, ctx: ctx_info_h, stx: stx_info_h, fee: fee, closing_capacity: closing_capacity }.to_json
+      msg = { id: msg[:id], type: 3, ctx: ctx_info_json, stx: stx_info_json, fee: fee, capacity: fund_tx.outputs[0].capacity / (10 ** 8) - remote_capacity }.to_json
       client.puts(msg)
-      # now, we have the enough info of
     when 3
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-      closing_capacity = msg[:closing_capacity]
+      remote_capacity = msg[:capacity]
 
-      remote_ctx_info_h = JSON.parse(msg[:ctx], symbolize_names: true)
-      remote_ctx_info_h[:outputs] = remote_ctx_info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+      remote_ctx_info = json_to_info(msg[:ctx])
+      remote_stx_info = json_to_info(msg[:stx])
 
-      remote_stx_info_h = JSON.parse(msg[:stx], symbolize_names: true)
-      remote_stx_info_h[:outputs] = remote_stx_info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
-      # verify the ctx and stx.
+      closing_output_data = "0x"
 
+      # verify the signatures of ctx and stx.
       verify_result = verify_info(msg, 0)
-
       if verify_result != 0
         puts "The signatures are invalid."
         return -1
       end
 
-      # verify the amoutn is right.
+      # verify the amount of ctx and stx are right.
       fee = msg[:fee]
 
       # sign the ctx and stx.
+
+      # just check these information are same as the remote one.
       init_args = fund_tx.outputs[0].lock.args
       lock_info = @tx_generator.parse_lock_args(init_args)
+      lock_info[:nounce] += 1
 
-      local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
-      remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
+      local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: "0x" + lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
+      remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: "0x" + lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
 
-      local = { capacity: fund_tx.outputs[2].capacity - fee / 2, data: "0x", lock: local_default_lock }
-      remote = { capacity: fund_tx.outputs[1].capacity - fee / 2, data: "0x", lock: remote_default_lock }
+      local = { capacity: fund_tx.outputs[0].capacity - CKB::Utils.byte_to_shannon(remote_capacity) - fee, data: "0x", lock: local_default_lock }
+      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity) - fee, data: "0x", lock: remote_default_lock }
+      closing_capacity = fund_tx.outputs[0].capacity - fee
 
-      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity, "0x", remote_ctx_info_h[:witness], 1) # 0: output 1: output_data 2: witness
-      stx_info = @tx_generator.generate_settlement_info(local, remote, lock_info[:nounce], remote_stx_info_h[:witness], 1) # 0: output 1: output_data 2: witness
-      ctx_info_h = ctx_info
-      stx_info_h = stx_info
-      ctx_info_h[:outputs] = ctx_info[:outputs].map(&:to_h)
-      stx_info_h[:outputs] = stx_info[:outputs].map(&:to_h)
-      ctx_info_h = ctx_info_h.to_json
-      stx_info_h = stx_info_h.to_json
+      # check the outputs in stx are right.
 
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx: ctx_info_h } })
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stx: ctx_info_h } })
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { status: 5 } })
+      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity, closing_output_data, remote_ctx_info[:witness], 1) # 0: output 1: output_data 2: witness
+      stx_info = @tx_generator.generate_settlement_info(remote, local, remote_stx_info[:witness], 1) # 0: output 1: output_data 2: witness
+
+      ctx_info_json = info_to_json(ctx_info)
+      stx_info_json = info_to_json(stx_info)
+
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx: ctx_info_json, stx: stx_info_json, status: 5 } })
 
       # send the info
-      msg = { id: msg[:id], type: 4, ctx: ctx_info_h, stx: stx_info_h }.to_json
+      msg = { id: msg[:id], type: 4, ctx: ctx_info_json, stx: stx_info_json }.to_json
       client.puts(msg)
     when 4
       # just check the ctx and stx is same as the local except the witness
 
+      # just set the remote witness to empty and compare it with local version.
+
       # just check the witenss!
+
+      # check the data is not modified!
+      verify_result = verify_info(msg, 0)
+      if verify_result != 0
+        puts "The data is modified."
+        return -1
+      end
+
+      # check the remote signature
+      verify_result = verify_info(msg, 1)
+      if verify_result != 0
+        puts "The signatures are invalid."
+        return -1
+      end
 
       # sign and send the tx_fund
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
 
-      fund_tx = @tx_generator.sign_tx(fund_tx, 0)
-      # update the database
+      fund_tx = @tx_generator.sign_tx(fund_tx).to_h
 
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx: msg[:ctx], stx: msg[:stx], status: 6 } })
+
+      # update the database
+      msg = { id: msg[:id], type: 5, fund_tx: fund_tx }.to_json
+      client.puts(msg)
     when 5
 
       # just check the fund_tx is same as local except the witness
 
       # sign the fund_tx and send it to chain
-      fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
-      fund_tx = CKB::Types::Transaction.from_h(fund_tx)
+      fund_tx_local = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
+      fund_tx_local = CKB::Types::Transaction.from_h(fund_tx_local)
 
-      fund_tx = @tx_generator.sign_tx(fund_tx, 0)
+      fund_tx_remote = msg[:fund_tx]
+      fund_tx_remote = CKB::Types::Transaction.from_h(fund_tx_remote)
+
+      fund_tx_local_hash = fund_tx_local.compute_hash
+      fund_tx_remote_hash = fund_tx_remote.compute_hash
+
+      if fund_tx_local_hash != fund_tx_remote_hash
+        puts "fund tx is not consistent."
+        return -1
+      end
+
+      fund_tx = @tx_generator.sign_tx(fund_tx_remote)
+
       # update the database
-
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
+      # @api.send_transaction(fund_tx)
+      # now it is time to send the fund tx.
     when 6
 
       # just check the witness is valid.
@@ -407,23 +509,28 @@ class Communication
   end
 
   def send_establish_channel(remote_ip, remote_port, capacity, fee, command_file)
-    #gather the input.
     s = TCPSocket.open(remote_ip, remote_port)
+
+    # prepare the msg.
     local_fund_cells = gather_inputs(capacity, fee)
     local_fund_cells = local_fund_cells.inputs.map(&:to_h)
-
-    #init the msg
+    local_pubkey = CKB::Key.blake160(@key.pubkey)
+    lock_timeout = 100
+    # get id.
     msg_digest = local_fund_cells.to_json
     session_id = Digest::MD5.hexdigest(msg_digest)
-    msg = { id: session_id, type: 1, pubkey: CKB::Key.blake160(@key.pubkey), fund_cells: local_fund_cells, fund_capacity: capacity, fee: fee, timeout: 100 }.to_json
+
+    msg = { id: session_id, type: 1, pubkey: local_pubkey, fund_cells: local_fund_cells, fund_capacity: capacity, fee: fee, timeout: lock_timeout }.to_json
     #insert the doc into database.
-    doc = { id: session_id, privkey: @key.privkey, status: 2, nounce: 0, ctx: 0, stx: 0, gpc_scirpt_hash: 0, local_fund_cells: local_fund_cells }
+    doc = { id: session_id, privkey: @key.privkey, local_pubkey: local_pubkey, remote_pubkey: "", status: 2, nounce: 0, ctx: 0, stx: 0, gpc_scirpt_hash: 0, local_fund_cells: local_fund_cells, timeout: lock_timeout }
     ret = insert_with_check(@coll_sessions, doc)
-    s.puts(msg)
     if ret == -1
       puts "double insert."
       return -1
     end
+
+    # send the msg.
+    s.puts(msg)
 
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
