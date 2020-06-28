@@ -1,0 +1,3 @@
+[submodule "ckb-gpc-contract"]
+	path = ckb-gpc-contract
+	url = https://github.com/Unlocku/ckb-gpc-contract
