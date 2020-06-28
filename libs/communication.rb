@@ -5,9 +5,13 @@ require "json"
 require "rubygems"
 require "bundler/setup"
 require "ckb"
-require "../libs/tx_generator.rb"
 require "digest/sha1"
 require "mongo"
+require "../libs/tx_generator.rb"
+require "../libs/mongodb_operate.rb"
+require "../libs/mongodb_operate.rb"
+require "../libs/ckb_interaction.rb"
+require "../libs/verification.rb"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
@@ -24,162 +28,11 @@ class Communication
     @gpc_tx = "0x411d9b0b468d650cb0a577b3d93a18eac6ccff7b7515c41bd59b906606981568"
   end
 
-  def insert_with_check(coll, doc)
-    view = coll.find({ id: doc[:id] })
-    if view.count_documents() != 0
-      puts "sry, there is an record already, please using reset msg."
-      return -1
-    end
-    coll.insert_one(doc)
-    return 0
-  end
-
-  def gather_inputs(capacity, fee, from_block_number: 0)
-    lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
-
-    capacity = CKB::Utils.byte_to_shannon(capacity)
-
-    output_GPC = CKB::Types::Output.new(
-      capacity: capacity,
-      lock: lock, #it should be the GPC lock script
-    )
-    output_GPC_data = "0x" #it should be the GPC data, well, it could be empty.
-
-    output_change = CKB::Types::Output.new(
-      capacity: 0,
-      lock: lock,
-    )
-
-    # The capacity is only the capcity of GPC, we should add the fee to it is the total_capacity.
-    output_change_data = "0x"
-
-    i = @wallet.gather_inputs(
-      capacity,
-      output_GPC.calculate_min_capacity(output_GPC_data),
-      output_change.calculate_min_capacity(output_change_data),
-      fee,
-      from_block_number: from_block_number,
-    )
-    return i
-  end
-
   def generate_text_msg(text)
     return { type: 0, text: text }.to_json
   end
 
-  def get_total_capacity(cells)
-    total_capacity = 0
-    for cell in cells
-      validation = @api.get_live_cell(cell.previous_output)
-      total_capacity += validation.cell.output.capacity
-      if validation.status != "live"
-        return -1
-      end
-    end
-    return total_capacity
-  end
-
-  def check_cells(cells, capacity)
-    capacity_check = get_total_capacity(cells)
-    if capacity > capacity_check || capacity_check == -1
-      return -1
-    end
-    return capacity_check
-  end
-
-  def verify_cell_dep(tx) # make sure the tx can be accepted by blockchain.
-    # deps has is right.
-
-    # about the outputdata, just ignore it.
-
-  end
-
-  def verify_info(info, sig_index)
-    fund_tx = @coll_sessions.find({ id: info[:id] }).first[:fund_tx]
-    fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-
-    # for UDT.
-    input_type = ""
-    output_type = ""
-
-    # load the blake2b hash of remote pubkey.
-    gpc_lock = fund_tx.outputs[0].lock.args
-    lock_info = @tx_generator.parse_lock_args(gpc_lock)
-    remote_pubkey = case sig_index
-      when 0
-        lock_info[:pubkey_A]
-      when 1
-        lock_info[:pubkey_B]
-      end
-
-    ctx_info = json_to_info (info[:ctx])
-
-    # verify the ctx.
-
-    # get the signature
-    remote_closing_witness = @tx_generator.parse_witness(ctx_info[:witness])
-    remote_closing_witness_lock = @tx_generator.parse_witness_lock(remote_closing_witness.lock)
-    remote_sig_closing = case sig_index
-      when 0
-        remote_closing_witness_lock[:sig_A]
-      when 1
-        remote_closing_witness_lock[:sig_B]
-      end
-
-    # generate the signed content.
-    msg_signed_closing = CKB::Serializers::OutputSerializer.new(ctx_info[:outputs][0]).serialize
-
-    # add the length of witness
-    witness_len = (ctx_info[:witness].bytesize - 2) / 2
-    witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
-
-    # add the empty witness
-    empty_witness = @tx_generator.generate_empty_witness(remote_closing_witness_lock[:flag], remote_closing_witness_lock[:nounce], input_type, output_type)
-    empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
-    msg_signed_closing = (msg_signed_closing + witness_len + empty_witness).strip
-
-    # verify stx
-
-    stx_info = json_to_info (info[:stx])
-
-    # load the signature of settlement info.
-
-    remote_settlement_witness = @tx_generator.parse_witness(stx_info[:witness])
-    remote_settlement_witness_lock = @tx_generator.parse_witness_lock(remote_settlement_witness.lock)
-    remote_sig_settlement = case sig_index
-      when 0
-        remote_settlement_witness_lock[:sig_A]
-      when 1
-        remote_settlement_witness_lock[:sig_B]
-      end
-
-    # generate the msg of settlement
-    msg_signed_settlement = "0x"
-    for output in stx_info[:outputs]
-      data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
-      msg_signed_settlement += data
-    end
-
-    # add the length of witness
-    witness_len = (stx_info[:witness].bytesize - 2) / 2
-    witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
-
-    # add the empty witness
-    empty_witness = @tx_generator.generate_empty_witness(remote_settlement_witness_lock[:flag], remote_settlement_witness_lock[:nounce], input_type, output_type)
-    empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
-    msg_signed_settlement = (msg_signed_settlement + witness_len + empty_witness).strip
-
-    if @tx_generator.verify_signature(msg_signed_closing, remote_sig_closing, remote_pubkey) != 0
-      return -1
-    end
-
-    if @tx_generator.verify_signature(msg_signed_settlement, remote_sig_settlement, remote_pubkey) != 0
-      return -1
-    end
-
-    return 0
-  end
-
+  # These two functions are used to parse-construct ctx_info and stx_info.
   def info_to_json(info)
     info_h = info
     info_h[:outputs] = info[:outputs].map(&:to_h)
@@ -195,7 +48,6 @@ class Communication
   end
 
   def process_recv_message(client, msg, command_file)
-    # re calcualte and check the id is correct!
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
     if view.count_documents() == 0 && type != 1
@@ -486,16 +338,12 @@ class Communication
     end
   end
 
-  # def send(pbk, trg_ip, trg_port, capacity, fee)
-  # end
-
   def listen(src_port, command_file)
     puts "listen start"
-    api = CKB::API::new
-    stage = 0
     server = TCPServer.open(src_port)
     loop {
       Thread.start(server.accept) do |client|
+
         #parse the msg
         while (1)
           msg = JSON.parse(client.gets, symbolize_names: true)
@@ -508,19 +356,24 @@ class Communication
     }
   end
 
-  def send_establish_channel(remote_ip, remote_port, capacity, fee, command_file)
+  def send_establish_channel(remote_ip, remote_port, capacity, fee, timeout, command_file)
     s = TCPSocket.open(remote_ip, remote_port)
 
     # prepare the msg.
     local_fund_cells = gather_inputs(capacity, fee)
     local_fund_cells = local_fund_cells.inputs.map(&:to_h)
     local_pubkey = CKB::Key.blake160(@key.pubkey)
-    lock_timeout = 100
+    lock_timeout = timeout
+
     # get id.
     msg_digest = local_fund_cells.to_json
     session_id = Digest::MD5.hexdigest(msg_digest)
 
     msg = { id: session_id, type: 1, pubkey: local_pubkey, fund_cells: local_fund_cells, fund_capacity: capacity, fee: fee, timeout: lock_timeout }.to_json
+
+    # send the msg.
+    s.puts(msg)
+
     #insert the doc into database.
     doc = { id: session_id, privkey: @key.privkey, local_pubkey: local_pubkey, remote_pubkey: "", status: 2, nounce: 0, ctx: 0, stx: 0, gpc_scirpt_hash: 0, local_fund_cells: local_fund_cells, timeout: lock_timeout }
     ret = insert_with_check(@coll_sessions, doc)
@@ -528,10 +381,6 @@ class Communication
       puts "double insert."
       return -1
     end
-
-    # send the msg.
-    s.puts(msg)
-
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
       process_recv_message(s, msg, command_file)

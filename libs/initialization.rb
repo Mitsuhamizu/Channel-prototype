@@ -5,9 +5,7 @@ require "ckb"
 require "mongo"
 
 class Init
-  # def initialize(id, privkey, status, version, ctx, stx, gpc_args_hash)
   def initialize(privkey)
-    #link the mongodb
     client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     db = client.database
     pubkey = CKB::Key.pubkey(privkey)

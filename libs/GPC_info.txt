@@ -1,21 +1,3 @@
-CKB::Blake2b.hexdigest(data)
-
-
-old:
-tx_hash
-0x16d3821edd0388752bb01476d0e5b2a7e1a2bb867be51b07efaed33bb34ff823
-
-code_hash
-0xa5e2420b3204359540af6cb45fe3a1adb6ff71462c473ba158e3c5706847b72b
-
-new:
-tx_hash
-0x7f6a792503f9bc4a73f6db61afa7fadf5332cc7ecf21140ff75b6312356e0ac5
-
-code_hash
-0x3982bfaca9cd36a652f7133ae47e2f446d543bac449d20a9f1e7f7a6fd484dc0
-
-
 code:
 0xf3bdd1340f8db1fa67c3e87dad9ee9fe39b3cecc5afcfb380805245184bbc36f
 

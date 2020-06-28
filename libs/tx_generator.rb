@@ -217,26 +217,6 @@ class Tx_generator
     return tx
   end
 
-  def verify_signature(msg, sig, pubkey)
-    data = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(msg))
-    unrelated = MyECDSA.new
-
-    signature_bin = CKB::Utils.hex_to_bin("0x" + sig[0..127])
-    recid = CKB::Utils.hex_to_bin("0x" + sig[128..129]).unpack("C*")[0]
-
-    sig_reverse = unrelated.ecdsa_recoverable_deserialize(signature_bin, recid)
-    pubkey_reverse = unrelated.ecdsa_recover(CKB::Utils.hex_to_bin(data), sig_reverse, raw: true)
-    pubser = Secp256k1::PublicKey.new(pubkey: pubkey_reverse).serialize
-    pubkey_reverse = CKB::Utils.bin_to_hex(pubser)
-
-    pubkey_verify = CKB::Key.blake160(pubkey_reverse)
-    if pubkey_verify[2..] != pubkey
-      return -1
-    else
-      return 0
-    end
-  end
-
   def generate_fund_tx(fund_inputs, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
     local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: remote_pubkey, hash_type: CKB::ScriptHashType::TYPE)
