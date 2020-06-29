@@ -33,7 +33,6 @@ elsif ARGV[0] == "start"
     # command = STDIN.gets.chomp
     command_file = File.open("command.txt", "r")
     type = read_command(command_file)
-
     port = read_command(command_file)
     if type == "quit"
       break

@@ -1,3 +1,5 @@
+require "../libs/ckb_interaction.rb"
+
 def verify_info(info, sig_index)
   fund_tx = @coll_sessions.find({ id: info[:id] }).first[:fund_tx]
   fund_tx = CKB::Types::Transaction.from_h(fund_tx)
@@ -104,9 +106,30 @@ def verify_signature(msg, sig, pubkey)
   end
 end
 
-def verify_cell_dep(tx) # make sure the tx can be accepted by blockchain.
-  # deps has is right.
+def verify_change(tx, input_cells, input_capacity, fee, pubkey)
+  change = 0
+  for output in tx.outputs
+    change = output.capacity if pubkey == output.lock.args
+  end
 
-  # about the outputdata, just ignore it.
+  return -1 if change != (get_total_capacity(input_cells) -
+                          CKB::Utils.byte_to_shannon(input_capacity) - fee)
 
+  return 0
 end
+
+# def verify_tx(tx)
+
+#   return -1 if tx.verision != 0
+#   # check the cell_dep
+#   # It is very complex... So I just list the step...
+#   # Well, just verify every script can have their code hash in the cell deps.
+
+#   # check outputs
+# output_capacity = 0
+# for output in fund_tx.outputs
+#   output_capacity += output.capacity
+# end
+#   # check the outputs data. well, in ckb, it seems ok? Since we do not care about the ckbyte!
+
+# end
