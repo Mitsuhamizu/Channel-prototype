@@ -251,14 +251,14 @@ class Communication
                                                    args: "0x" + lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
 
       # generate the output info in settlement tx.
-      local = { capacity: CKB::Utils.byte_to_shannon(local_capacity), data: "0x", lock: local_default_lock }
-      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity), data: "0x", lock: remote_default_lock }
+      local = { capacity: CKB::Utils.byte_to_shannon(local_capacity), data: "", lock: local_default_lock }
+      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity), data: "", lock: remote_default_lock }
 
       closing_capacity = fund_tx.outputs[0].capacity
 
       input_type = ""
       output_type = ""
-      closing_output_data = "0x"
+      closing_output_data = ""
 
       witness_closing = @tx_generator.generate_empty_witness(1, lock_info[:nounce], input_type, output_type)
       witness_settlement = @tx_generator.generate_empty_witness(0, lock_info[:nounce], input_type, output_type)
@@ -289,12 +289,12 @@ class Communication
       remote_ctx_info = json_to_info(msg[:ctx])
       remote_stx_info = json_to_info(msg[:stx])
 
-      closing_output_data = "0x"
+      closing_output_data = ""
 
       # verify the signatures of ctx and stx.
       verify_result = verify_info(msg, 0)
       if verify_result != 0
-        puts "The signatures are invalid."
+        client.puts(generate_text_msg("The signatures are invalid."))
         return -1
       end
 
@@ -311,17 +311,17 @@ class Communication
                                                    args: "0x" + lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
 
       local = { capacity: CKB::Utils.byte_to_shannon(local_capacity),
-                data: "0x", lock: local_default_lock }
+                data: "", lock: local_default_lock }
       remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity),
-                 data: "0x", lock: remote_default_lock }
+                 data: "", lock: remote_default_lock }
       closing_capacity = fund_tx.outputs[0].capacity
 
       # check the outputs in stx are right.
 
       ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity,
-                                                     closing_output_data, remote_ctx_info[:witness], 1) # 0: output 1: output_data 2: witness
+                                                     closing_output_data, remote_ctx_info[:witness], 1)
       stx_info = @tx_generator.generate_settlement_info(remote, local,
-                                                        remote_stx_info[:witness], 1) # 0: output 1: output_data 2: witness
+                                                        remote_stx_info[:witness], 1)
 
       ctx_info_json = info_to_json(ctx_info)
       stx_info_json = info_to_json(stx_info)
@@ -351,14 +351,14 @@ class Communication
 
       verify_result = verify_info(msg, 0)
       if verify_result != 0 || local_ctx_sig != remote_ctx_sig || local_stx_sig != remote_stx_sig
-        puts "The data is modified."
+        client.puts(generate_text_msg("The data is modified."))
         return -1
       end
 
       # check the remote signature
       verify_result = verify_info(msg, 1)
       if verify_result != 0
-        puts "The signatures are invalid."
+        client.puts(generate_text_msg("The signatures are invalid."))
         return -1
       end
 
@@ -379,9 +379,7 @@ class Communication
       return 0
     when 5
 
-      # just check the fund_tx is same as local except the witness
-
-      # sign the fund_tx and send it to chain
+      # sign the fund_tx.
       fund_tx_local = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       fund_tx_local = CKB::Types::Transaction.from_h(fund_tx_local)
 
@@ -392,7 +390,7 @@ class Communication
       fund_tx_remote_hash = fund_tx_remote.compute_hash
 
       if fund_tx_local_hash != fund_tx_remote_hash
-        puts "fund tx is not consistent."
+        client.puts(generate_text_msg("fund tx is not consistent."))
         return -1
       end
 
@@ -400,7 +398,10 @@ class Communication
 
       # update the database
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
-      # @api.send_transaction(fund_tx)
+
+      # send the fund tx to chain.
+      
+
       return 0
     when 6
 

@@ -283,8 +283,11 @@ class Tx_generator
     outputs_data = [gpc_output_data]
 
     # I need to generate the witness!
-
     msg = CKB::Serializers::OutputSerializer.new(gpc_output).serialize
+
+    # Also, the outputdata
+    msg += outputs_data[0]
+
     witness = generate_witness(1, witness, msg, sig_index)
 
     result = { outputs: outputs, outputs_data: outputs_data, witness: witness }
@@ -313,6 +316,11 @@ class Tx_generator
       data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
       msg += data
     end
+
+    for data in outputs_data
+      msg += data
+    end
+
     witness = generate_witness(0, witness, msg, sig_index)
     result = { outputs: outputs, outputs_data: outputs_data, witness: witness }
 
@@ -320,6 +328,7 @@ class Tx_generator
   end
 
   def generate_closing_tx(inputs, closing_info)
+    
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],
