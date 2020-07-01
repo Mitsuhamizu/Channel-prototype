@@ -17,8 +17,8 @@ class Tx_generator
   def initialize(key)
     @key = key
     @api = CKB::API::new
-    @gpc_code_hash = "0xf3bdd1340f8db1fa67c3e87dad9ee9fe39b3cecc5afcfb380805245184bbc36f"
-    @gpc_tx = "0x411d9b0b468d650cb0a577b3d93a18eac6ccff7b7515c41bd59b906606981568"
+    @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
+    @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
   end
 
   def assemble_lock_args(status, timeout, nounce)
@@ -27,9 +27,9 @@ class Tx_generator
     return result
   end
 
-  def generate_lock_args(status, timeout, nounce, pubkey_A, pubkey_B)
+  def generate_lock_args(id, status, timeout, nounce, pubkey_A, pubkey_B)
     assemble_result = assemble_lock_args(status, timeout, nounce)
-    return "0x" + assemble_result + pubkey_A + pubkey_B
+    return "0x" + id + assemble_result + pubkey_A + pubkey_B
   end
 
   def parse_witness(witness_ser)
@@ -67,12 +67,14 @@ class Tx_generator
   end
 
   def parse_lock_args(args_ser)
-    assemble_result = args_ser[0..35]
+    id = args_ser[2..33]
+
+    assemble_result = "0x" + args_ser[34..67]
     assemble_result = CKB::Utils.hex_to_bin(assemble_result)
-    pubkey_A = args_ser[36..75]
-    pubkey_B = args_ser[76, 115]
+    pubkey_A = args_ser[68..107]
+    pubkey_B = args_ser[108, 147]
     result = assemble_result.unpack("cQQ")
-    result = { status: result[0], timeout: result[1], nounce: result[2], pubkey_A: pubkey_A, pubkey_B: pubkey_B }
+    result = { id: id, status: result[0], timeout: result[1], nounce: result[2], pubkey_A: pubkey_A, pubkey_B: pubkey_B }
 
     return result
   end
@@ -84,23 +86,26 @@ class Tx_generator
   end
 
   def parse_witness_lock(lock)
-    assemble_result = CKB::Utils.hex_to_bin("0x" + lock[2..19])
+    prefix_len = 52
+    assemble_result = CKB::Utils.hex_to_bin("0x" + lock[34..51])
     result = assemble_result.unpack("cQ")
-    result = { flag: result[0], nounce: result[1], sig_A: lock[20..149], sig_B: lock[150..279] }
+    result = { id: lock[2..33], flag: result[0], nounce: result[1], sig_A: lock[52..181], sig_B: lock[182..311] }
     return result
   end
 
   # need modification
-  def generate_empty_witness(flag, nounce, input_type, output_type)
+  def generate_empty_witness(id, flag, nounce, input_type, output_type)
     sig_A = "00" * 65
     sig_B = "00" * 65
     assemble_result = assemble_witness_args(flag, nounce)
-    empty_witness = CKB::Types::Witness.new(lock: "0x" + assemble_result + sig_A + sig_B, input_type: input_type, output_type: output_type)
+    empty_witness = CKB::Types::Witness.new(lock: "0x" + id + assemble_result + sig_A + sig_B, input_type: input_type, output_type: output_type)
     return empty_witness
   end
 
   # need modification
-  def generate_witness(flag, witness, message, sig_index)
+  def generate_witness(id, flag, witness, message, sig_index)
+    prefix_len = 52
+
     witness_recover = case witness
       when CKB::Types::Witness
         witness
@@ -115,14 +120,14 @@ class Tx_generator
       else
         parse_witness(witness)
       end
-    empty_witness.lock[20..-1] = "00" * 130
+    empty_witness.lock[prefix_len..-1] = "00" * 130
     empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
     witness_len = CKB::Utils.hex_to_bin("0x" + empty_witness).length
     witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
     message = (message + witness_len + empty_witness).strip
     message = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(message))
     signature = @key.sign_recoverable(message)[2..-1]
-    s = 20 + sig_index * 65 * 2
+    s = prefix_len + sig_index * 65 * 2
     e = s + 65 * 2 - 1
     witness_recover.lock[s..e] = signature
     witness_recover = CKB::Serializers::WitnessArgsSerializer.from(witness_recover).serialize
@@ -143,6 +148,18 @@ class Tx_generator
       index += 1
     end
     return group
+  end
+
+  def convert_input(tx, index, since)
+    out_point = CKB::Types::OutPoint.new(
+      tx_hash: tx.hash,
+      index: index,
+    )
+    input = CKB::Types::Input.new(
+      previous_output: out_point,
+      since: since,
+    )
+    return input
   end
 
   def sign_tx(tx)
@@ -217,7 +234,7 @@ class Tx_generator
     return tx
   end
 
-  def generate_fund_tx(fund_inputs, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
+  def generate_fund_tx(id, fund_inputs, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
     local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: remote_pubkey, hash_type: CKB::ScriptHashType::TYPE)
 
@@ -225,7 +242,7 @@ class Tx_generator
 
     local_pubkey = (CKB::Key.blake160(CKB::Key.pubkey(@key.privkey)))[2..-1]
     remote_pubkey = remote_pubkey[2..-1]
-    init_args = generate_lock_args(0, timeout, 0, remote_pubkey, local_pubkey)
+    init_args = generate_lock_args(id, 0, timeout, 0, remote_pubkey, local_pubkey)
     gpc_output = CKB::Types::Output.new(
       capacity: CKB::Utils.byte_to_shannon(gpc_capacity),
       lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
@@ -270,10 +287,10 @@ class Tx_generator
     return tx
   end
 
-  def generate_closing_info(gpc_lock, capacity, gpc_output_data, witness, sig_index)
+  def generate_closing_info(id, gpc_lock, capacity, gpc_output_data, witness, sig_index)
 
     # load the args
-    args = generate_lock_args(1, gpc_lock[:timeout], gpc_lock[:nounce], gpc_lock[:pubkey_A], gpc_lock[:pubkey_B])
+    args = generate_lock_args(id, 1, gpc_lock[:timeout], gpc_lock[:nounce], gpc_lock[:pubkey_A], gpc_lock[:pubkey_B])
     gpc_output = CKB::Types::Output.new(
       capacity: capacity,
       lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
@@ -286,15 +303,15 @@ class Tx_generator
     msg = CKB::Serializers::OutputSerializer.new(gpc_output).serialize
 
     # Also, the outputdata
-    msg += outputs_data[0]
+    msg += outputs_data[0][2..]
 
-    witness = generate_witness(1, witness, msg, sig_index)
+    witness = generate_witness(id, 1, witness, msg, sig_index)
 
-    result = { outputs: outputs, outputs_data: outputs_data, witness: witness }
+    result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
     return result
   end
 
-  def generate_settlement_info(a, b, witness, sig_index)
+  def generate_settlement_info(id, a, b, witness, sig_index)
     output_A = CKB::Types::Output.new(
       capacity: a[:capacity],
       # lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
@@ -318,17 +335,16 @@ class Tx_generator
     end
 
     for data in outputs_data
-      msg += data
+      msg += data[2..]
     end
 
-    witness = generate_witness(0, witness, msg, sig_index)
-    result = { outputs: outputs, outputs_data: outputs_data, witness: witness }
+    witness = generate_witness(id, 0, witness, msg, sig_index)
+    result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
 
     return result
   end
 
   def generate_closing_tx(inputs, closing_info)
-    
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],

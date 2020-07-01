@@ -22,10 +22,11 @@ class Communication
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    @brake = false
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
-    @gpc_code_hash = "0xf3bdd1340f8db1fa67c3e87dad9ee9fe39b3cecc5afcfb380805245184bbc36f"
-    @gpc_tx = "0x411d9b0b468d650cb0a577b3d93a18eac6ccff7b7515c41bd59b906606981568"
+    @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
+    @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
     @steady_stage = []
   end
 
@@ -151,7 +152,7 @@ class Communication
       end
 
       # Let us create the fund tx!
-      fund_tx = @tx_generator.generate_fund_tx(fund_cells, gpc_capacity, local_change, remote_change,
+      fund_tx = @tx_generator.generate_fund_tx(msg[:id], fund_cells, gpc_capacity, local_change, remote_change,
                                                remote_pubkey, timeout, type_script, fund_witnesses)
 
       # send it
@@ -162,7 +163,7 @@ class Communication
       # update database.
       doc = { id: msg[:id], local_pubkey: CKB::Key.blake160(@key.pubkey), remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx: 0, stx: 0, gpc_script: CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize,
-              local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply, local_capacity: local_capacity }
+              local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply, local_capacity: local_capacity, stage: 0, settlement_time: 0 }
       ret = insert_with_check(@coll_sessions, doc)
       return -1 if ret == -1
 
@@ -183,15 +184,22 @@ class Communication
       timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout]
 
       # get the remote pubkey (blake160). Assumption, there are only two pubkey.
+      remote_pubkey = nil
       input_group = @tx_generator.group_tx_input(fund_tx)
       for key in input_group.keys
         if key != CKB::Key.blake160(@key.pubkey)
           remote_pubkey = key
+          break
         end
       end
 
+      # About the one way channel.
+      if remote_pubkey == nil
+        puts "It is a one-way channel......."
+      end
+
       # compute the gpc script by myself, and check it. So here, we can make sure that the GPC args are right.
-      init_args = @tx_generator.generate_lock_args(0, timeout, 0, local_pubkey[2..-1], remote_pubkey[2..-1])
+      init_args = @tx_generator.generate_lock_args(msg[:id], 0, timeout, 0, local_pubkey[2..-1], remote_pubkey[2..-1])
       gpc_lock_script = CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
       if CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize != CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize
         client.puts(generate_text_msg("sry, the gpc lock is inconsistent with my verison."))
@@ -251,21 +259,21 @@ class Communication
                                                    args: "0x" + lock_info[:pubkey_B], hash_type: CKB::ScriptHashType::TYPE)
 
       # generate the output info in settlement tx.
-      local = { capacity: CKB::Utils.byte_to_shannon(local_capacity), data: "", lock: local_default_lock }
-      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity), data: "", lock: remote_default_lock }
+      local = { capacity: CKB::Utils.byte_to_shannon(local_capacity), data: "0x", lock: local_default_lock }
+      remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity), data: "0x", lock: remote_default_lock }
 
       closing_capacity = fund_tx.outputs[0].capacity
 
       input_type = ""
       output_type = ""
-      closing_output_data = ""
+      closing_output_data = "0x"
 
-      witness_closing = @tx_generator.generate_empty_witness(1, lock_info[:nounce], input_type, output_type)
-      witness_settlement = @tx_generator.generate_empty_witness(0, lock_info[:nounce], input_type, output_type)
+      witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, lock_info[:nounce], input_type, output_type)
+      witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, lock_info[:nounce], input_type, output_type)
 
       # generate and sign ctx and stx.
-      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity, closing_output_data, witness_closing, 0)
-      stx_info = @tx_generator.generate_settlement_info(local, remote, witness_settlement, 0)
+      ctx_info = @tx_generator.generate_closing_info(msg[:id], lock_info, closing_capacity, closing_output_data, witness_closing, 0)
+      stx_info = @tx_generator.generate_settlement_info(msg[:id], local, remote, witness_settlement, 0)
 
       ctx_info_json = info_to_json(ctx_info)
       stx_info_json = info_to_json(stx_info)
@@ -274,7 +282,7 @@ class Communication
       msg_reply = { id: msg[:id], type: 3, ctx: ctx_info_json, stx: stx_info_json, capacity: local_capacity }.to_json
       client.puts(msg_reply)
 
-      # update the database.w
+      # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { gpc_script: CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize,
                                                                         remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx: ctx_info_json,
                                                                         stx: stx_info_json, status: 4, msg_cache: msg_reply } })
@@ -289,7 +297,7 @@ class Communication
       remote_ctx_info = json_to_info(msg[:ctx])
       remote_stx_info = json_to_info(msg[:stx])
 
-      closing_output_data = ""
+      closing_output_data = "0x"
 
       # verify the signatures of ctx and stx.
       verify_result = verify_info(msg, 0)
@@ -311,17 +319,17 @@ class Communication
                                                    args: "0x" + lock_info[:pubkey_A], hash_type: CKB::ScriptHashType::TYPE)
 
       local = { capacity: CKB::Utils.byte_to_shannon(local_capacity),
-                data: "", lock: local_default_lock }
+                data: "0x", lock: local_default_lock }
       remote = { capacity: CKB::Utils.byte_to_shannon(remote_capacity),
-                 data: "", lock: remote_default_lock }
+                 data: "0x", lock: remote_default_lock }
       closing_capacity = fund_tx.outputs[0].capacity
 
       # check the outputs in stx are right.
 
-      ctx_info = @tx_generator.generate_closing_info(lock_info, closing_capacity,
-                                                     closing_output_data, remote_ctx_info[:witness], 1)
-      stx_info = @tx_generator.generate_settlement_info(remote, local,
-                                                        remote_stx_info[:witness], 1)
+      ctx_info = @tx_generator.generate_closing_info(msg[:id], lock_info, closing_capacity,
+                                                     closing_output_data, remote_ctx_info[:witness][0], 1)
+      stx_info = @tx_generator.generate_settlement_info(msg[:id], remote, local,
+                                                        remote_stx_info[:witness][0], 1)
 
       ctx_info_json = info_to_json(ctx_info)
       stx_info_json = info_to_json(stx_info)
@@ -343,11 +351,11 @@ class Communication
       remote_ctx_info = json_to_info(msg[:ctx])
       remote_stx_info = json_to_info(msg[:stx])
 
-      local_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_ctx_info[:witness]).lock)[:sig_A]
-      remote_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_ctx_info[:witness]).lock)[:sig_A]
+      local_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_ctx_info[:witness][0]).lock)[:sig_A]
+      remote_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_ctx_info[:witness][0]).lock)[:sig_A]
 
-      local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witness]).lock)[:sig_A]
-      remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witness]).lock)[:sig_A]
+      local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witness][0]).lock)[:sig_A]
+      remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witness][0]).lock)[:sig_A]
 
       verify_result = verify_info(msg, 0)
       if verify_result != 0 || local_ctx_sig != remote_ctx_sig || local_stx_sig != remote_stx_sig
@@ -396,11 +404,12 @@ class Communication
 
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
 
-      # update the database
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
-
       # send the fund tx to chain.
-      
+      # tx_hash = @api.send_transaction(fund_tx)
+
+      # update the database
+      # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
 
       return 0
     when 6
@@ -457,7 +466,7 @@ class Communication
     #insert the doc into database.
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
-            timeout: lock_timeout, msg_cache: msg.to_json, local_capacity: capacity, local_fee: fee }
+            timeout: lock_timeout, msg_cache: msg.to_json, local_capacity: capacity, local_fee: fee, stage: 0, settlement_time: 0 }
     ret = insert_with_check(@coll_sessions, doc)
     return -1 if ret == -1
 

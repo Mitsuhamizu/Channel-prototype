@@ -14,6 +14,6 @@ gpc_data_hash = CKB::Blake2b.hexdigest(data)
 
 puts gpc_data_hash
 
-gpc_tx_hash = wallet.send_capacity(wallet.address, CKB::Utils.byte_to_shannon(90000), CKB::Utils.bin_to_hex(data), fee: 10 ** 6)
+gpc_tx_hash = wallet.send_capacity(wallet.address, CKB::Utils.byte_to_shannon(100000), CKB::Utils.bin_to_hex(data), fee: 10 ** 6)
 
 puts gpc_tx_hash

@@ -23,7 +23,7 @@ def verify_info(info, sig_index)
   # verify the ctx.
 
   # get the signature
-  remote_closing_witness = @tx_generator.parse_witness(ctx_info[:witness])
+  remote_closing_witness = @tx_generator.parse_witness(ctx_info[:witness][0])
   remote_closing_witness_lock = @tx_generator.parse_witness_lock(remote_closing_witness.lock)
   remote_sig_closing = case sig_index
     when 0
@@ -34,13 +34,13 @@ def verify_info(info, sig_index)
 
   # generate the signed content.
   msg_signed_closing = CKB::Serializers::OutputSerializer.new(ctx_info[:outputs][0]).serialize
-
+  msg_signed_closing += ctx_info[:outputs_data][0][2..]
   # add the length of witness
-  witness_len = (ctx_info[:witness].bytesize - 2) / 2
+  witness_len = (ctx_info[:witness][0].bytesize - 2) / 2
   witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
 
   # add the empty witness
-  empty_witness = @tx_generator.generate_empty_witness(remote_closing_witness_lock[:flag], remote_closing_witness_lock[:nounce], input_type, output_type)
+  empty_witness = @tx_generator.generate_empty_witness(info[:id], remote_closing_witness_lock[:flag], remote_closing_witness_lock[:nounce], input_type, output_type)
   empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
   msg_signed_closing = (msg_signed_closing + witness_len + empty_witness).strip
 
@@ -50,7 +50,7 @@ def verify_info(info, sig_index)
 
   # load the signature of settlement info.
 
-  remote_settlement_witness = @tx_generator.parse_witness(stx_info[:witness])
+  remote_settlement_witness = @tx_generator.parse_witness(stx_info[:witness][0])
   remote_settlement_witness_lock = @tx_generator.parse_witness_lock(remote_settlement_witness.lock)
   remote_sig_settlement = case sig_index
     when 0
@@ -66,12 +66,16 @@ def verify_info(info, sig_index)
     msg_signed_settlement += data
   end
 
+  for data in stx_info[:outputs_data]
+    msg_signed_settlement += data[2..]
+  end
+
   # add the length of witness
-  witness_len = (stx_info[:witness].bytesize - 2) / 2
+  witness_len = (stx_info[:witness][0].bytesize - 2) / 2
   witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
 
   # add the empty witness
-  empty_witness = @tx_generator.generate_empty_witness(remote_settlement_witness_lock[:flag], remote_settlement_witness_lock[:nounce], input_type, output_type)
+  empty_witness = @tx_generator.generate_empty_witness(info[:id], remote_settlement_witness_lock[:flag], remote_settlement_witness_lock[:nounce], input_type, output_type)
   empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
   msg_signed_settlement = (msg_signed_settlement + witness_len + empty_witness).strip
 

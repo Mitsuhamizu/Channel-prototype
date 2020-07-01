@@ -85,10 +85,6 @@ class Tx_generator
       previous_output: out_point,
       since: 0,
     )
-
-    
-
-
   end
 
   def generate_settlement_tx()
