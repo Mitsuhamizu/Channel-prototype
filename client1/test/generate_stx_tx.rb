@@ -56,6 +56,6 @@ settlement_input = [settlement_input]
 
 stx = @tx_generator.generate_settlement_tx(settlement_input, stx_info)
 
-# hash = @api.send_transaction(stx)
+hash = @api.send_transaction(stx)
 puts stx.compute_hash
 # puts hash

@@ -16,11 +16,47 @@ class Minotor
     @api = CKB::API::new
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    @db = @client.database
+    @db.drop()
+    @cell_min_capacity = 61
+    copy_db("GPC", "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
     @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
+  end
+
+  def copy_db(src, trg)
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => src)
+    @client2 = Mongo::Client.new(["127.0.0.1:27017"], :database => trg)
+    @db_src = @client.database
+    @db_trg = @client2.database
+    for coll_name in @db_src.collection_names
+      @coll_src = @db_src[coll_name]
+      @coll_trg = @db_trg[coll_name]
+      view = @coll_src.find { }
+      view.each do |doc|
+        @coll_trg.insert_one(doc)
+      end
+    end
+  end
+
+  def json_to_info(json)
+    info_h = JSON.parse(json, symbolize_names: true)
+    info = info_h
+    info[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+    return info
+  end
+
+  def json_to_input(input_hash)
+    out_point = CKB::Types::OutPoint.from_h(input_hash[:previous_output])
+    closing_input = CKB::Types::Input.new(
+      previous_output: out_point,
+      since: input_hash[:since],
+    )
   end
 
   def monitor_chain()
@@ -31,11 +67,11 @@ class Minotor
       view = @coll_sessions.find { }
       view.each do |doc|
         # well, if the ctx I sent can not be seen, just send it again.
-        send_ctx(doc[:id]) if doc[:stage] > 1 && doc[:settlement_time] == 0
+        next if doc[:"id"] == 0
+        send_tx(doc, "closing") if doc[:stage] >= 1 && doc[:settlement_time] == 0
         # check whether there are available to be sent.
-        send_stx(doc[:id]) if current_height > doc[:settlement_time] && doc[:settlement_time] != 0
+        send_tx(doc, "settlement") if current_height >= doc[:settlement_time] && doc[:settlement_time] != 0
       end
-
       # check whether there are some related ctx or fund tx submitted to chain.
       for i in (checked_height..current_height)
         puts i
@@ -70,72 +106,55 @@ class Minotor
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stage: doc[:stage] + 1 } })
                 ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h } })
-                send_ctx()
+                send_tx(doc, "closing")
               elsif nounce_on_chain == nounce_local
-                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + doc[:timeout] } })
-                stx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
-                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stx_input: stx_input_h } })
+                # here I need to parse the timeout from since to number.
+
+                # parse the timeout, it should be more robust,
+                timeout = doc[:timeout].to_i
+                timeout = [timeout].pack("Q>")
+                timeout[0] = [0].pack("C")
+                timeout = timeout.unpack("Q>")[0]
+
+                stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
+                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout,
+                                                                                  stx_input: stx_input_h } })
               elsif nounce_on_chain > nounce_local
                 puts "well, there is something wrong."
               end
-
-              index += 1
             end
+            index += 1
           end
         end
       end
-
+      @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { current_block_num: current_height } })
       # just update the checked block!
     end
   end
 
   # Need to construct corresponding txs.
 
-  def send_ctx(id, fee = 10000)
-    gpc_input = @coll_sessions.find({ id: id }).first[:ctx_input]
+  def send_tx(doc, type, fee = 10000)
+    tx_info = type == "closing" ? json_to_info(doc[:ctx]) : json_to_info(doc[:stx])
+    gpc_input = type == "closing" ? doc[:ctx_input] : doc[:stx_input]
+    gpc_input = json_to_input(gpc_input)
 
-    # find the fee cells.
+    fee_cell = gather_inputs(@cell_min_capacity, fee).inputs
+    input = [gpc_input] + fee_cell
 
-    # get the inputs.
-
-    # construct the corresponding data...
-  end
-
-  def send_ctx(id, fee = 10000)
-
-    # get related input.
-    gpc_input = @coll_sessions.find({ id: id }).first[:stx_input]
-
-    # get the closing information.
-    ctx_info_json = @coll_sessions.find({ id: id }).first[:ctx]
-    ctx_info = json_to_info(ctx_info_json)
-
-    # get the fee cell.
-    capa = 61
-    fee_cell = gather_inputs(capa, fee)
-
-    # construct the change output.
     local_change_output = CKB::Types::Output.new(
-      capacity: capa,
-      lock: local_default_lock,
+      capacity: CKB::Utils.byte_to_shannon(@cell_min_capacity),
+      lock: default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH,
+                                                  args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE),
       type: nil,
     )
-
-    # inputs done!
-    closing_input = [closing_input, fee_cell.inputs[0]]
-
-    # prepare the output, output_data and witness.
-
-    # the output is very simple, just add the change to it.
-
-    # the output also, just set it to 0x
-
-    # the witness.., well I need to construct it.
-
-    # find the fee cells.
-
-    # get the inputs.
-
-    # construct the corresponding data...
+    tx_info[:outputs] << local_change_output
+    for nosense in fee_cell
+      tx_info[:outputs_data] << "0x"
+      tx_info[:witness] << CKB::Types::Witness.new
+    end
+    tx = @tx_generator.generate_no_input_tx(input, tx_info)
+    tx = @tx_generator.sign_tx(tx)
+    @api.send_transaction(tx)
   end
 end

@@ -344,7 +344,7 @@ class Tx_generator
     return result
   end
 
-  def generate_closing_tx(inputs, closing_info)
+  def generate_no_input_tx(inputs, closing_info)
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],
@@ -354,33 +354,6 @@ class Tx_generator
       witnesses: closing_info[:witness],
     )
     use_dep_group = false
-    if use_dep_group
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_group_out_point, dep_type: "dep_group")
-    else
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-    end
-    out_point = CKB::Types::OutPoint.new(
-      tx_hash: @gpc_tx,
-      index: 0,
-    )
-    tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
-
-    tx.hash = tx.compute_hash
-    return tx
-  end
-
-  def generate_settlement_tx(inputs, settlement_info)
-    tx = CKB::Types::Transaction.new(
-      version: 0,
-      cell_deps: [],
-      inputs: inputs,
-      outputs: settlement_info[:outputs], # If you add more cell, you should add more output!!!
-      outputs_data: settlement_info[:outputs_data],
-      witnesses: settlement_info[:witness],
-    )
-    use_dep_group = false
-
     if use_dep_group
       tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_group_out_point, dep_type: "dep_group")
     else
@@ -434,4 +407,6 @@ class Tx_generator
     tx.hash = tx.compute_hash
     return tx
   end
+  
+  
 end

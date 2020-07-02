@@ -19,15 +19,13 @@ require "mongo"
 # a="123"
 # c=a.delete!("\n")
 # puts c.class
-privkey = "82dede298f916ced53bf5aa87cea8a7e44e8898eaedcff96606579f7bf84d99d"
+Mongo::Logger.logger.level = Logger::FATAL
+#
 @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
 @db = @client.database
-# pubkey = CKB::Key.pubkey("0x" + privkey)
-@key = CKB::Key.new("0x" + privkey)
-pubkey = @key.pubkey
-# pool_name = pubkey + "_session_pool"
-
-
-coll_sessions = @db[pubkey + "_session_pool"]
-test = coll_sessions.find({ id: 0 }).first
-puts test[:id]
+for coll_name in @db.collection_names
+    puts "fuck ni 你麻痹"
+    puts test
+end
+@coll_sessions = @db["0x02ce9deada91368642e7b4343dea5046cb7f1553f71cab363daa32aa6fcea17648_session_pool"]
+@coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { stx: 0 } })

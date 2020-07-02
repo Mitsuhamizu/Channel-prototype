@@ -96,7 +96,7 @@ class Communication
       remote_capacity = msg[:fund_capacity]
       remote_fee = msg[:fee]
       remote_fund_cells = msg[:fund_cells].map { |cell| CKB::Types::Input.from_h(cell) }
-      timeout = msg[:timeout]
+      timeout = msg[:timeout].to_i
 
       # the type_script is nil in CKByte
       type_script = nil
@@ -163,7 +163,8 @@ class Communication
       # update database.
       doc = { id: msg[:id], local_pubkey: CKB::Key.blake160(@key.pubkey), remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx: 0, stx: 0, gpc_script: CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize,
-              local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply, local_capacity: local_capacity, stage: 0, settlement_time: 0 }
+              local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
+              timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0 }
       ret = insert_with_check(@coll_sessions, doc)
       return -1 if ret == -1
 
@@ -181,7 +182,7 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
       local_capacity = @coll_sessions.find({ id: msg[:id] }).first[:local_capacity]
       local_fee = @coll_sessions.find({ id: msg[:id] }).first[:local_fee]
-      timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout]
+      timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
 
       # get the remote pubkey (blake160). Assumption, there are only two pubkey.
       remote_pubkey = nil
@@ -285,7 +286,7 @@ class Communication
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { gpc_script: CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize,
                                                                         remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx: ctx_info_json,
-                                                                        stx: stx_info_json, status: 4, msg_cache: msg_reply } })
+                                                                        stx: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
 
       return 0
     when 3
@@ -339,7 +340,7 @@ class Communication
       client.puts(msg_reply)
 
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx: ctx_info_json,
-                                                                        stx: stx_info_json, status: 5, msg_cache: msg_reply } })
+                                                                        stx: stx_info_json, status: 5, msg_cache: msg_reply, nounce: 1 } })
 
       return 0
     when 4
@@ -405,7 +406,7 @@ class Communication
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
 
       # send the fund tx to chain.
-      # tx_hash = @api.send_transaction(fund_tx)
+      tx_hash = @api.send_transaction(fund_tx)
 
       # update the database
       # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
@@ -466,7 +467,7 @@ class Communication
     #insert the doc into database.
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
-            timeout: lock_timeout, msg_cache: msg.to_json, local_capacity: capacity, local_fee: fee, stage: 0, settlement_time: 0 }
+            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity, local_fee: fee, stage: 0, settlement_time: 0 }
     ret = insert_with_check(@coll_sessions, doc)
     return -1 if ret == -1
 
