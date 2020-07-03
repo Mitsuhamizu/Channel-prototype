@@ -34,13 +34,11 @@ def get_total_capacity(cells)
     total_capacity += validation.cell.output.capacity
     return -1 if validation.status != "live"
   end
+
   return total_capacity
 end
 
 def check_cells(cells, capacity)
   capacity_check = get_total_capacity(cells)
-  if capacity > capacity_check || capacity_check == -1
-    return -1
-  end
-  return capacity_check
+  return capacity_check > capacity ? capacity_check : false
 end

@@ -60,17 +60,22 @@ class Communication
 
   # These two functions are used to parse-construct ctx_info and stx_info.
   def info_to_json(info)
-    info_h = info
-    info_h[:outputs] = info[:outputs].map(&:to_h)
-    info_json = info_h.to_json
-    return info_json
+    info[:outputs] = info[:outputs].map(&:to_h)
+    info[:witness] = info[:witness].map do |witness|
+      case witness
+      when CKB::Types::Witness
+        CKB::Serializers::WitnessArgsSerializer.from(witness).serialize
+      else
+        witness
+      end
+    end
+    return info.to_json
   end
 
   def json_to_info(json)
     info_h = JSON.parse(json, symbolize_names: true)
-    info = info_h
-    info[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
-    return info
+    info_h[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+    return info_h
   end
 
   def process_recv_message(client, msg, command_file)
@@ -79,19 +84,19 @@ class Communication
     if view.count_documents() == 0 && type != 1
       msg_reply = generate_text_msg("sry, the msg's type is inconsistent with the type in local database!")
       client.puts (msg_reply)
-      return -1
+      return false
     elsif view.count_documents() == 1
       view.each do |doc|
         if doc["status"] != type
           msg_reply = generate_text_msg("sry, the msg's type is inconsistent with the type in local database!")
           client.puts (msg_reply)
-          return -1
+          return false
         end
       end
     elsif view.count_documents() > 1
       msg_reply = generate_text_msg("sry, there are more than one record about the id.")
       client.puts (msg_reply)
-      return -1
+      return false
     end
 
     case type
@@ -109,10 +114,10 @@ class Communication
       msg_reply_json = @coll_sessions.find({ id: msg[:id] }).first[:msg_cache]
       msg_reply = JSON.parse(client.gets, symbolize_names: true)
       client.puts (msg_reply)
-      return 0
+      return true
     when 0 # Just the plain text.
       puts msg[:text]
-      return 0
+      return true
     when 1
 
       # parse the msg
@@ -128,9 +133,9 @@ class Communication
       # check the cell is live and the capacity is enough.
       capacity_check = check_cells(remote_fund_cells,
                                    CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
-      if capacity_check == -1
+      if !capacity_check
         client.puts(generate_text_msg("sry, your capacity is not enough or your cells are not alive."))
-        return -1
+        return false
       end
 
       # calcualte the remote change.
@@ -190,10 +195,7 @@ class Communication
               local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0,
               sig_index: 1 }
-      ret = insert_with_check(@coll_sessions, doc)
-      return -1 if ret == -1
-
-      return 0
+      return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
       # parse the msg.
@@ -229,14 +231,14 @@ class Communication
       gpc_lock_script = CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
       if CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize != CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize
         client.puts(generate_text_msg("sry, the gpc lock is inconsistent with my verison."))
-        return -1
+        return false
       end
 
       # check the cells are alive and the capacity is enough.
       capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
-      if capacity_check == -1
+      if !capacity_check
         client.puts(generate_text_msg("sry, your capacity is not enough or your cells are not alive."))
-        return -1
+        return false
       end
 
       # check change is right!
@@ -244,22 +246,23 @@ class Communication
       local_fund_cells = local_fund_cells.map { |cell| CKB::Types::Input.from_h(cell) }
       verify_result = verify_change(fund_tx, local_fund_cells, local_capacity,
                                     local_fee, CKB::Key.blake160(@key.pubkey))
-      if capacity_check == -1
+      if !verify_result
         client.puts(generate_text_msg("sry, my change has problem"))
-        return -1
+        return false
       end
+
       verify_result = verify_change(fund_tx, remote_fund_cells, remote_capacity,
                                     remote_fee, remote_pubkey)
-      if capacity_check == -1
+      if !verify_result
         client.puts(generate_text_msg("sry, your change has problem"))
-        return -1
+        return -false
       end
 
       # check gpc capacity is right!
       total_fund_capacity = local_capacity + remote_capacity
       if CKB::Utils.byte_to_shannon(total_fund_capacity) != fund_tx.outputs[0].capacity
         client.puts(generate_text_msg("sry, the gpc_capacity has problem"))
-        return -1
+        return false
       end
 
       #-------------------------------------------------
@@ -313,28 +316,29 @@ class Communication
                                                                         remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx: ctx_info_json,
                                                                         stx: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
 
-      return 0
+      return true
     when 3
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
-      fund_tx = CKB::Types::Transaction.from_h(fund_tx)
       local_capacity = @coll_sessions.find({ id: msg[:id] }).first[:local_capacity]
+      remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
+      sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
+      fund_tx = CKB::Types::Transaction.from_h(fund_tx)
       remote_capacity = msg[:capacity]
+      closing_output_data = "0x"
 
       remote_ctx_info = json_to_info(msg[:ctx])
       remote_stx_info = json_to_info(msg[:stx])
 
-      closing_output_data = "0x"
+      remote_ctx_result = verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
-      # verify the signatures of ctx and stx.
-      verify_result = verify_info(msg, 0)
-      if verify_result != 0
+      if !remote_ctx_result || !remote_stx_result
         client.puts(generate_text_msg("The signatures are invalid."))
-        return -1
+        return false
       end
 
-      # sign the ctx and stx.
-
-      # just check these information are same as the remote one.
+      # just check it is same as the remote one.
+      # TO-DO, check the ctx and stx is right.
       init_args = fund_tx.outputs[0].lock.args
       lock_info = @tx_generator.parse_lock_args(init_args)
       lock_info[:nounce] += 1
@@ -367,9 +371,11 @@ class Communication
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx: ctx_info_json,
                                                                         stx: stx_info_json, status: 5, msg_cache: msg_reply, nounce: 1 } })
 
-      return 0
+      return true
     when 4
-
+      remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
+      local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
+      sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
       # check the data is not modified!
       local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx])
       local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
@@ -383,17 +389,24 @@ class Communication
       local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witness][0]).lock)[:sig_A]
       remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witness][0]).lock)[:sig_A]
 
-      verify_result = verify_info(msg, 0)
-      if verify_result != 0 || local_ctx_sig != remote_ctx_sig || local_stx_sig != remote_stx_sig
+      local_ctx_result = verify_info(local_ctx_info, "closing", local_pubkey, sig_index)
+      local_stx_result = verify_info(local_stx_info, "settlement", local_pubkey, sig_index)
+
+      if !local_ctx_result || !local_stx_result ||
+         local_ctx_sig != remote_ctx_sig ||
+         local_stx_sig != remote_stx_sig
         client.puts(generate_text_msg("The data is modified."))
-        return -1
+        return false
       end
 
       # check the remote signature
-      verify_result = verify_info(msg, 1)
-      if verify_result != 0
+
+      remote_ctx_result = verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+
+      if !remote_ctx_result || !remote_stx_result
         client.puts(generate_text_msg("The signatures are invalid."))
-        return -1
+        return false
       end
 
       # sign and send the fund_tx
@@ -410,8 +423,10 @@ class Communication
 
       # update the database
 
-      return 0
+      return true
     when 5
+
+      # TO-DO: check the signature
 
       # sign the fund_tx.
       fund_tx_local = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
@@ -425,7 +440,7 @@ class Communication
 
       if fund_tx_local_hash != fund_tx_remote_hash
         client.puts(generate_text_msg("fund tx is not consistent."))
-        return -1
+        return false
       end
 
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
@@ -448,10 +463,11 @@ class Communication
       ctx = @coll_sessions.find({ id: id }).first[:ctx]
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
       amount = msg[:amount]
+
       # all the information below should guarantee the stage is 1..
       if stage != 1
         puts "the fund tx is not on chain, so the you can not make payment now..."
-        return -1
+        return false
       end
 
       # recv the new signed stx and unsigned ctx.
@@ -465,23 +481,92 @@ class Communication
       local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey)
       local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
 
-      puts "11"
-      # check the transition is right.
+      # check the updated info is right.
 
       # ask users whether the payments are right.
 
+      puts "The remote node wants to pay you #{amount}."
+
+      msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
       # sign ctx and stx and send them.
+      witness_new = Array.new()
+      for witness in remote_stx_info[:witness]
+        witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+      end
+      remote_stx_info[:witness] = witness_new
 
+      msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
+      # sign ctx and stx and send them.
+      witness_new = Array.new()
+      for witness in remote_ctx_info[:witness]
+        witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
+      end
+      remote_ctx_info[:witness] = witness_new
       # update the database.
+      ctx_info_json = info_to_json(remote_ctx_info)
+      stx_info_json = info_to_json(remote_stx_info)
 
+      msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+      s.puts(msg)
+
+      # update the local database.
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
+                                                                  stx: stx_info_json,
+                                                                  nounce: nounce + 1,
+                                                                  status: 8, msg_cache: msg } })
     when 7
       # recv the signed ctx and stx, just check.
+      id = msg[:id]
+      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+      local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+      sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+      stage = @coll_sessions.find({ id: id }).first[:stage]
+      stx_pend = @coll_sessions.find({ id: id }).first[:stx_pend]
+      ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
+
+      remote_ctx_info = json_to_info(msg[:ctx_info])
+      remote_stx_info = json_to_info(msg[:stx_info])
+
+      if stage != 1
+        puts "the fund tx is not on chain, so the you can not make payment now..."
+        return false
+      end
+      # check both the signatures are right.
+
+      # check both the information is same as local.
 
       # send the signed ctx.
+      msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
+      # sign ctx and stx and send them.
+      witness_new = Array.new()
+      for witness in remote_ctx_info[:witness]
+        witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
+      end
+      remote_ctx_info[:witness] = witness_new
+
+      ctx_info_json = info_to_json(remote_ctx_info)
+      stx_info_json = info_to_json(remote_stx_info)
+
+      msg = { id: id, type: 8, ctx_info: ctx_info_json }.to_json
+      s.puts(msg)
+
+      # update the local database.
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
+                                                                  stx: stx_info_json,
+                                                                  status: 6, msg_cache: msg } })
     when 8
+      id = msg[:id]
+      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+      local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+      sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+      stage = @coll_sessions.find({ id: id }).first[:stage]
+      ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
 
-      # just check the signature
+      remote_ctx_info = json_to_info(msg[:ctx_info])
+      ctx_info_json = info_to_json(remote_ctx_info)
 
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
+                                                                  status: 6, msg_cache: msg } })
       # update the database.
     end
   end
@@ -525,8 +610,7 @@ class Communication
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
             timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity,
             local_fee: fee, stage: 0, settlement_time: 0, sig_index: 0 }
-    ret = insert_with_check(@coll_sessions, doc)
-    return -1 if ret == -1
+    return false if !insert_with_check(@coll_sessions, doc)
 
     # just keep listen
     while (1)
@@ -559,20 +643,12 @@ class Communication
     ctx_info = @tx_generator.update_ctx(amount, ctx_info)
 
     # sign the stx.
-    msg_sign = "0x"
-    for output in stx_info[:outputs]
-      data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
-      msg_sign += data
-    end
-
-    for data in stx_info[:outputs_data]
-      msg_sign += data[2..]
-    end
+    msg_signed = generate_msg_from_info(stx_info, "settlement")
 
     # the msg ready.
     witness_new = Array.new()
     for witness in stx_info[:witness]
-      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_sign, sig_index)
+      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
     end
     stx_info[:witness] = witness_new
 
@@ -587,6 +663,6 @@ class Communication
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json,
                                                                 ctx_pend: ctx_info_json,
                                                                 nounce: nounce + 1,
-                                                                status: 7 } })
+                                                                status: 7, msg_cache: msg } })
   end
 end

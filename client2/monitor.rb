@@ -7,5 +7,4 @@ Mongo::Logger.logger.level = Logger::FATAL
 private_key = "0xd986d7bf901e50368cbe565f239c224934cd554805357338abcef177efadc08d"
 
 monitor = Minotor.new(private_key)
-
 monitor.monitor_chain()

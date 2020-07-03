@@ -104,7 +104,7 @@ class Minotor
                 ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h } })
                 send_tx(doc, "closing")
-              elsif nounce_on_chain == nounce_local
+              elsif nounce_on_chain >= nounce_local
                 # here I need to parse the timeout from since to number.
                 # parse the timeout, it should be more robust,
                 timeout = doc[:timeout].to_i
@@ -116,8 +116,6 @@ class Minotor
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout,
                                                                                   stx_input: stx_input_h,
                                                                                   stage: 3 } })
-              elsif nounce_on_chain > nounce_local
-                puts "well, there is something wrong."
               end
             end
             index += 1
@@ -164,7 +162,7 @@ class Minotor
     tx = @tx_generator.generate_no_input_tx(input, tx_info)
     tx = @tx_generator.sign_tx(tx)
     return -1 if tx == -1
-    
+
     tx_hash = @api.send_transaction(tx)
     return tx_hash
   end
