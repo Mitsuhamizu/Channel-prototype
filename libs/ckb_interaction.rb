@@ -32,9 +32,7 @@ def get_total_capacity(cells)
   for cell in cells
     validation = @api.get_live_cell(cell.previous_output)
     total_capacity += validation.cell.output.capacity
-    if validation.status != "live"
-      return -1
-    end
+    return -1 if validation.status != "live"
   end
   return total_capacity
 end

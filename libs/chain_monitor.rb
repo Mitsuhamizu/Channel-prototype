@@ -17,12 +17,12 @@ class Minotor
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
 
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
-    @db = @client.database
-    @db.drop()
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    # @db = @client.database
+    # @db.drop()
     @cell_min_capacity = 61
-    copy_db("GPC", "GPC_copy")
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    # copy_db("GPC", "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
@@ -64,19 +64,16 @@ class Minotor
       current_height = @api.get_tip_block_number
       checked_height = @coll_sessions.find({ id: 0 }).first[:current_block_num]
 
-      view = @coll_sessions.find { }
-      view.each do |doc|
-        # well, if the ctx I sent can not be seen, just send it again.
-        next if doc[:"id"] == 0
-        send_tx(doc, "closing") if doc[:stage] >= 1 && doc[:settlement_time] == 0
-        # check whether there are available to be sent.
-        send_tx(doc, "settlement") if current_height >= doc[:settlement_time] && doc[:settlement_time] != 0
-      end
       # check whether there are some related ctx or fund tx submitted to chain.
-      for i in (checked_height..current_height)
+      for i in (checked_height + 1..current_height)
         puts i
         block = @api.get_block_by_number(i)
         for transaction in block.transactions
+          view = @coll_sessions.find { }
+          view.each do |doc|
+            # we need to verify the status of the tx is commited...
+            @coll_sessions.find_one_and_delete(id: doc[:id]) if transaction.hash == doc[:settlement_hash]
+          end
           index = 0
           for output in transaction.outputs
             remote_lock = output.lock
@@ -99,17 +96,16 @@ class Minotor
 
               if nounce_on_chain == 0 && nounce_local == 1
                 # it is the fund tx...
-                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stage: doc[:stage] + 1 } })
+                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stage: 1 } })
                 ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h } })
               elsif nounce_on_chain < nounce_local
-                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stage: doc[:stage] + 1 } })
+                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { stage: 2 } })
                 ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h } })
                 send_tx(doc, "closing")
               elsif nounce_on_chain == nounce_local
                 # here I need to parse the timeout from since to number.
-
                 # parse the timeout, it should be more robust,
                 timeout = doc[:timeout].to_i
                 timeout = [timeout].pack("Q>")
@@ -118,7 +114,8 @@ class Minotor
 
                 stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout,
-                                                                                  stx_input: stx_input_h } })
+                                                                                  stx_input: stx_input_h,
+                                                                                  stage: 3 } })
               elsif nounce_on_chain > nounce_local
                 puts "well, there is something wrong."
               end
@@ -127,6 +124,17 @@ class Minotor
           end
         end
       end
+
+      view = @coll_sessions.find { }
+      view.each do |doc|
+        # well, if the ctx I sent can not be seen, just send it again.
+        next if doc[:"id"] == 0
+        send_tx(doc, "closing") if doc[:stage] == 2 && doc[:settlement_time] == 0
+        # check whether there are available to be sent.
+        tx_hash = send_tx(doc, "settlement") if current_height >= doc[:settlement_time] && doc[:settlement_time] != 0
+        @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_hash: tx_hash } })
+      end
+
       @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { current_block_num: current_height } })
       # just update the checked block!
     end
@@ -155,6 +163,9 @@ class Minotor
     end
     tx = @tx_generator.generate_no_input_tx(input, tx_info)
     tx = @tx_generator.sign_tx(tx)
-    @api.send_transaction(tx)
+    return -1 if tx == -1
+    
+    tx_hash = @api.send_transaction(tx)
+    return tx_hash
   end
 end

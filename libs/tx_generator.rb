@@ -140,6 +140,7 @@ class Tx_generator
     index = 0
     for input in tx.inputs
       validation = @api.get_live_cell(input.previous_output)
+      return -1 if validation.status != "live"
       lock_args = validation.cell.output.lock.args
       if !group.keys.include?(lock_args)
         group[lock_args] = Array.new()
@@ -164,6 +165,7 @@ class Tx_generator
 
   def sign_tx(tx)
     input_group = group_tx_input(tx)
+    return -1 if input_group == -1
     for key in input_group.keys
       if key != CKB::Key.blake160(@key.pubkey)
         next
@@ -370,6 +372,42 @@ class Tx_generator
     return tx
   end
 
+  def update_stx(amount, stx_info, local_pubkey, remote_pubkey)
+    for output in stx_info[:outputs]
+      output.capacity = output.capacity + amount * (10 ** 8) if output.lock.args == remote_pubkey
+      output.capacity = output.capacity - amount * (10 ** 8) if output.lock.args == local_pubkey
+    end
+
+    witness_new = Array.new()
+    for witness in stx_info[:witness]
+      witness = parse_witness(witness)
+      lock = parse_witness_lock(witness.lock)
+      witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
+    end
+    stx_info[:witness] = witness_new
+
+    return stx_info
+  end
+
+  def update_ctx(amount, ctx_info)
+    for output in ctx_info[:outputs]
+      lock = parse_lock_args(output.lock.args)
+      output.lock.args = generate_lock_args(lock[:id], lock[:status],
+                                            lock[:timeout], lock[:nounce] + 1,
+                                            lock[:pubkey_A], lock[:pubkey_B])
+    end
+
+    witness_new = Array.new()
+    for witness in ctx_info[:witness]
+      witness = parse_witness(witness)
+      lock = parse_witness_lock(witness.lock)
+      witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
+    end
+    ctx_info[:witness] = witness_new
+
+    return ctx_info
+  end
+
   def generate_terminal_tx()
     # fund_witnesses = Array.new()
     # for iter in fund_inputs
@@ -407,6 +445,4 @@ class Tx_generator
     tx.hash = tx.compute_hash
     return tx
   end
-  
-  
 end

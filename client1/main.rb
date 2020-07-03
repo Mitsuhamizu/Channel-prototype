@@ -37,6 +37,13 @@ elsif ARGV[0] == "start"
       timeout = read_command(command_file).to_i
       communicator.send_establish_channel(remote_ip, remote_port, capacity, fee, timeout, command_file)
       return 0
+    elsif type == "pay"
+      remote_ip = read_command(command_file)
+      remote_port = read_command(command_file)
+      id = read_command(command_file)
+      amount = read_command(command_file).to_i
+      communicator.send_payments(remote_ip, remote_port, id, amount)
+      return 0
     end
   end
 end

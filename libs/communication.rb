@@ -21,13 +21,37 @@ class Communication
     @api = CKB::API::new
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+
+    # just drop...
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    @db = @client.database
+    @db.drop()
+    # copy the db
+    copy_db("GPC", "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+
     @brake = false
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
     @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
     @steady_stage = []
+  end
+
+  def copy_db(src, trg)
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => src)
+    @client2 = Mongo::Client.new(["127.0.0.1:27017"], :database => trg)
+    @db_src = @client.database
+    @db_trg = @client2.database
+    for coll_name in @db_src.collection_names
+      @coll_src = @db_src[coll_name]
+      @coll_trg = @db_trg[coll_name]
+      view = @coll_src.find { }
+      view.each do |doc|
+        @coll_trg.insert_one(doc)
+      end
+    end
   end
 
   def generate_text_msg(text)
@@ -164,7 +188,8 @@ class Communication
       doc = { id: msg[:id], local_pubkey: CKB::Key.blake160(@key.pubkey), remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx: 0, stx: 0, gpc_script: CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize,
               local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
-              timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0 }
+              timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0,
+              sig_index: 1 }
       ret = insert_with_check(@coll_sessions, doc)
       return -1 if ret == -1
 
@@ -414,19 +439,50 @@ class Communication
 
       return 0
     when 6
+      id = msg[:id]
+      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+      local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+      sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+      stage = @coll_sessions.find({ id: id }).first[:stage]
+      stx = @coll_sessions.find({ id: id }).first[:stx]
+      ctx = @coll_sessions.find({ id: id }).first[:ctx]
+      nounce = @coll_sessions.find({ id: id }).first[:nounce]
+      amount = msg[:amount]
+      # all the information below should guarantee the stage is 1..
+      if stage != 1
+        puts "the fund tx is not on chain, so the you can not make payment now..."
+        return -1
+      end
 
-      # just check the witness is valid.
+      # recv the new signed stx and unsigned ctx.
+      remote_ctx_info = json_to_info(msg[:ctx_info])
+      remote_stx_info = json_to_info(msg[:stx_info])
+      amount = msg[:amount]
 
-      # add the local witness
+      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
+      local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx])
+
+      local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey)
+      local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
+
+      puts "11"
+      # check the transition is right.
+
+      # ask users whether the payments are right.
+
+      # sign ctx and stx and send them.
 
       # update the database.
+
     when 7
+      # recv the signed ctx and stx, just check.
 
-      # just check the witness is valid.
+      # send the signed ctx.
+    when 8
 
-      # add the local witness
+      # just check the signature
 
-      # send it to chain.
+      # update the database.
     end
   end
 
@@ -467,7 +523,8 @@ class Communication
     #insert the doc into database.
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
-            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity, local_fee: fee, stage: 0, settlement_time: 0 }
+            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity,
+            local_fee: fee, stage: 0, settlement_time: 0, sig_index: 0 }
     ret = insert_with_check(@coll_sessions, doc)
     return -1 if ret == -1
 
@@ -476,5 +533,60 @@ class Communication
       msg = JSON.parse(s.gets, symbolize_names: true)
       process_recv_message(s, msg, command_file)
     end
+  end
+
+  def send_payments(remote_ip, remote_port, id, amount)
+    s = TCPSocket.open(remote_ip, remote_port)
+
+    remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+    local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+    stage = @coll_sessions.find({ id: id }).first[:stage]
+    stx = @coll_sessions.find({ id: id }).first[:stx]
+    ctx = @coll_sessions.find({ id: id }).first[:ctx]
+    nounce = @coll_sessions.find({ id: id }).first[:nounce]
+
+    stx_info = json_to_info(stx)
+    ctx_info = json_to_info(ctx)
+
+    if stage != 1
+      puts "the fund tx is not on chain, so the you can not make payment now..."
+      return -1
+    end
+
+    # just read and update the latest stx, the new
+    stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey)
+    ctx_info = @tx_generator.update_ctx(amount, ctx_info)
+
+    # sign the stx.
+    msg_sign = "0x"
+    for output in stx_info[:outputs]
+      data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
+      msg_sign += data
+    end
+
+    for data in stx_info[:outputs_data]
+      msg_sign += data[2..]
+    end
+
+    # the msg ready.
+    witness_new = Array.new()
+    for witness in stx_info[:witness]
+      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_sign, sig_index)
+    end
+    stx_info[:witness] = witness_new
+
+    ctx_info_json = info_to_json(ctx_info)
+    stx_info_json = info_to_json(stx_info)
+
+    # send the msg.
+    msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json, amount: amount }.to_json
+    s.puts(msg)
+
+    # update the local database.
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json,
+                                                                ctx_pend: ctx_info_json,
+                                                                nounce: nounce + 1,
+                                                                status: 7 } })
   end
 end
