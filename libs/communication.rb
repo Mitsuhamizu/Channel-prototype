@@ -27,9 +27,9 @@ class Communication
     @db = @client.database
     @db.drop()
     # copy the db
-    copy_db("GPC", "GPC_copy")
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    # copy_db("GPC", "GPC_copy")
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
 
     @brake = false
     @db = @client.database
@@ -78,7 +78,7 @@ class Communication
     return info_h
   end
 
-  def process_recv_message(client, msg, command_file)
+  def process_recv_message(client, msg, command_file = nil)
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
     if view.count_documents() == 0 && type != 1
@@ -567,7 +567,7 @@ class Communication
       # update the local database.
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
                                                                   stx: stx_info_json,
-                                                                  nounce: noucne + 1,
+                                                                  nounce: nounce + 1,
                                                                   status: 6, msg_cache: msg } })
     when 8
       id = msg[:id]
@@ -688,7 +688,7 @@ class Communication
                                                                 status: 7, msg_cache: msg } })
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
-      process_recv_message(s, msg, command_file)
+      process_recv_message(s, msg)
     end
   end
 end
