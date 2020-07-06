@@ -22,7 +22,7 @@ Note that send_contract.rb will print two info, the first is the code hash, and 
 ```
 cd client1
 ruby main.rb init <private key 1>
-cd ../client
+cd ../client2
 ruby main.rb init <private key 2>
 ```
 
