@@ -482,6 +482,11 @@ class Communication
       local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
 
       # check the updated info is right.
+      ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
+      stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
+                   verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+
+      return false if !ctx_result || !stx_result
 
       # ask users whether the payments are right.
 
@@ -507,12 +512,12 @@ class Communication
       stx_info_json = info_to_json(remote_stx_info)
 
       msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
-      s.puts(msg)
+      client.puts(msg)
 
       # update the local database.
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
                                                                   stx: stx_info_json,
-                                                                  nounce: nounce + 1,
+                                                                  nounce: nounce,
                                                                   status: 8, msg_cache: msg } })
     when 7
       # recv the signed ctx and stx, just check.
@@ -523,6 +528,10 @@ class Communication
       stage = @coll_sessions.find({ id: id }).first[:stage]
       stx_pend = @coll_sessions.find({ id: id }).first[:stx_pend]
       ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
+      nounce = @coll_sessions.find({ id: id }).first[:nounce]
+
+      local_ctx_info = json_to_info(ctx_pend)
+      local_stx_info = json_to_info(stx_pend)
 
       remote_ctx_info = json_to_info(msg[:ctx_info])
       remote_stx_info = json_to_info(msg[:stx_info])
@@ -531,9 +540,14 @@ class Communication
         puts "the fund tx is not on chain, so the you can not make payment now..."
         return false
       end
-      # check both the signatures are right.
 
-      # check both the information is same as local.
+      # check both the signatures are right.
+      ctx_result = verify_info_args(local_ctx_info, remote_ctx_info) &&
+                   verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      stx_result = verify_info_args(local_stx_info, remote_stx_info) &&
+                   verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+
+      return false if !ctx_result || !stx_result
 
       # send the signed ctx.
       msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
@@ -548,11 +562,12 @@ class Communication
       stx_info_json = info_to_json(remote_stx_info)
 
       msg = { id: id, type: 8, ctx_info: ctx_info_json }.to_json
-      s.puts(msg)
+      client.puts(msg)
 
       # update the local database.
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
                                                                   stx: stx_info_json,
+                                                                  nounce: noucne + 1,
                                                                   status: 6, msg_cache: msg } })
     when 8
       id = msg[:id]
@@ -561,12 +576,19 @@ class Communication
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
       ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
+      nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
+      local_ctx_info = json_to_info(ctx_pend)
       remote_ctx_info = json_to_info(msg[:ctx_info])
+
+      ctx_result = verify_info_args(local_ctx_info, remote_ctx_info)
+      return false if !ctx_result
+
       ctx_info_json = info_to_json(remote_ctx_info)
 
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
-                                                                  status: 6, msg_cache: msg } })
+                                                                  status: 6, msg_cache: msg,
+                                                                  nounce: nounce + 1 } })
       # update the database.
     end
   end
@@ -662,7 +684,11 @@ class Communication
     # update the local database.
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json,
                                                                 ctx_pend: ctx_info_json,
-                                                                nounce: nounce + 1,
+                                                                nounce: nounce,
                                                                 status: 7, msg_cache: msg } })
+    while (1)
+      msg = JSON.parse(s.gets, symbolize_names: true)
+      process_recv_message(s, msg, command_file)
+    end
   end
 end

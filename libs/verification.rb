@@ -1,4 +1,39 @@
 require "../libs/ckb_interaction.rb"
+require "../libs/tx_generator.rb"
+
+def parse_witness(witness_ser)
+  total_length = [witness_ser[2..9]].pack("H*").unpack("V")[0] * 2 + 2
+  input_lock_start = ([witness_ser[10, 17]].pack("H*").unpack("V")[0]) * 2 + 2
+  input_type_start = ([witness_ser[18, 25]].pack("H*").unpack("V")[0]) * 2 + 2
+  output_type_start = ([witness_ser[26, 33]].pack("H*").unpack("V")[0]) * 2 + 2
+
+  input_lock_length = (input_type_start - input_lock_start) / 2 - 4
+  input_lock_length_check = input_lock_length > 0 ? [witness_ser[input_lock_start..input_lock_start + 7]].pack("H*").unpack("V")[0] : input_lock_length
+
+  input_type_length = (output_type_start - input_type_start) / 2 - 4
+  input_type_length_check = input_type_length > 0 ? [witness_ser[input_type_start..input_type_start + 7]].pack("H*").unpack("V")[0] : input_type_length
+
+  output_type_length = (total_length - output_type_start) / 2 - 4
+  output_type_length_check = output_type_length > 0 ? [witness_ser[output_type_start..output_type_start + 7]].pack("H*").unpack("V")[0] : output_type_length
+
+  if input_lock_length_check != input_lock_length
+    return -1
+  end
+  if input_type_length_check != input_type_length
+    return -1
+  end
+  if output_type_length_check != output_type_length
+    return -1
+  end
+
+  length = 8
+
+  lock = input_lock_length > 0 ? witness_ser[input_lock_start + length..input_lock_start + length + input_lock_length * 2 - 1] : ""
+  input_type = input_type_length > 0 ? witness_ser[input_type_start + length..input_type_start + length + input_type_length * 2 - 1] : ""
+  output_type = output_type_length > 0 ? witness_ser[output_type_start + length..output_type_start + length + output_type_length * 2 - 1] : ""
+
+  return CKB::Types::Witness.new(lock: "0x" + lock, input_type: "0x" + input_type, output_type: "0x" + output_type)
+end
 
 def generate_msg_from_info(info, flag)
   if flag == "closing"
@@ -55,7 +90,7 @@ def verify_info(info, flag, pubkey, sig_index)
   empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
   msg_signed = (msg_signed + witness_len + empty_witness).strip
 
-  return verify_signature(msg_signed, signature, pubkey) ? -1 : 0
+  return verify_signature(msg_signed, signature, pubkey) ? true : false
 end
 
 def verify_signature(msg, sig, pubkey)
@@ -71,7 +106,10 @@ def verify_signature(msg, sig, pubkey)
   pubkey_reverse = CKB::Utils.bin_to_hex(pubser)
 
   pubkey_verify = CKB::Key.blake160(pubkey_reverse)
-  return pubkey_verify[2..] == pubkey ? true : false
+  pubkey_verify = pubkey_verify.sub("0x", "")
+  pubkey = pubkey.sub("0x", "")
+
+  return pubkey_verify == pubkey ? true : false
 end
 
 def verify_change(tx, input_cells, input_capacity, fee, pubkey)
@@ -84,4 +122,58 @@ def verify_change(tx, input_cells, input_capacity, fee, pubkey)
   local_change = get_total_capacity(input_cells) - CKB::Utils.byte_to_shannon(input_capacity) - fee
 
   return remote_change == local_change ? true : false
+end
+
+def verify_info_args(info1, info2)
+  # parse the witness.
+  prefix_len = 52
+  witness_array1 = info1[:witness]
+  witness_array2 = info2[:witness]
+
+  witness_array = Array.new()
+  for witness1 in witness_array1
+    witness1 = case witness1
+      when CKB::Types::Witness
+        witness1
+      else
+        parse_witness(witness1)
+      end
+    witness1.lock[prefix_len..-1] = "00" * 130
+    witness_array << witness1
+  end
+  witness_array1 = witness_array
+
+  witness_array = Array.new()
+  for witness2 in witness_array2
+    witness2 = case witness2
+      when CKB::Types::Witness
+        witness2
+      else
+        parse_witness(witness2)
+      end
+    witness2.lock[prefix_len..-1] = "00" * 130
+    witness_array << witness2
+  end
+
+  witness_array2 = witness_array
+
+  # serilize?
+  witness_array1 = witness_array1.map { |witness| CKB::Serializers::WitnessArgsSerializer.from(witness).serialize }
+  witness_array2 = witness_array2.map { |witness| CKB::Serializers::WitnessArgsSerializer.from(witness).serialize }
+  # compare.
+
+  return false if info1[:witness].length != info2[:witness].length ||
+                  info1[:outputs].length != info2[:outputs].length ||
+                  info1[:outputs_data].length != info2[:outputs_data].length
+
+  for index in (0..witness_array1.length - 1)
+    return false if witness_array1[index] != witness_array2[index]
+  end
+
+  for index in (0..info1[:outputs].length - 1)
+    return false if info1[:outputs][index].to_h != info2[:outputs][index].to_h
+    return false if info1[:outputs_data][index] != info2[:outputs_data][index]
+  end
+
+  return true
 end
