@@ -104,7 +104,7 @@ cd client2
 
 ruby main.rb start <public key2>
 
-cd ../client
+cd ../client2
 
 ruby main.rb start <private key1>
 ```
