@@ -1,6 +1,5 @@
 def gather_inputs(capacity, fee, from_block_number: 0)
   lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
-
   capacity = CKB::Utils.byte_to_shannon(capacity)
 
   output_GPC = CKB::Types::Output.new(

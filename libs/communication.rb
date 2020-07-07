@@ -13,8 +13,6 @@ require "../libs/mongodb_operate.rb"
 require "../libs/ckb_interaction.rb"
 require "../libs/verification.rb"
 
-Mongo::Logger.logger.level = Logger::FATAL
-
 class Communication
   def initialize(private_key)
     @key = CKB::Key.new(private_key)
@@ -22,21 +20,18 @@ class Communication
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
 
-    # just drop...
+    # it is for testing
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
     @db = @client.database
     @db.drop()
     # copy the db
-    # copy_db("GPC", "GPC_copy")
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    copy_db("GPC", "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
 
-    @brake = false
+    # get database.
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
-    @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
-    @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
-    @steady_stage = []
   end
 
   def copy_db(src, trg)
@@ -54,8 +49,8 @@ class Communication
     end
   end
 
-  def generate_text_msg(text)
-    return { type: 0, text: text }.to_json
+  def generate_text_msg(id, text)
+    return { type: 0, id: id, text: text }.to_json
   end
 
   # These two functions are used to parse-construct ctx_info and stx_info.
@@ -78,23 +73,23 @@ class Communication
     return info_h
   end
 
-  def process_recv_message(client, msg, command_file = nil)
+  def process_recv_message(client, msg)
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
     if view.count_documents() == 0 && type != 1
-      msg_reply = generate_text_msg("sry, the msg's type is inconsistent with the type in local database!")
+      msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database!")
       client.puts (msg_reply)
       return false
-    elsif view.count_documents() == 1
+    elsif view.count_documents() == 1 && (![-2, -1, 0].include? type)
       view.each do |doc|
         if doc["status"] != type
-          msg_reply = generate_text_msg("sry, the msg's type is inconsistent with the type in local database!")
+          msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database!")
           client.puts (msg_reply)
           return false
         end
       end
     elsif view.count_documents() > 1
-      msg_reply = generate_text_msg("sry, there are more than one record about the id.")
+      msg_reply = generate_text_msg(msg[:id], "sry, there are more than one record about the id.")
       client.puts (msg_reply)
       return false
     end
@@ -112,7 +107,7 @@ class Communication
 
     when -1
       msg_reply_json = @coll_sessions.find({ id: msg[:id] }).first[:msg_cache]
-      msg_reply = JSON.parse(client.gets, symbolize_names: true)
+      msg_reply = JSON.parse(msg_reply_json, symbolize_names: true)
       client.puts (msg_reply)
       return true
     when 0 # Just the plain text.
@@ -134,7 +129,7 @@ class Communication
       capacity_check = check_cells(remote_fund_cells,
                                    CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
       if !capacity_check
-        client.puts(generate_text_msg("sry, your capacity is not enough or your cells are not alive."))
+        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
 
@@ -142,17 +137,18 @@ class Communication
       remote_change = capacity_check - CKB::Utils.byte_to_shannon(remote_capacity) - remote_fee
 
       # Ask whether willing to accept the request, the capacity is same as negotiations.
-      puts "The remote capacity: #{remote_capacity}. The remote fee:#{remote_fee}"
+      puts "The remote fund amount: #{remote_capacity}. The remote fee:#{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
 
       # It should be more robust.
       while true
-        response = command_file.gets.gsub("\n", "")
+        response = STDIN.gets.chomp
         if response == "yes"
           break
         elsif response == "no"
-          puts "reject it "
-          return -1
+          msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request.")
+          client.puts(msg_reply)
+          return false
         else
           puts "your input is invalid"
         end
@@ -161,8 +157,8 @@ class Communication
       # Get the capacity and fee. These code need to be more robust.
       while true
         puts "Please input the capacity and fee you want to use for funding"
-        local_capacity = command_file.gets.gsub("\n", "").to_i
-        local_fee = command_file.gets.gsub("\n", "").to_i
+        local_capacity = STDIN.gets.chomp.to_i
+        local_fee = STDIN.gets.chomp.to_i
         break
       end
 
@@ -228,16 +224,16 @@ class Communication
 
       # compute the gpc script by myself, and check it. So here, we can make sure that the GPC args are right.
       init_args = @tx_generator.generate_lock_args(msg[:id], 0, timeout, 0, local_pubkey[2..-1], remote_pubkey[2..-1])
-      gpc_lock_script = CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
+      gpc_lock_script = CKB::Types::Script.new(code_hash: @tx_generator.gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
       if CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize != CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize
-        client.puts(generate_text_msg("sry, the gpc lock is inconsistent with my verison."))
+        client.puts(generate_text_msg(msg[:id], "sry, the gpc lock is inconsistent with my verison."))
         return false
       end
 
       # check the cells are alive and the capacity is enough.
       capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
       if !capacity_check
-        client.puts(generate_text_msg("sry, your capacity is not enough or your cells are not alive."))
+        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
 
@@ -247,21 +243,21 @@ class Communication
       verify_result = verify_change(fund_tx, local_fund_cells, local_capacity,
                                     local_fee, CKB::Key.blake160(@key.pubkey))
       if !verify_result
-        client.puts(generate_text_msg("sry, my change has problem"))
+        client.puts(generate_text_msg(msg[:id], "sry, my change has problem"))
         return false
       end
 
       verify_result = verify_change(fund_tx, remote_fund_cells, remote_capacity,
                                     remote_fee, remote_pubkey)
       if !verify_result
-        client.puts(generate_text_msg("sry, your change has problem"))
+        client.puts(generate_text_msg(msg[:id], "sry, your change has problem"))
         return -false
       end
 
       # check gpc capacity is right!
       total_fund_capacity = local_capacity + remote_capacity
       if CKB::Utils.byte_to_shannon(total_fund_capacity) != fund_tx.outputs[0].capacity
-        client.puts(generate_text_msg("sry, the gpc_capacity has problem"))
+        client.puts(generate_text_msg(msg[:id], "sry, the gpc_capacity has problem"))
         return false
       end
 
@@ -275,6 +271,19 @@ class Communication
 
       # check the remote capcity is satisfactory.
       puts "remote capacity #{remote_capacity}, remote fee: #{remote_fee}"
+      puts "Tell me whether you are willing to accept this request"
+      while true
+        response = STDIN.gets.chomp
+        if response == "yes"
+          break
+        elsif response == "no"
+          msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request.")
+          client.puts(msg_reply)
+          return false
+        else
+          puts "your input is invalid"
+        end
+      end
 
       # generate the output locks in closing tx.
       init_args = fund_tx.outputs[0].lock.args
@@ -333,7 +342,7 @@ class Communication
       remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
-        client.puts(generate_text_msg("The signatures are invalid."))
+        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
       end
 
@@ -395,7 +404,7 @@ class Communication
       if !local_ctx_result || !local_stx_result ||
          local_ctx_sig != remote_ctx_sig ||
          local_stx_sig != remote_stx_sig
-        client.puts(generate_text_msg("The data is modified."))
+        client.puts(generate_text_msg(msg[:id], "The data is modified."))
         return false
       end
 
@@ -405,7 +414,7 @@ class Communication
       remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
-        client.puts(generate_text_msg("The signatures are invalid."))
+        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
       end
 
@@ -439,14 +448,14 @@ class Communication
       fund_tx_remote_hash = fund_tx_remote.compute_hash
 
       if fund_tx_local_hash != fund_tx_remote_hash
-        client.puts(generate_text_msg("fund tx is not consistent."))
+        client.puts(generate_text_msg(msg[:id], "fund tx is not consistent."))
         return false
       end
 
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
 
       # send the fund tx to chain.
-      tx_hash = @api.send_transaction(fund_tx)
+      # @api.send_transaction(fund_tx)
 
       # update the database
       # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
@@ -459,8 +468,6 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      stx = @coll_sessions.find({ id: id }).first[:stx]
-      ctx = @coll_sessions.find({ id: id }).first[:ctx]
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
       amount = msg[:amount]
 
@@ -593,7 +600,7 @@ class Communication
     end
   end
 
-  def listen(src_port, command_file)
+  def listen(src_port)
     puts "listen start"
     server = TCPServer.open(src_port)
     loop {
@@ -602,14 +609,14 @@ class Communication
         #parse the msg
         while (1)
           msg = JSON.parse(client.gets, symbolize_names: true)
-          ret = process_recv_message(client, msg, command_file)
+          ret = process_recv_message(client, msg)
           break if ret == 100
         end
       end
     }
   end
 
-  def send_establish_channel(remote_ip, remote_port, capacity, fee, timeout, command_file)
+  def send_establish_channel(remote_ip, remote_port, capacity, fee, timeout)
     s = TCPSocket.open(remote_ip, remote_port)
 
     # prepare the msg components.
@@ -637,7 +644,7 @@ class Communication
     # just keep listen
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
-      process_recv_message(s, msg, command_file)
+      process_recv_message(s, msg)
     end
   end
 
@@ -657,7 +664,7 @@ class Communication
 
     if stage != 1
       puts "the fund tx is not on chain, so the you can not make payment now..."
-      return -1
+      return false
     end
 
     # just read and update the latest stx, the new

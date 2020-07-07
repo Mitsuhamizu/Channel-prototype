@@ -8,7 +8,7 @@ require "../libs/mongodb_operate.rb"
 require "../libs/ckb_interaction.rb"
 require "../libs/verification.rb"
 
-Mongo::Logger.logger.level = Logger::FATAL
+# Mongo::Logger.logger.level = Logger::FATAL
 
 class Minotor
   def initialize(private_key)
@@ -25,8 +25,6 @@ class Minotor
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
-    @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
-    @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
   end
 
   def copy_db(src, trg)
@@ -57,6 +55,7 @@ class Minotor
       previous_output: out_point,
       since: input_hash[:since],
     )
+    return closing_input
   end
 
   def monitor_chain()

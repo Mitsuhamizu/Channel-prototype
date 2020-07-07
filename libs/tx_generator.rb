@@ -14,6 +14,8 @@ class MyECDSA < Secp256k1::BaseKey
 end
 
 class Tx_generator
+  attr_reader :gpc_code_hash, :gpc_tx
+
   def initialize(key)
     @key = key
     @api = CKB::API::new
@@ -86,7 +88,6 @@ class Tx_generator
   end
 
   def parse_witness_lock(lock)
-    prefix_len = 52
     assemble_result = CKB::Utils.hex_to_bin("0x" + lock[34..51])
     result = assemble_result.unpack("cQ")
     result = { id: lock[2..33], flag: result[0], nounce: result[1], sig_A: lock[52..181], sig_B: lock[182..311] }
@@ -268,7 +269,7 @@ class Tx_generator
     local_change_output_data = "0x"
 
     outputs = [gpc_output, remote_change_output, local_change_output]
-    outputs_data = [gpc_output_data, remote_change_output_data, remote_change_output_data]
+    outputs_data = [gpc_output_data, remote_change_output_data, local_change_output_data]
 
     tx = CKB::Types::Transaction.new(
       version: 0,

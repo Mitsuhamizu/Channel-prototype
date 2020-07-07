@@ -1,0 +1,101 @@
+#!/usr/bin/ruby -w
+
+require "../libs/initialization.rb"
+require "../libs/communication.rb"
+require "../libs/chain_monitor.rb"
+require "mongo"
+require "thor"
+$VERBOSE = nil
+Mongo::Logger.logger.level = Logger::FATAL
+
+def pubkey_to_privkey(pubkey)
+  @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+  @db = @client.database
+  @coll_sessions = @db[pubkey + "_session_pool"]
+  private_key = @coll_sessions.find({ id: 0 }).first[:privkey]
+  return private_key
+end
+
+class GPCCLI < Thor
+  desc "init <private-key>", "Init with the private key."
+
+  # --------------init
+  def init(private_key)
+    if ARGV.length != 2
+      puts "The arg number is not right."
+      return false
+    end
+    Init.new(private_key)
+  end
+
+  # --------------listen
+  desc "listen <pubkey> <port>", "Listen the port."
+
+  def listen(pubkey, port = 1000)
+    if ARGV.length != 3
+      puts "The arg number is not right."
+      return false
+    end
+    private_key = pubkey_to_privkey(pubkey)
+    communicator = Communication.new(private_key)
+    communicator.listen(port)
+  end
+
+  # --------------establishment
+  desc "send_establishment_request --pubkey <public key> --ip <ip> --port <port> --amount <amount> --fee <fee> --since <since>", "Send the chanenl establishment request."
+  option :pubkey, :required => true
+  option :ip, :required => true
+  option :port, :required => true
+  option :amount, :required => true
+  option :fee, :required => true
+  option :since, :required => true
+
+  def send_establishment_request()
+    private_key = pubkey_to_privkey(options[:pubkey])
+    communicator = Communication.new(private_key)
+    communicator.send_establish_channel(options[:ip], options[:port], options[:amount].to_i,
+                                        options[:fee].to_i, options[:since].to_i)
+  end
+
+  # --------------make payments
+  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> ", "Make payments"
+
+  option :pubkey, :required => true
+  option :ip, :required => true
+  option :port, :required => true
+  option :id, :required => true
+  option :amount, :required => true
+
+  def make_payment()
+    # if ARGV.length != 11
+    #   puts "The arg number is not right."
+    #   return false
+    # end
+    private_key = pubkey_to_privkey(options[:pubkey])
+    communicator = Communication.new(private_key)
+    communicator.send_payments(options[:ip], options[:port], options[:id], options[:amount].to_i)
+  end
+
+  # --------------monitor
+  desc "monitor <public key>", "Monitor the chain."
+
+  def monitor(pubkey)
+    # if ARGV.length != 2
+    #   puts "The arg number is not right."
+    #   return false
+    # end
+    private_key = pubkey_to_privkey(options[:pubkey])
+    monitor = Minotor.new(private_key)
+    monitor.monitor_chain()
+  end
+
+  desc "closing_channel <pubkey> <id>", "closing the channel with id."
+
+  def closing_channel(pubkey, id)
+    private_key = pubkey_to_privkey(options[:pubkey])
+    monitor = Minotor.new(private_key)
+    monitor
+  end
+end
+
+GPCCLI.start(ARGV)
