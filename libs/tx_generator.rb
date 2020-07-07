@@ -141,7 +141,7 @@ class Tx_generator
     index = 0
     for input in tx.inputs
       validation = @api.get_live_cell(input.previous_output)
-      return -1 if validation.status != "live"
+      return false if validation.status != "live"
       lock_args = validation.cell.output.lock.args
       if !group.keys.include?(lock_args)
         group[lock_args] = Array.new()
@@ -166,7 +166,7 @@ class Tx_generator
 
   def sign_tx(tx)
     input_group = group_tx_input(tx)
-    return -1 if input_group == -1
+    return false if !input_group
     for key in input_group.keys
       if key != CKB::Key.blake160(@key.pubkey)
         next
@@ -223,7 +223,6 @@ class Tx_generator
       end
 
       message = blake2b.hexdigest
-
       tx.witnesses[first_index] = case tx.witnesses[first_index]
         when CKB::Types::Witness
           tx.witnesses[first_index]

@@ -5,7 +5,9 @@ require "../libs/communication.rb"
 require "../libs/chain_monitor.rb"
 require "mongo"
 require "thor"
+
 $VERBOSE = nil
+
 Mongo::Logger.logger.level = Logger::FATAL
 
 def pubkey_to_privkey(pubkey)
@@ -54,7 +56,7 @@ class GPCCLI < Thor
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
     communicator.send_establish_channel(options[:ip], options[:port], options[:amount].to_i,
-                                        options[:fee].to_i, options[:since].to_i)
+                                        options[:fee].to_i, options[:since])
   end
 
   # --------------make payments
@@ -84,7 +86,7 @@ class GPCCLI < Thor
     #   puts "The arg number is not right."
     #   return false
     # end
-    private_key = pubkey_to_privkey(options[:pubkey])
+    private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
     monitor.monitor_chain()
   end
@@ -92,9 +94,15 @@ class GPCCLI < Thor
   desc "closing_channel <pubkey> <id>", "closing the channel with id."
 
   def closing_channel(pubkey, id)
-    private_key = pubkey_to_privkey(options[:pubkey])
+    private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
-    monitor
+
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    @db = @client.database
+    @coll_sessions = @db[pubkey + "_session_pool"]
+
+    doc = @coll_sessions.find({ id: id }).first
+    monitor.send_tx(doc, "closing")
   end
 end
 

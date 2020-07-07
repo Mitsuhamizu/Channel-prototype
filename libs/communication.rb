@@ -26,10 +26,9 @@ class Communication
     @db.drop()
     # copy the db
     copy_db("GPC", "GPC_copy")
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
 
-    # get database.
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
   end
@@ -126,18 +125,15 @@ class Communication
       type_script = nil
 
       # check the cell is live and the capacity is enough.
-      capacity_check = check_cells(remote_fund_cells,
-                                   CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
+      capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
+
       if !capacity_check
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
 
-      # calcualte the remote change.
-      remote_change = capacity_check - CKB::Utils.byte_to_shannon(remote_capacity) - remote_fee
-
       # Ask whether willing to accept the request, the capacity is same as negotiations.
-      puts "The remote fund amount: #{remote_capacity}. The remote fee:#{remote_fee}"
+      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{remote_capacity}. The remote fee:#{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
 
       # It should be more robust.
@@ -165,8 +161,10 @@ class Communication
       # gather the fund inputs.
       local_fund_cells = gather_inputs(local_capacity, local_fee)
       local_fund_cells_h = local_fund_cells.inputs.map(&:to_h)
-      local_change = local_fund_cells.capacities -
-                     CKB::Utils.byte_to_shannon(local_capacity) - local_fee
+      local_change = local_fund_cells.capacities - CKB::Utils.byte_to_shannon(local_capacity) - local_fee
+
+      # calcualte the remote change.
+      remote_change = capacity_check - CKB::Utils.byte_to_shannon(remote_capacity) - remote_fee
 
       # generate the info of fund.
       gpc_capacity = remote_capacity + local_capacity
@@ -191,6 +189,7 @@ class Communication
               local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0,
               sig_index: 1 }
+
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -238,7 +237,6 @@ class Communication
       end
 
       # check change is right!
-
       local_fund_cells = local_fund_cells.map { |cell| CKB::Types::Input.from_h(cell) }
       verify_result = verify_change(fund_tx, local_fund_cells, local_capacity,
                                     local_fee, CKB::Key.blake160(@key.pubkey))
@@ -262,6 +260,7 @@ class Communication
       end
 
       #-------------------------------------------------
+      # I think is is unnecessary to do...
       # just verify the other part (version, deps, )
       # verify_result = verify_tx(fund_tx)
       # if verify_result == -1
@@ -270,15 +269,14 @@ class Communication
       # end
 
       # check the remote capcity is satisfactory.
-      puts "remote capacity #{remote_capacity}, remote fee: #{remote_fee}"
+      puts "#{remote_pubkey} replys your channel establishment request. The remote fund amount: #{remote_capacity}. The remote fee:#{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
       while true
         response = STDIN.gets.chomp
         if response == "yes"
           break
         elsif response == "no"
-          msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request.")
-          client.puts(msg_reply)
+          client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
           return false
         else
           puts "your input is invalid"
@@ -338,8 +336,11 @@ class Communication
       remote_ctx_info = json_to_info(msg[:ctx])
       remote_stx_info = json_to_info(msg[:stx])
 
-      remote_ctx_result = verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
-      remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+      # veirfy the remote signature is right.
+      # verify the args are right.
+
+      remote_ctx_result = verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
@@ -363,8 +364,23 @@ class Communication
                  data: "0x", lock: remote_default_lock }
       closing_capacity = fund_tx.outputs[0].capacity
 
-      # check the outputs in stx are right.
+      input_type = ""
+      output_type = ""
+      closing_output_data = "0x"
 
+      witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, lock_info[:nounce], input_type, output_type)
+      witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, lock_info[:nounce], input_type, output_type)
+
+      # generate and sign ctx and stx.
+      ctx_info = @tx_generator.generate_closing_info(msg[:id], lock_info, closing_capacity, closing_output_data, witness_closing, 1)
+      stx_info = @tx_generator.generate_settlement_info(msg[:id], remote, local, witness_settlement, 1)
+
+      if !verify_info_args(ctx_info, remote_ctx_info) || !verify_info_args(stx_info, remote_stx_info)
+        client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        return false
+      end
+
+      # sign
       ctx_info = @tx_generator.generate_closing_info(msg[:id], lock_info, closing_capacity,
                                                      closing_output_data, remote_ctx_info[:witness][0], 1)
       stx_info = @tx_generator.generate_settlement_info(msg[:id], remote, local,
@@ -385,6 +401,7 @@ class Communication
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
+
       # check the data is not modified!
       local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx])
       local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
@@ -398,8 +415,8 @@ class Communication
       local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witness][0]).lock)[:sig_A]
       remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witness][0]).lock)[:sig_A]
 
-      local_ctx_result = verify_info(local_ctx_info, "closing", local_pubkey, sig_index)
-      local_stx_result = verify_info(local_stx_info, "settlement", local_pubkey, sig_index)
+      local_ctx_result = verify_info_sig(local_ctx_info, "closing", local_pubkey, sig_index)
+      local_stx_result = verify_info_sig(local_stx_info, "settlement", local_pubkey, sig_index)
 
       if !local_ctx_result || !local_stx_result ||
          local_ctx_sig != remote_ctx_sig ||
@@ -410,8 +427,8 @@ class Communication
 
       # check the remote signature
 
-      remote_ctx_result = verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
-      remote_stx_result = verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+      remote_ctx_result = verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
@@ -427,15 +444,15 @@ class Communication
       msg_reply = { id: msg[:id], type: 5, fund_tx: fund_tx }.to_json
       client.puts(msg_reply)
 
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx,
-                                                                        ctx: msg[:ctx], stx: msg[:stx], status: 6, msg_cache: msg_reply } })
-
       # update the database
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx,
+                                                                        ctx: msg[:ctx], stx: msg[:stx],
+                                                                        status: 6, msg_cache: msg_reply,
+                                                                        stx_pend: 0, ctx_pend: 0 } })
 
       return true
     when 5
-
-      # TO-DO: check the signature
+      remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
 
       # sign the fund_tx.
       fund_tx_local = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
@@ -443,6 +460,12 @@ class Communication
 
       fund_tx_remote = msg[:fund_tx]
       fund_tx_remote = CKB::Types::Transaction.from_h(fund_tx_remote)
+
+      fund_tx_check_result = verify_fund_tx_sig(fund_tx_remote, remote_pubkey)
+      if !fund_tx_check_result
+        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
+        return false
+      end
 
       fund_tx_local_hash = fund_tx_local.compute_hash
       fund_tx_remote_hash = fund_tx_remote.compute_hash
@@ -455,12 +478,11 @@ class Communication
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
 
       # send the fund tx to chain.
-      # @api.send_transaction(fund_tx)
+      @api.send_transaction(fund_tx)
 
       # update the database
       # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
-
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, stx_pend: 0, ctx_pend: 0 } })
       return 0
     when 6
       id = msg[:id]
@@ -468,7 +490,6 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      nounce = @coll_sessions.find({ id: id }).first[:nounce]
       amount = msg[:amount]
 
       # all the information below should guarantee the stage is 1..
@@ -491,13 +512,25 @@ class Communication
       # check the updated info is right.
       ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
       stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
-                   verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+                   verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       return false if !ctx_result || !stx_result
 
       # ask users whether the payments are right.
 
       puts "The remote node wants to pay you #{amount}."
+      puts "Tell me whether you are willing to accept this payment."
+      while true
+        response = STDIN.gets.chomp
+        if response == "yes"
+          break
+        elsif response == "no"
+          client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
+          return false
+        else
+          puts "your input is invalid"
+        end
+      end
 
       msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
       # sign ctx and stx and send them.
@@ -523,8 +556,7 @@ class Communication
 
       # update the local database.
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
-                                                                  stx: stx_info_json,
-                                                                  nounce: nounce,
+                                                                  stx_pend: stx_info_json,
                                                                   status: 8, msg_cache: msg } })
     when 7
       # recv the signed ctx and stx, just check.
@@ -550,11 +582,14 @@ class Communication
 
       # check both the signatures are right.
       ctx_result = verify_info_args(local_ctx_info, remote_ctx_info) &&
-                   verify_info(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+                   verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
       stx_result = verify_info_args(local_stx_info, remote_stx_info) &&
-                   verify_info(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+                   verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
-      return false if !ctx_result || !stx_result
+      if !ctx_result || !stx_result
+        client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        return false
+      end
 
       # send the signed ctx.
       msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
@@ -575,6 +610,7 @@ class Communication
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
                                                                   stx: stx_info_json,
                                                                   nounce: nounce + 1,
+                                                                  stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
     when 8
       id = msg[:id]
@@ -583,6 +619,7 @@ class Communication
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
       ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
+      stx_pend = @coll_sessions.find({ id: id }).first[:stx_pend]
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
       local_ctx_info = json_to_info(ctx_pend)
@@ -593,10 +630,9 @@ class Communication
 
       ctx_info_json = info_to_json(remote_ctx_info)
 
-      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json,
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json, stx: stx_pend,
                                                                   status: 6, msg_cache: msg,
-                                                                  nounce: nounce + 1 } })
-      # update the database.
+                                                                  stx_pend: 0, ctx_pend: 0, nounce: nounce + 1 } })
     end
   end
 

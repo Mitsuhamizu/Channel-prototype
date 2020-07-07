@@ -35,6 +35,22 @@ def parse_witness(witness_ser)
   return CKB::Types::Witness.new(lock: "0x" + lock, input_type: "0x" + input_type, output_type: "0x" + output_type)
 end
 
+def group_tx_input(tx)
+  group = Hash.new()
+  index = 0
+  for input in tx.inputs
+    validation = @api.get_live_cell(input.previous_output)
+    return -1 if validation.status != "live"
+    lock_args = validation.cell.output.lock.args
+    if !group.keys.include?(lock_args)
+      group[lock_args] = Array.new()
+    end
+    group[lock_args] << index
+    index += 1
+  end
+  return group
+end
+
 def generate_msg_from_info(info, flag)
   if flag == "closing"
     num = 1
@@ -64,7 +80,7 @@ def generate_msg_from_info(info, flag)
   return msg_signed
 end
 
-def verify_info(info, flag, pubkey, sig_index)
+def verify_info_sig(info, flag, pubkey, sig_index)
 
   # load signature
   info_witness = @tx_generator.parse_witness(info[:witness][0])
@@ -89,12 +105,70 @@ def verify_info(info, flag, pubkey, sig_index)
                                                        info_witness.output_type)
   empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
   msg_signed = (msg_signed + witness_len + empty_witness).strip
-
+  msg_signed = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(msg_signed))
   return verify_signature(msg_signed, signature, pubkey) ? true : false
 end
 
-def verify_signature(msg, sig, pubkey)
-  data = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(msg))
+def verify_fund_tx_sig(tx, pubkey)
+  input_group = group_tx_input(tx)
+  return false if input_group == -1
+
+  first_index = input_group[pubkey][0]
+  # include the content needed sign.
+  blake2b = CKB::Blake2b.new
+  blake2b.update(CKB::Utils.hex_to_bin(tx.hash))
+
+  # include the first witness, I need to parse the witness!
+  emptied_witness = case tx.witnesses[first_index]
+    when CKB::Types::Witness
+      tx.witnesses[first_index]
+    else
+      parse_witness(tx.witnesses[first_index])
+    end
+  signature = emptied_witness.lock[2..]
+  emptied_witness.lock = "0x#{"0" * 130}"
+  emptied_witness_data_binary = CKB::Utils.hex_to_bin(CKB::Serializers::WitnessArgsSerializer.from(emptied_witness).serialize)
+  emptied_witness_data_size = emptied_witness_data_binary.bytesize
+  blake2b.update([emptied_witness_data_size].pack("Q<"))
+  blake2b.update(emptied_witness_data_binary)
+
+  #include the witness in the same group
+  for index in input_group[pubkey][1..]
+    witness = tx.witnesses[index]
+    data_binary = case witness
+      when CKB::Types::Witness
+        CKB::Utils.hex_to_bin(CKB::Serializers::WitnessArgsSerializer.from(witness).serialize)
+      else
+        CKB::Utils.hex_to_bin(witness)
+      end
+    data_size = data_binary.bytesize
+    blake2b.update([data_size].pack("Q<"))
+    blake2b.update(data_binary)
+  end
+
+  # include other witness
+  witnesses_len = tx.witnesses.length()
+  input_len = tx.inputs.length()
+  witness_no_input_index = (input_len..witnesses_len - 1).to_a
+  for index in witness_no_input_index
+    witness = tx.witnesses[index]
+    data_binary = case witness
+      when CKB::Types::Witness
+        CKB::Utils.hex_to_bin(CKB::Serializers::WitnessArgsSerializer.from(witness).serialize)
+      else
+        CKB::Utils.hex_to_bin(witness)
+      end
+    data_size = data_binary.bytesize
+    blake2b.update([data_size].pack("Q<"))
+    blake2b.update(data_binary)
+  end
+
+  message = blake2b.hexdigest
+
+  return verify_signature(message, signature, pubkey) ? true : false
+end
+
+def verify_signature(data, sig, pubkey)
   unrelated = MyECDSA.new
 
   signature_bin = CKB::Utils.hex_to_bin("0x" + sig[0..127])
@@ -106,6 +180,7 @@ def verify_signature(msg, sig, pubkey)
   pubkey_reverse = CKB::Utils.bin_to_hex(pubser)
 
   pubkey_verify = CKB::Key.blake160(pubkey_reverse)
+
   pubkey_verify = pubkey_verify.sub("0x", "")
   pubkey = pubkey.sub("0x", "")
 
