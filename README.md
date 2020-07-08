@@ -24,6 +24,12 @@ See the command in GPC by
 ./GPC
 ```
 
+Please init in the first use
+
+```
+GPC init <private-key>
+```
+
 Every client should run 
 ```
 GPC monitor <public key>
