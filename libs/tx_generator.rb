@@ -369,6 +369,7 @@ class Tx_generator
     tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
 
     tx.hash = tx.compute_hash
+
     return tx
   end
 
@@ -408,41 +409,30 @@ class Tx_generator
     return ctx_info
   end
 
-  def generate_terminal_tx()
-    # fund_witnesses = Array.new()
-    # for iter in fund_inputs
-    #   fund_witnesses << CKB::Types::Witness.new
-    # end
-    # use_dep_group = true
-    # read from database, to get the latest version
-
-    init_args = generate_lock_args(0, timeout, 0, remote_pubkey, local_pubkey)
-    gpc_output = CKB::Types::Output.new(
-      capacity: CKB::Utils.byte_to_shannon(gpc_capacity),
-      lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
-    )
-
-    gpc_output_data = "0x"
-
-    outputs = [gpc_output]
-    outputs_data = [gpc_output_data]
-
+  def generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witness, sig_index)
     tx = CKB::Types::Transaction.new(
       version: 0,
-      cell_deps: [], #it should be the GPC lock script cell.
-      inputs: fund_inputs, # it is very easy, just uses the output of fund transaction. It is very easy to contain.
-      outputs: outputs, # just like the input of funding transaction.
-      outputs_data: outputs_data, # now, it is empty
-      witnesses: fund_witnesses, # will, users should sign the correct position.
+      cell_deps: [],
+      inputs: inputs,
+      outputs: outputs,
+      outputs_data: outputs_data,
+      witnesses: witness,
     )
 
-    if use_dep_group
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_group_out_point, dep_type: "dep_group")
-    else
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-    end
+    out_point = CKB::Types::OutPoint.new(
+      tx_hash: @gpc_tx,
+      index: 0,
+    )
+
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
+
     tx.hash = tx.compute_hash
+    empty_witness = generate_empty_witness(id, 0, nounce, witness[0].input_type, witness[0].output_type)
+    tx.witnesses[0] = generate_witness(id, 0, empty_witness, tx.hash, sig_index)
+    tx = sign_tx(tx)
+
     return tx
   end
 end

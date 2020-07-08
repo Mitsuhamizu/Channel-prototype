@@ -104,6 +104,21 @@ class GPCCLI < Thor
     doc = @coll_sessions.find({ id: id }).first
     monitor.send_tx(doc, "closing")
   end
+
+  desc "send_closing_request --pubkey <public key> --ip <ip> --port <port> --id <id>", "The good case, bilateral closing."
+
+  option :pubkey, :required => true
+  option :ip, :required => true
+  option :port, :required => true
+  option :id, :required => true
+  option :fee
+
+  def send_closing_request()
+    private_key = pubkey_to_privkey(options[:pubkey])
+    communicator = Communication.new(private_key)
+    communicator.send_closing_request(options[:ip], options[:port], options[:id], options[:fee]) if options[:fee]
+    communicator.send_closing_request(options[:ip], options[:port], options[:id]) if !options[:fee]
+  end
 end
 
 GPCCLI.start(ARGV)

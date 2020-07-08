@@ -130,6 +130,8 @@ class Minotor
 
               if remote[:output_nounce] < nounce_local
                 # remote cheat
+                ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
+                @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h, stage: 2 } })
                 send_tx(doc, "closing")
               elsif remote[:output_nounce] == nounce_local
                 # my or remote latest is accepted, so prepare to settle.
@@ -166,11 +168,16 @@ class Minotor
       view.each do |doc|
         # well, if the ctx I sent can not be seen, just send it again.
         next if doc[:"id"] == 0
-        send_tx(doc, "closing") if doc[:stage] == 2 && doc[:settlement_time] == 0
+        send_tx(doc, "closing") if doc[:stage] == 2 && doc[:settlement_time] == 0 && doc[:closing_time] == 0
         # check whether there are available to be sent.
         if current_height >= doc[:settlement_time] && doc[:stage] == 3
           tx_hash = send_tx(doc, "settlement")
-          @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_hash: tx_hash } })
+          @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_hash: tx_hash } }) if tx_hash
+        end
+
+        if current_height >= doc[:closing_time] && doc[:stage] == 2 && doc[:closing_time] != 0
+          puts "closing!!!"
+          send_tx(doc, "closing")
         end
       end
 
@@ -186,10 +193,11 @@ class Minotor
     gpc_input = json_to_input(gpc_input)
 
     fee_cell = gather_inputs(@cell_min_capacity, fee).inputs
+    fee_cell_capacity = get_total_capacity(fee_cell)
     input = [gpc_input] + fee_cell
 
     local_change_output = CKB::Types::Output.new(
-      capacity: CKB::Utils.byte_to_shannon(@cell_min_capacity),
+      capacity: fee_cell_capacity - fee,
       lock: default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH,
                                                   args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE),
       type: nil,
@@ -207,7 +215,11 @@ class Minotor
       return false
     end
 
-    tx_hash = @api.send_transaction(tx)
+    tx_hash = false
+    exist = @api.get_transaction(tx.hash)
+    # puts exist
+    tx_hash = @api.send_transaction(tx) if exist == nil
+
     return tx_hash
   end
 end

@@ -19,6 +19,7 @@ class Communication
     @api = CKB::API::new
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
+    @cell_min_capacity = 61
 
     # it is for testing
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
@@ -188,7 +189,7 @@ class Communication
               status: 3, nounce: 0, ctx: 0, stx: 0, gpc_script: CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize,
               local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0,
-              sig_index: 1 }
+              sig_index: 1, closing_time: 0 }
 
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
@@ -450,17 +451,16 @@ class Communication
                                                                         status: 6, msg_cache: msg_reply,
                                                                         stx_pend: 0, ctx_pend: 0 } })
 
-      return true
+      return "done"
     when 5
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
-
-      # sign the fund_tx.
       fund_tx_local = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       fund_tx_local = CKB::Types::Transaction.from_h(fund_tx_local)
 
       fund_tx_remote = msg[:fund_tx]
       fund_tx_remote = CKB::Types::Transaction.from_h(fund_tx_remote)
 
+      # check signature.
       fund_tx_check_result = verify_fund_tx_sig(fund_tx_remote, remote_pubkey)
       if !fund_tx_check_result
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
@@ -478,86 +478,132 @@ class Communication
       fund_tx = @tx_generator.sign_tx(fund_tx_remote)
 
       # send the fund tx to chain.
-      @api.send_transaction(fund_tx)
-
+      while true
+        exist = @api.get_transaction(fund_tx.hash)
+        break if exist != nil
+        @api.send_transaction(fund_tx)
+      end
       # update the database
       # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, stx_pend: 0, ctx_pend: 0 } })
       return 0
     when 6
       id = msg[:id]
-      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
-      local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+      msg_type = msg[:msg_type]
+      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      amount = msg[:amount]
 
-      # all the information below should guarantee the stage is 1..
       if stage != 1
         puts "the fund tx is not on chain, so the you can not make payment now..."
         return false
       end
+      
+      if msg_type == "payment"
+        local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+        sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+        amount = msg[:amount]
+        # all the information below should guarantee the stage is 1..
 
-      # recv the new signed stx and unsigned ctx.
-      remote_ctx_info = json_to_info(msg[:ctx_info])
-      remote_stx_info = json_to_info(msg[:stx_info])
-      amount = msg[:amount]
+        # recv the new signed stx and unsigned ctx.
+        remote_ctx_info = json_to_info(msg[:ctx_info])
+        remote_stx_info = json_to_info(msg[:stx_info])
+        amount = msg[:amount]
 
-      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
-      local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx])
+        local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
+        local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx])
 
-      local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey)
-      local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
+        local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey)
+        local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
 
-      # check the updated info is right.
-      ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
-      stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
-                   verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+        # check the updated info is right.
+        ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
+        stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
+                     verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
-      return false if !ctx_result || !stx_result
+        return false if !ctx_result || !stx_result
 
-      # ask users whether the payments are right.
+        # ask users whether the payments are right.
 
-      puts "The remote node wants to pay you #{amount}."
-      puts "Tell me whether you are willing to accept this payment."
-      while true
-        response = STDIN.gets.chomp
-        if response == "yes"
-          break
-        elsif response == "no"
-          client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
-          return false
-        else
-          puts "your input is invalid"
+        puts "The remote node wants to pay you #{amount}."
+        puts "Tell me whether you are willing to accept this payment."
+        while true
+          response = STDIN.gets.chomp
+          if response == "yes"
+            break
+          elsif response == "no"
+            client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
+            return false
+          else
+            puts "your input is invalid"
+          end
         end
+
+        msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
+        # sign ctx and stx and send them.
+        witness_new = Array.new()
+        for witness in remote_stx_info[:witness]
+          witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+        end
+        remote_stx_info[:witness] = witness_new
+
+        msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
+        # sign ctx and stx and send them.
+        witness_new = Array.new()
+        for witness in remote_ctx_info[:witness]
+          witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
+        end
+        remote_ctx_info[:witness] = witness_new
+        # update the database.
+        ctx_info_json = info_to_json(remote_ctx_info)
+        stx_info_json = info_to_json(remote_stx_info)
+
+        msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+        client.puts(msg)
+
+        # update the local database.
+        @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
+                                                                    stx_pend: stx_info_json,
+                                                                    status: 8, msg_cache: msg } })
+      elsif msg_type == "closing"
+        terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
+        local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx])
+
+        # check the amount is right as local.
+        for index in (0..local_stx_info[:outputs].length - 1)
+          if terminal_tx.outputs[index].to_h != local_stx_info[:outputs][index].to_h
+            client.puts(generate_text_msg(msg[:id], "sry, the output is not right."))
+            return false
+          end
+        end
+
+        puts "#{remote_pubkey} wants to close the channel with id #{id}."
+        puts "Tell me whether you are willing to accept this request"
+
+        while true
+          response = STDIN.gets.chomp
+          if response == "yes"
+            break
+          elsif response == "no"
+            msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request.")
+            client.puts(msg_reply)
+            return false
+          else
+            puts "your input is invalid"
+          end
+        end
+
+        terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0],
+                                                                  terminal_tx.hash, sig_index)
+        while true
+          exist = @api.get_transaction(terminal_tx.hash)
+          break if exist != nil
+          @api.send_transaction(terminal_tx)
+        end
+
+        @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2 } })
+        return true
       end
-
-      msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
-      # sign ctx and stx and send them.
-      witness_new = Array.new()
-      for witness in remote_stx_info[:witness]
-        witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
-      end
-      remote_stx_info[:witness] = witness_new
-
-      msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
-      # sign ctx and stx and send them.
-      witness_new = Array.new()
-      for witness in remote_ctx_info[:witness]
-        witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
-      end
-      remote_ctx_info[:witness] = witness_new
-      # update the database.
-      ctx_info_json = info_to_json(remote_ctx_info)
-      stx_info_json = info_to_json(remote_stx_info)
-
-      msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
-      client.puts(msg)
-
-      # update the local database.
-      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
-                                                                  stx_pend: stx_info_json,
-                                                                  status: 8, msg_cache: msg } })
     when 7
       # recv the signed ctx and stx, just check.
       id = msg[:id]
@@ -612,6 +658,7 @@ class Communication
                                                                   nounce: nounce + 1,
                                                                   stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
+      return "done"
     when 8
       id = msg[:id]
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
@@ -631,8 +678,7 @@ class Communication
       ctx_info_json = info_to_json(remote_ctx_info)
 
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx: ctx_info_json, stx: stx_pend,
-                                                                  status: 6, msg_cache: msg,
-                                                                  stx_pend: 0, ctx_pend: 0, nounce: nounce + 1 } })
+                                                                  status: 6, stx_pend: 0, ctx_pend: 0, nounce: nounce + 1 } })
     end
   end
 
@@ -674,13 +720,14 @@ class Communication
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
             timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity,
-            local_fee: fee, stage: 0, settlement_time: 0, sig_index: 0 }
+            local_fee: fee, stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0 }
     return false if !insert_with_check(@coll_sessions, doc)
 
     # just keep listen
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
-      process_recv_message(s, msg)
+      ret = process_recv_message(s, msg)
+      break if ret == "done"
     end
   end
 
@@ -721,17 +768,79 @@ class Communication
     stx_info_json = info_to_json(stx_info)
 
     # send the msg.
-    msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json, amount: amount }.to_json
+    msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json, amount: amount, msg_type: "payment" }.to_json
     s.puts(msg)
 
     # update the local database.
-    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json,
-                                                                ctx_pend: ctx_info_json,
-                                                                nounce: nounce,
-                                                                status: 7, msg_cache: msg } })
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json, ctx_pend: ctx_info_json,
+                                                                nounce: nounce, status: 7, msg_cache: msg } })
     while (1)
       msg = JSON.parse(s.gets, symbolize_names: true)
-      process_recv_message(s, msg)
+      ret = process_recv_message(s, msg)
+      break if ret == "done"
     end
+  end
+
+  def send_closing_request(remote_ip, remote_port, id, fee = 10000)
+    s = TCPSocket.open(remote_ip, remote_port)
+    current_height = @api.get_tip_block_number
+    remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+    local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+    stage = @coll_sessions.find({ id: id }).first[:stage]
+    stx = @coll_sessions.find({ id: id }).first[:stx]
+    ctx = @coll_sessions.find({ id: id }).first[:ctx]
+    nounce = @coll_sessions.find({ id: id }).first[:nounce]
+    fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
+    fund_tx = CKB::Types::Transaction.from_h(fund_tx)
+    # require the stage is 1.
+    if stage != 1
+      puts "payment time passed."
+      return false
+    end
+
+    # construct the input according to the fund tx.
+
+    input_fund = @tx_generator.convert_input(fund_tx, 0, 0)
+    fee_cell = gather_inputs(@cell_min_capacity, fee).inputs
+    fee_cell_capacity = get_total_capacity(fee_cell)
+    inputs = [input_fund] + fee_cell
+
+    # constrcut the output......
+    stx_info = json_to_info(stx)
+    local_change_output = CKB::Types::Output.new(
+      capacity: fee_cell_capacity - fee,
+      lock: default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH,
+                                                  args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE),
+      type: nil,
+    )
+    outputs = stx_info[:outputs]
+    outputs << local_change_output
+
+    outputs_data = stx_info[:outputs_data]
+    outputs_data << "0x"
+
+    witnesses = stx_info[:witness]
+
+    for iter in fee_cell
+      witnesses << CKB::Types::Witness.new
+    end
+    witnesses = witnesses.map do |witness|
+      case witness
+      when CKB::Types::Witness
+        witness
+      else
+        @tx_generator.parse_witness(witness)
+      end
+    end
+    # send
+    terminal_tx = @tx_generator.generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witnesses, sig_index)
+
+    msg = { id: id, type: 6, terminal_tx: terminal_tx.to_h, msg_type: "closing" }.to_json
+    s.puts(msg)
+    # update database.
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2, status: 6, msg_cache: msg,
+                                                                closing_time: current_height + 100 } })
+    return "done"
   end
 end
