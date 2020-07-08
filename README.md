@@ -28,7 +28,7 @@ Every client should run
 ```
 GPC monitor <public key>
 GPC listen <pubkey> <port>
-``
+```
 
 Then you can make payments by other command.
 
