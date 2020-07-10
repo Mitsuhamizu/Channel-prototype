@@ -450,7 +450,7 @@ class Communication
                                                                         ctx: msg[:ctx], stx: msg[:stx],
                                                                         status: 6, msg_cache: msg_reply,
                                                                         stx_pend: 0, ctx_pend: 0 } })
-
+      client.close
       return "done"
     when 5
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
@@ -481,7 +481,7 @@ class Communication
       while true
         exist = @api.get_transaction(fund_tx.hash)
         break if exist != nil
-        @api.send_transaction(fund_tx)
+        puts @api.send_transaction(fund_tx)
       end
       # update the database
       # @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6, latest_tx_hash: tx_hash } })
@@ -496,9 +496,11 @@ class Communication
 
       if stage != 1
         puts "the fund tx is not on chain, so the you can not make payment now..."
+        puts id
+        puts stage
         return false
       end
-      
+
       if msg_type == "payment"
         local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
         sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
@@ -598,7 +600,7 @@ class Communication
         while true
           exist = @api.get_transaction(terminal_tx.hash)
           break if exist != nil
-          @api.send_transaction(terminal_tx)
+          puts @api.send_transaction(terminal_tx)
         end
 
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2 } })
@@ -658,6 +660,7 @@ class Communication
                                                                   nounce: nounce + 1,
                                                                   stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
+      client.close
       return "done"
     when 8
       id = msg[:id]
@@ -840,7 +843,8 @@ class Communication
     s.puts(msg)
     # update database.
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2, status: 6, msg_cache: msg,
-                                                                closing_time: current_height + 100 } })
+                                                                closing_time: current_height + 20 } })
+    # s.close
     return "done"
   end
 end

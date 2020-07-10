@@ -142,7 +142,7 @@ class Minotor
 
                 stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout, stx_input: stx_input_h, stage: 3 } })
-              elsif stx_pend = 0 && remote[:output_nounce] - nounce_local == 1
+              elsif stx_pend != 0 && remote[:output_nounce] - nounce_local == 1
                 # remote one break his promise, so just prepare to send the pend stx.
                 timeout = doc[:timeout].to_i
                 timeout = [timeout].pack("Q>")
@@ -176,6 +176,8 @@ class Minotor
         end
 
         if current_height >= doc[:closing_time] && doc[:stage] == 2 && doc[:closing_time] != 0
+          puts doc[:stage]
+          puts doc[:id]
           puts "closing!!!"
           send_tx(doc, "closing")
         end
@@ -218,8 +220,10 @@ class Minotor
     tx_hash = false
     exist = @api.get_transaction(tx.hash)
     # puts exist
-    tx_hash = @api.send_transaction(tx) if exist == nil
-
+    begin
+      tx_hash = @api.send_transaction(tx) if exist == nil
+    rescue
+    end
     return tx_hash
   end
 end
