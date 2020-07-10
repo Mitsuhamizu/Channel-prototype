@@ -1,43 +1,136 @@
-def gather_inputs(capacity, fee, from_block_number: 0)
-  lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
-  capacity = CKB::Utils.byte_to_shannon(capacity)
+def gather_fund_input(lock_hash, amount_required, type_script_hash, decoder, from_block_number)
+  final_inputs = []
+  amount_gathered = 0
+  current_height = @api.get_tip_block_number()
 
-  output_GPC = CKB::Types::Output.new(
-    capacity: capacity,
-    lock: lock, #it should be the GPC lock script
-  )
-  output_GPC_data = "0x" #it should be the GPC data, well, it could be empty.
+  while from_block_number <= current_height
+    current_to = [from_block_number + 100, current_height].min
+    cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
+    for cell in cells
+      tx = @api.get_transaction(cell.out_point.tx_hash).transaction
+      type_script = tx.outputs[cell.out_point.index].type
+      next if decoder != nil &&
+              (type_script == nil ||
+               type_script.compute_hash != type_script_hash)
+      amount_gathered += decoder == nil ?
+        tx.outputs[cell.out_point.index].capacity :
+        decoder.call(tx.outputs_data[cell.out_point.index])
 
-  output_change = CKB::Types::Output.new(
+      # add the input.
+      final_inputs << CKB::Types::Input.new(
+        previous_output: cell.out_point,
+        since: 0,
+      )
+
+      break if amount_gathered > amount_required
+    end
+
+    break if amount_gathered > amount_required
+    from_block_number = current_to + 1
+  end
+  return amount_gathered < amount_required ? false : final_inputs
+end
+
+def gather_fee_cell(lock_hash, fee, from_block_number)
+  final_inputs = []
+  lock = CKB::Types::Script.generate_lock(CKB::Key.blake160(@key.pubkey), CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, CKB::ScriptHashType::TYPE)
+  current_height = @api.get_tip_block_number()
+  capacity_gathered = 0
+
+  change_output = CKB::Types::Output.new(
     capacity: 0,
     lock: lock,
   )
+  change_output_data = "0x"
+  capacity_required = change_output.calculate_min_capacity(change_output_data)
 
-  # The capacity is only the capcity of GPC, we should add the fee to it is the total_capacity.
-  output_change_data = "0x"
+  while from_block_number <= current_height
+    current_to = [from_block_number + 100, current_height].min
+    cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
+    for cell in cells
+      next if cell.type != nil
+      capacity_gathered += cell.capacity
+      # add the input.
+      final_inputs << CKB::Types::Input.new(
+        previous_output: cell.out_point,
+        since: 0,
+      )
 
-  i = @wallet.gather_inputs(
-    capacity,
-    output_GPC.calculate_min_capacity(output_GPC_data),
-    output_change.calculate_min_capacity(output_change_data),
-    fee,
-    from_block_number: from_block_number,
-  )
-  return i
-end
+      break if capacity_gathered > capacity_required
+    end
 
-def get_total_capacity(cells)
-  total_capacity = 0
-  for cell in cells
-    validation = @api.get_live_cell(cell.previous_output)
-    total_capacity += validation.cell.output.capacity
-    return -1 if validation.status != "live"
+    break if capacity_gathered > capacity_required
+    from_block_number = current_to + 1
   end
 
-  return total_capacity
+  return capacity_gathered < capacity_required ? false : final_inputs
 end
 
-def check_cells(cells, capacity)
-  capacity_check = get_total_capacity(cells)
-  return capacity_check > capacity ? capacity_check : false
+def gather_inputs(amount, fee, type_script_hash = nil, decoder = nil, from_block_number = 0)
+
+  # gather fund inputs.
+  lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
+  lock_hash = lock.compute_hash
+
+  fund_inputs = gather_fund_input(lock_hash, amount, type_script_hash, decoder, from_block_number)
+  return false if !fund_inputs
+
+  # gather fee cells.
+
+  fee_inputs = gather_fee_cell(lock_hash, fee, from_block_number)
+  return false if !fee_inputs
+
+  return fund_inputs + fee_inputs
+end
+
+def get_total_amount(cells, type_script_hash, decoder)
+  amount_gathered = 0
+  # check amount.
+  for cell in cells
+    # check live.
+    validation = @api.get_live_cell(cell.previous_output)
+    return false if validation.status != "live"
+
+    # add amount
+    tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
+    type_script = tx.outputs[cell.previous_output.index].type
+    next if decoder != nil &&
+            (type_script == nil ||
+             type_script.compute_hash != type_script_hash)
+    amount_gathered += decoder == nil ?
+      tx.outputs[cell.previous_output.index].capacity :
+      decoder.call(tx.outputs_data[cell.previous_output.index])
+  end
+
+  return amount_gathered
+end
+
+# def get_fee_cell(cells)
+#   amount_gathered
+#   for cell in cells
+#     # check live.
+#     validation = @api.get_live_cell(cell.previous_output)
+#     return false if validation.status != "live"
+
+#     # add amount
+#     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
+#     type_script = tx.outputs[cell.previous_output.index].type
+
+#     amount_gathered += decoder == nil ?
+#       tx.outputs[cell.previous_output.index].capacity :
+#       decoder.call(tx.outputs_data[cell.previous_output.index])
+#   end
+# end
+
+def check_cells(cells, type_script_hash, amount_required, decoder)
+  amount_gathered = get_total_amount(cells, type_script_hash, decoder)
+  return amount_gathered && amount_gathered > amount_required ? amount_gathered : false
+  # check_fee
+end
+
+def construct_change_output(output, output_data, amount, decoder)
+  cell_change = cell
+  if decoder
+  else
+  end
 end

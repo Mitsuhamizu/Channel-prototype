@@ -109,5 +109,6 @@ udt_code_hash = "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfd
 type_script = CKB::Types::Script.new(code_hash: udt_code_hash, args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947", hash_type: CKB::ScriptHashType::DATA)
 type_script_hash = type_script.compute_hash
 inputs = gather_inputs(201, 10000, type_script_hash, method(:decoder))
+# puts type_script_hash
 
 puts inputs

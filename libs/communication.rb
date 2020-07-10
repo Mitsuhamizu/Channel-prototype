@@ -27,9 +27,12 @@ class Communication
     @db.drop()
     # copy the db
     copy_db("GPC", "GPC_copy")
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
 
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
+    @lock_hash = @lock.compute_hash
+
+    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
   end
@@ -117,24 +120,39 @@ class Communication
 
       # parse the msg
       remote_pubkey = msg[:pubkey]
-      remote_capacity = msg[:fund_capacity]
-      remote_fee = msg[:fee]
+      remote_amount = msg[:fund_amount]
       remote_fund_cells = msg[:fund_cells].map { |cell| CKB::Types::Input.from_h(cell) }
       timeout = msg[:timeout].to_i
+      type_script_hash = msg[:type_script_hash]
 
-      # the type_script is nil in CKByte
+      # find the type hash and decoder.
       type_script = nil
+      decoder = nil
+      type_dep = nil
+
+      # we need more options, here I only consider this case.
+      if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
+        type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                                             args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
+                                             hash_type: CKB::ScriptHashType::DATA)
+        out_point = CKB::Types::OutPoint.new(
+          tx_hash: "0xec4334e8a25b94f2cd71e0a2734b2424c159f4825c04ed8410e0bb5ee1dc6fe8",
+          index: 0,
+        )
+        type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+        decoder = method(:decoder)
+      end
 
       # check the cell is live and the capacity is enough.
-      capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
+      amount_check = check_cells(remote_fund_cells, type_script_hash, remote_amount, decoder)
 
-      if !capacity_check
+      if !amount_check
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
 
       # Ask whether willing to accept the request, the capacity is same as negotiations.
-      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{remote_capacity}. The remote fee:#{remote_fee}"
+      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{remote_amount}. The type script hash #{type_script_hash}."
       puts "Tell me whether you are willing to accept this request"
 
       # It should be more robust.
@@ -153,15 +171,20 @@ class Communication
 
       # Get the capacity and fee. These code need to be more robust.
       while true
-        puts "Please input the capacity and fee you want to use for funding"
-        local_capacity = STDIN.gets.chomp.to_i
+        puts "Please input the amount and fee you want to use for funding"
+        local_amount = STDIN.gets.chomp.to_i
         local_fee = STDIN.gets.chomp.to_i
         break
       end
 
       # gather the fund inputs.
-      local_fund_cells = gather_inputs(local_capacity, local_fee)
+      local_fund_cells = gather_inputs(local_amount, local_fee, type_script.compute_hash, method(:decoder), 15000)
       local_fund_cells_h = local_fund_cells.inputs.map(&:to_h)
+
+      # construct cell.
+
+      # remote_fund_output, = construct_change_output()
+
       local_change = local_fund_cells.capacities - CKB::Utils.byte_to_shannon(local_capacity) - local_fee
 
       # calcualte the remote change.
@@ -701,12 +724,18 @@ class Communication
     }
   end
 
-  def send_establish_channel(remote_ip, remote_port, capacity, fee, timeout)
+  def decoder(data)
+    result = CKB::Utils.hex_to_bin(data).unpack("Q<")[0]
+    return result.to_i
+  end
+
+  def send_establish_channel(remote_ip, remote_port, amount, timeout, type_script = nil, type_dep = nil)
     s = TCPSocket.open(remote_ip, remote_port)
 
     # prepare the msg components.
-    local_fund_cells = gather_inputs(capacity, fee)
-    local_fund_cells = local_fund_cells.inputs.map(&:to_h)
+    local_fund_cells = gather_fund_input(@lock_hash, amount, type_script.compute_hash, method(:decoder), 15000)
+
+    local_fund_cells = local_fund_cells.map(&:to_h)
     local_pubkey = CKB::Key.blake160(@key.pubkey)
     lock_timeout = timeout
 
@@ -714,7 +743,7 @@ class Communication
     msg_digest = local_fund_cells.to_json
     session_id = Digest::MD5.hexdigest(msg_digest)
     msg = { id: session_id, type: 1, pubkey: local_pubkey, fund_cells: local_fund_cells,
-            fund_capacity: capacity, fee: fee, timeout: lock_timeout }.to_json
+            fund_amount: amount, timeout: lock_timeout, type_script_hash: type_script.compute_hash }.to_json
 
     # send the msg.
     s.puts(msg)
@@ -722,8 +751,9 @@ class Communication
     #insert the doc into database.
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
-            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_capacity: capacity,
-            local_fee: fee, stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0 }
+            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_amount: amount,
+            stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0,
+            type_script_hash: type_script.compute_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
     # just keep listen
