@@ -45,10 +45,8 @@ class GPCCLI < Thor
 
   # --------------establishment
   desc "send_establishment_request --pubkey <public key> --ip <ip> \
-        --port <port> --amount <amount> --fee <fee> --since <since> \
-        --type_code_hash <type code hash> --type_args <type_args> \
-        --type_hash_type <type_hash_type> --type_tx_hash <type_tx_hash> \
-        --index <index> --dep_type <dep_type>",
+        --port <port> --amount <amount> --fee <fee in shannon> --since <since> \
+        --type_script_hash <type_script_hash>",
        "Send the chanenl establishment request."
   option :pubkey, :required => true
   option :ip, :required => true
@@ -56,29 +54,15 @@ class GPCCLI < Thor
   option :amount, :required => true
   option :fee, :required => true
   option :since, :required => true
-  option :type_code_hash
-  option :type_args
-  option :type_hash_type
-  option :type_tx_hash
-  option :index
-  option :dep_type
+  option :type_script_hash
 
   def send_establishment_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    type_hash_type = options[:type_hash_type] == "data" ? CKB::ScriptHashType::DATA : CKB::ScriptHashType::TYPE
-    type_script = CKB::Types::Script.new(code_hash: options[:type_code_hash],
-                                         args: options[:type_args],
-                                         hash_type: type_hash_type)
 
-    out_point = CKB::Types::OutPoint.new(
-      tx_hash: options[:type_tx_hash],
-      index: options[:index].to_i,
-    )
-    type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: options[:dep_type])
-
+    type_script_hash = options[:type_script_hash] == nil ? "" : options[:type_script_hash]
     communicator.send_establish_channel(options[:ip], options[:port], options[:amount].to_i,
-                                        options[:fee].to_i, options[:since], type_script, type_dep)
+                                        options[:fee].to_i, options[:since], type_script_hash)
   end
 
   # --------------make payments

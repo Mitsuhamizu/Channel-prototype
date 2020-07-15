@@ -7,10 +7,9 @@ require "bundler/setup"
 require "ckb"
 require "digest/sha1"
 require "mongo"
+require "set"
 require "../libs/tx_generator.rb"
 require "../libs/mongodb_operate.rb"
-require "../libs/mongodb_operate.rb"
-require "../libs/ckb_interaction.rb"
 require "../libs/verification.rb"
 
 class Communication
@@ -58,8 +57,10 @@ class Communication
 
   # These two functions are used to parse-construct ctx_info and stx_info.
   def info_to_json(info)
-    info[:outputs] = info[:outputs].map(&:to_h)
-    info[:witness] = info[:witness].map do |witness|
+    info_json = info
+
+    info_json[:outputs] = info_json[:outputs].map(&:to_h)
+    info_json[:witnesses] = info_json[:witnesses].map do |witness|
       case witness
       when CKB::Types::Witness
         CKB::Serializers::WitnessArgsSerializer.from(witness).serialize
@@ -67,6 +68,9 @@ class Communication
         witness
       end
     end
+
+    info_json = info_json.to_json
+
     return info.to_json
   end
 
@@ -74,6 +78,44 @@ class Communication
     info_h = JSON.parse(json, symbolize_names: true)
     info_h[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
     return info_h
+  end
+
+  def hash_to_cell(cell_h)
+    cell = cell_h
+
+    cell[:output] = CKB::Types::Output.from_h(cell[:output])
+
+    return cell
+  end
+
+  def cell_to_hash(cell)
+    cell_h = cell
+    cell_h[:output] = cell_h[:output].to_h
+
+    return cell_h
+  end
+
+  def find_type(type_script_hash)
+    type_script = nil
+    decoder = nil
+    encoder = nil
+    type_dep = nil
+
+    # we need more options, here I only consider this case.
+    if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
+      type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                                           args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
+                                           hash_type: CKB::ScriptHashType::DATA)
+      out_point = CKB::Types::OutPoint.new(
+        tx_hash: "0xec4334e8a25b94f2cd71e0a2734b2424c159f4825c04ed8410e0bb5ee1dc6fe8",
+        index: 0,
+      )
+      type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+      decoder = method(:decoder)
+      encoder = method(:encoder)
+    end
+
+    return { type_script: type_script, type_dep: type_dep, decoder: decoder, encoder: encoder }
   end
 
   def process_recv_message(client, msg)
@@ -120,44 +162,41 @@ class Communication
 
       # parse the msg
       remote_pubkey = msg[:pubkey]
-      remote_amount = msg[:fund_amount]
-      remote_fund_cells = msg[:fund_cells].map { |cell| CKB::Types::Input.from_h(cell) }
+      remote_cells = msg[:cells].map { |cell| CKB::Types::Input.from_h(cell) }
+      remote_fee = msg[:fee]
+      remote_change = hash_to_cell(msg[:change])
+      remote_asset = msg[:asset]
+      remote_stx_info = json_to_info(msg[:stx_info])
       timeout = msg[:timeout].to_i
-      type_script_hash = msg[:type_script_hash]
+      local_pubkey = CKB::Key.blake160(@key.pubkey)
+      lock_hashes = [@lock_hash]
+      refund_lock_script = @lock
 
       # find the type hash and decoder.
-      type_script = nil
-      decoder = nil
-      type_dep = nil
+      local_type_script_hash = remote_asset.keys.first.to_s
+      remote_type_script_hash = remote_asset.keys.first.to_s
+      remote_amount = remote_asset[remote_asset.keys.first]
 
-      # we need more options, here I only consider this case.
-      if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
-        type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
-                                             args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
-                                             hash_type: CKB::ScriptHashType::DATA)
-        out_point = CKB::Types::OutPoint.new(
-          tx_hash: "0xec4334e8a25b94f2cd71e0a2734b2424c159f4825c04ed8410e0bb5ee1dc6fe8",
-          index: 0,
-        )
-        type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
-        decoder = method(:decoder)
-      end
+      local_type = find_type(local_type_script_hash)
+      remote_type = find_type(remote_type_script_hash)
 
-      # check the cell is live and the capacity is enough.
-      amount_check = check_cells(remote_fund_cells, type_script_hash, remote_amount, decoder)
+      # check remote cells.
+      remote_cell_check = check_cells(remote_cells, remote_amount, remote_fee, remote_change, remote_stx_info, remote_type_script_hash, remote_type[:decoder])
 
-      if !amount_check
+      if !remote_cell_check
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
 
       # Ask whether willing to accept the request, the capacity is same as negotiations.
-      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{remote_amount}. The type script hash #{type_script_hash}."
+      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{remote_amount}. The type script hash #{remote_type_script_hash}."
       puts "Tell me whether you are willing to accept this request"
 
       # It should be more robust.
       while true
-        response = STDIN.gets.chomp
+        # testing
+        # response = STDIN.gets.chomp
+        response = "yes"
         if response == "yes"
           break
         elsif response == "no"
@@ -172,46 +211,74 @@ class Communication
       # Get the capacity and fee. These code need to be more robust.
       while true
         puts "Please input the amount and fee you want to use for funding"
-        local_amount = STDIN.gets.chomp.to_i
-        local_fee = STDIN.gets.chomp.to_i
+        # local_amount = 0
+        # local_fee = 0
+        local_amount = 44
+        local_fee = 1000
+        local_amount = local_type_script_hash == nil ? CKB::Utils.byte_to_shannon(local_amount) : local_amount
+        # local_amount = STDIN.gets.chomp.to_i
+        # local_fee = STDIN.gets.chomp.to_i
         break
       end
 
-      # gather the fund inputs.
-      local_fund_cells = gather_inputs(local_amount, local_fee, type_script.compute_hash, method(:decoder), 15000)
-      local_fund_cells_h = local_fund_cells.inputs.map(&:to_h)
+      # gather local fund inputs.
+      local_cells = gather_inputs(local_amount, local_fee, lock_hashes, local_type_script_hash, local_type[:decoder], 15000)
+      local_cells_h = local_cells.map(&:to_h)
 
-      # construct cell.
+      local_empty_stx = @tx_generator.generate_empty_settlement_info(local_amount, refund_lock_script, local_type[:type_script], local_type[:encoder])
+      refund_capacity = local_empty_stx[:outputs][0].capacity
+      local_empty_stx_json = info_to_json(local_empty_stx)
 
-      # remote_fund_output, = construct_change_output()
+      # check the one way channel.
+      if local_cells != []
+        local_cell_check = check_cells(local_cells, local_type_script_hash, local_amount, local_fee, local_type[:decoder])
+        local_change = @tx_generator.construct_change_output(local_cells, local_cell_check, local_amount, local_fee, lock_script, local_type[:type_script], local_type[:encoder])
+      else
+        local_change = []
+      end
 
-      local_change = local_fund_cells.capacities - CKB::Utils.byte_to_shannon(local_capacity) - local_fee
+      gpc_capacity = get_total_capacity(local_cells + remote_cells)
 
-      # calcualte the remote change.
-      remote_change = capacity_check - CKB::Utils.byte_to_shannon(remote_capacity) - remote_fee
+      outputs = Array.new()
+      outputs_data = Array.new()
+      for cell in local_change + remote_change
+        outputs << cell[:output]
+        outputs_data << cell[:output_data]
+      end
 
+      for output in outputs
+        gpc_capacity -= output.capacity
+      end
+
+      # generate the info of gpc output
+      gpc_capacity -= (remote_fee + local_fee)
+      gpc_type_script = local_type[:type_script]
+
+      gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, local_amount + remote_amount,
+                                                    msg[:id], timeout, remote_pubkey, gpc_type_script, local_type[:encoder])
+
+      outputs.insert(0, gpc_cell[:output])
+      outputs_data.insert(0, gpc_cell[:output_data])
       # generate the info of fund.
-      gpc_capacity = remote_capacity + local_capacity
-      fund_cells = remote_fund_cells + local_fund_cells.inputs
+      fund_cells = remote_cells + local_cells
       fund_witnesses = Array.new()
       for iter in fund_cells
         fund_witnesses << CKB::Types::Witness.new       # the witness will be customized in UDT.
       end
 
       # Let us create the fund tx!
-      fund_tx = @tx_generator.generate_fund_tx(msg[:id], fund_cells, gpc_capacity, local_change, remote_change,
-                                               remote_pubkey, timeout, type_script, fund_witnesses)
+      fund_tx = @tx_generator.generate_fund_tx(fund_cells, outputs, outputs_data, fund_witnesses, local_type[:type_dep])
 
       # send it
       msg_reply = { id: msg[:id], type: 2, fee: local_fee, fund_tx: fund_tx.to_h,
-                    capacity: local_capacity }.to_json
+                    amount: local_amount, pubkey: local_pubkey }.to_json
       client.puts(msg_reply)
 
       # update database.
-      doc = { id: msg[:id], local_pubkey: CKB::Key.blake160(@key.pubkey), remote_pubkey: remote_pubkey,
+      doc = { id: msg[:id], local_pubkey: local_pubkey, remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx: 0, stx: 0, gpc_script: CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize,
-              local_fund_cells: local_fund_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
-              timeout: timeout.to_s, local_capacity: local_capacity, stage: 0, settlement_time: 0,
+              local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
+              timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0 }
 
       return insert_with_check(@coll_sessions, doc) ? true : false
@@ -219,50 +286,96 @@ class Communication
 
       # parse the msg.
       fund_tx = CKB::Types::Transaction.from_h(msg[:fund_tx])
-      remote_capacity = msg[:capacity]
+      remote_amount = msg[:amount]
       remote_fee = msg[:fee]
-      local_fund_cells = @coll_sessions.find({ id: msg[:id] }).first[:local_fund_cells]
-      local_fund_cells = local_fund_cells.map { |cell| JSON.parse(cell.to_json, symbolize_names: true) }
-      remote_fund_cells = fund_tx.inputs.map(&:to_h) - local_fund_cells
-      remote_fund_cells = remote_fund_cells.map { |cell| CKB::Types::Input.from_h(cell) }
-      local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
-      local_capacity = @coll_sessions.find({ id: msg[:id] }).first[:local_capacity]
-      local_fee = @coll_sessions.find({ id: msg[:id] }).first[:local_fee]
-      timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
+      local_cells = @coll_sessions.find({ id: msg[:id] }).first[:local_cells]
+      local_cells = local_cells.map { |cell| JSON.parse(cell.to_json, symbolize_names: true) }
+      remote_cells = fund_tx.inputs.map(&:to_h) - local_cells
+      local_cells = local_cells.map { |cell| CKB::Types::Input.from_h(cell) }
+      remote_cells = remote_cells.map { |cell| CKB::Types::Input.from_h(cell) }
 
-      # get the remote pubkey (blake160). Assumption, there are only two pubkey.
-      remote_pubkey = nil
-      input_group = @tx_generator.group_tx_input(fund_tx)
-      for key in input_group.keys
-        if key != CKB::Key.blake160(@key.pubkey)
-          remote_pubkey = key
-          break
+      remote_pubkey = msg[:pubkey]
+      local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
+      local_asset = @coll_sessions.find({ id: msg[:id] }).first[:local_asset]
+      local_fee = @coll_sessions.find({ id: msg[:id] }).first[:fee]
+      local_change = hash_to_cell(@coll_sessions.find({ id: msg[:id] }).first[:local_change])
+
+      timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
+      type_script_hash = local_asset.keys.first
+      remote_type = find_type(type_script_hash)
+      local_type = find_type(type_script_hash)
+      gpc_output = fund_tx.outputs[0]
+      gpc_output_data = fund_tx.outputs_data[0]
+      # About the one way channel.
+      if remote_cells.length == 0
+        puts "It is a one-way channel, tell me whether you want to accept it."
+        while true
+          # testing
+          # response = STDIN.gets.chomp
+          response = "yes"
+          if response == "yes"
+            break
+          elsif response == "no"
+            msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request, since it is one-way channel.")
+            client.puts(msg_reply)
+            return false
+          else
+            puts "your input is invalid"
+          end
         end
       end
 
-      # About the one way channel.
-      if remote_pubkey == nil
-        puts "It is a one-way channel......."
+      local_cell_lock_lib = Set[]
+      for cell in local_cells
+        output = @api.get_live_cell(cell.previous_output).cell.output
+        local_cell_lock_lib.add(output.lock.compute_hash)
+      end
+
+      # check there is no my cells in remote cell. So, we need to
+      for cell in remote_cells
+        output = @api.get_live_cell(cell.previous_output).cell.output
+        return false if local_cell_lock_lib.include? output.lock.compute_hash
       end
 
       # compute the gpc script by myself, and check it. So here, we can make sure that the GPC args are right.
       init_args = @tx_generator.generate_lock_args(msg[:id], 0, timeout, 0, local_pubkey[2..-1], remote_pubkey[2..-1])
       gpc_lock_script = CKB::Types::Script.new(code_hash: @tx_generator.gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA)
-      if CKB::Serializers::ScriptSerializer.new(fund_tx.outputs[0].lock).serialize != CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize
+      if CKB::Serializers::ScriptSerializer.new(gpc_output.lock).serialize != CKB::Serializers::ScriptSerializer.new(gpc_lock_script).serialize
         client.puts(generate_text_msg(msg[:id], "sry, the gpc lock is inconsistent with my verison."))
         return false
       end
 
       # check the cells are alive and the capacity is enough.
-      capacity_check = check_cells(remote_fund_cells, CKB::Utils.byte_to_shannon(remote_capacity) + remote_fee)
-      if !capacity_check
-        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
+      remote_cell_check = check_cells(remote_cells, type_script_hash, remote_amount, remote_fee, remote_type[:decoder])
+      if !remote_cell_check
+        client.puts(generate_text_msg(msg[:id], "sry, your amount is not enough or your cells are not alive."))
         return false
       end
 
+      # get local contribution.
+
+      local_change_output = local_change.map { |cell| cell[:output] }
+      local_capacity_residual = get_total_capacity(local_cells) - local_change_output.map { |output| output.capacity }.sum - local_fee
+
+      # generate gpc by myself.
+
+      gpc_minimal_capacity = 2 * gpc_output.calculate_min_capacity(gpc_output_data)
+      if type_script_hash == "" && gpc_output.capacity != gpc_minimal_capacity + local_amount + remote_amount
+        msg_reply = generate_text_msg(msg[:id], "sry, gpc output is not right.")
+        client.puts(msg_reply)
+        return false
+      else
+        # capacity is minimal
+        if gpc_output.capacity != gpc_minimal_capacity
+          msg_reply = generate_text_msg(msg[:id], "sry, gpc output is not right.")
+          client.puts(msg_reply)
+          return false
+        end
+        gpc_amount = local_type[:encoder].call(local_amount + remote_amount)
+        puts "11"
+      end
       # check change is right!
-      local_fund_cells = local_fund_cells.map { |cell| CKB::Types::Input.from_h(cell) }
-      verify_result = verify_change(fund_tx, local_fund_cells, local_capacity,
+      verify_result = verify_change(fund_tx, local_cells, local_amount,
                                     local_fee, CKB::Key.blake160(@key.pubkey))
       if !verify_result
         client.puts(generate_text_msg(msg[:id], "sry, my change has problem"))
@@ -335,8 +448,8 @@ class Communication
       ctx_info = @tx_generator.generate_closing_info(msg[:id], lock_info, closing_capacity, closing_output_data, witness_closing, 0)
       stx_info = @tx_generator.generate_settlement_info(msg[:id], local, remote, witness_settlement, 0)
 
-      ctx_info_json = info_to_json(ctx_info)
       stx_info_json = info_to_json(stx_info)
+      ctx_info_json = info_to_json(ctx_info)
 
       # send the info
       msg_reply = { id: msg[:id], type: 3, ctx: ctx_info_json, stx: stx_info_json, capacity: local_capacity }.to_json
@@ -729,31 +842,46 @@ class Communication
     return result.to_i
   end
 
-  def send_establish_channel(remote_ip, remote_port, amount, timeout, type_script = nil, type_dep = nil)
+  def encoder(data)
+    return CKB::Utils.bin_to_hex([data].pack("Q<"))
+  end
+
+  def send_establish_channel(remote_ip, remote_port, amount, fee, timeout, type_script_hash = "", refund_lock_script = @lock)
     s = TCPSocket.open(remote_ip, remote_port)
+    change_lock_script = refund_lock_script
+    lock_hashes = [@lock_hash]
+    local_type = find_type(type_script_hash)
 
     # prepare the msg components.
-    local_fund_cells = gather_fund_input(@lock_hash, amount, type_script.compute_hash, method(:decoder), 15000)
+    local_cells = gather_inputs(amount, fee, lock_hashes, type_script_hash, local_type[:decoder], 17000)
+    asset = { type_script_hash => amount }
 
-    local_fund_cells = local_fund_cells.map(&:to_h)
+    local_cells_h = local_cells.map(&:to_h)
     local_pubkey = CKB::Key.blake160(@key.pubkey)
-    lock_timeout = timeout
 
     # get id.
-    msg_digest = local_fund_cells.to_json
+    msg_digest = local_cells.to_json
     session_id = Digest::MD5.hexdigest(msg_digest)
-    msg = { id: session_id, type: 1, pubkey: local_pubkey, fund_cells: local_fund_cells,
-            fund_amount: amount, timeout: lock_timeout, type_script_hash: type_script.compute_hash }.to_json
+
+    local_empty_stx = @tx_generator.generate_empty_settlement_info(amount, refund_lock_script, local_type[:type_script], local_type[:encoder])
+    refund_capacity = local_empty_stx[:outputs][0].capacity
+    local_empty_stx_json = info_to_json(local_empty_stx)
+
+    local_change = @tx_generator.construct_change_output(local_cells, amount, fee, refund_capacity, change_lock_script,
+                                                         local_type[:type_script], local_type[:encoder], local_type[:decoder])
+    local_change_h = cell_to_hash(local_change)
+
+    msg = { id: session_id, type: 1, pubkey: local_pubkey, cells: local_cells_h, fee: fee,
+            timeout: timeout, asset: asset, change: local_change_h, stx_info: local_empty_stx_json }.to_json
 
     # send the msg.
     s.puts(msg)
 
     #insert the doc into database.
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
-            nounce: 0, ctx: 0, stx: 0, gpc_script: 0, local_fund_cells: local_fund_cells,
-            timeout: lock_timeout.to_s, msg_cache: msg.to_json, local_amount: amount,
-            stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0,
-            type_script_hash: type_script.compute_hash }
+            nounce: 0, ctx_tx: 0, stx_info: local_empty_stx_json, gpc_script: 0, local_cells: local_cells_h,
+            timeout: timeout.to_s, msg_cache: msg.to_json, local_asset: asset, fee: fee,
+            stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0, local_change: local_change_h }
     return false if !insert_with_check(@coll_sessions, doc)
 
     # just keep listen
@@ -765,7 +893,7 @@ class Communication
   end
 
   def send_payments(remote_ip, remote_port, id, amount)
-    s = TCPSocket.open(remote_ip, remote_port)
+    # s = TCPSocket.open(remote_ip, remote_port)
 
     remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
     local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]

@@ -4,6 +4,7 @@ require "rubygems"
 require "bundler/setup"
 require "ckb"
 require "secp256k1"
+require "../libs/ckb_interaction.rb"
 
 class MyECDSA < Secp256k1::BaseKey
   include Secp256k1::Utils, Secp256k1::ECDSA
@@ -236,55 +237,20 @@ class Tx_generator
     return tx
   end
 
-  def generate_fund_tx(id, fund_inputs, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
-    local_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
-    remote_default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: remote_pubkey, hash_type: CKB::ScriptHashType::TYPE)
-
-    use_dep_group = true
-
-    local_pubkey = (CKB::Key.blake160(CKB::Key.pubkey(@key.privkey)))[2..-1]
-    remote_pubkey = remote_pubkey[2..-1]
-    init_args = generate_lock_args(id, 0, timeout, 0, remote_pubkey, local_pubkey)
-    gpc_output = CKB::Types::Output.new(
-      capacity: CKB::Utils.byte_to_shannon(gpc_capacity),
-      lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
-      type: type_script,
-    )
-    gpc_output_data = "0x"
-
-    # init the change output the lock should be customized.
-    remote_change_output = CKB::Types::Output.new(
-      capacity: remote_change,
-      lock: remote_default_lock,
-      type: type_script,
-    )
-    remote_change_output_data = "0x"
-
-    local_change_output = CKB::Types::Output.new(
-      capacity: local_change,
-      lock: local_default_lock,
-      type: type_script,
-    )
-    local_change_output_data = "0x"
-
-    outputs = [gpc_output, remote_change_output, local_change_output]
-    outputs_data = [gpc_output_data, remote_change_output_data, local_change_output_data]
-
+  # def generate_fund_tx(id, fund_inputs, gpc_capacity, local_change, remote_change, remote_pubkey, timeout, type_script, fund_witnesses)
+  def generate_fund_tx(inputs, outputs, outputs_data, witnesses, type_dep = nil)
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],
-      inputs: fund_inputs,
+      inputs: inputs,
       outputs: outputs,
       outputs_data: outputs_data,
-      witnesses: fund_witnesses,
+      witnesses: witnesses,
     )
 
-    if use_dep_group
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_group_out_point, dep_type: "dep_group")
-    else
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
-      tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-    end
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
+    tx.cell_deps << type_dep if type_dep != nil
     tx.hash = tx.compute_hash
     return tx
   end
@@ -311,6 +277,22 @@ class Tx_generator
 
     result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
     return result
+  end
+
+  def generate_empty_settlement_info(amount, lock, type, encoder)
+    output = CKB::Types::Output.new(
+      capacity: 0,
+      lock: lock,
+      type: type,
+    )
+    output_data = type == nil ? "0x" : encoder.call(amount)
+    output.capacity = output.calculate_min_capacity(output_data)
+    output.capacity += amount if type == nil
+    witness = CKB::Types::Witness.new
+    outputs = [output]
+    outputs_data = [output_data]
+    witnesses = [witness]
+    return { outputs: outputs, outputs_data: outputs_data, witnesses: witnesses }
   end
 
   def generate_settlement_info(id, a, b, witness, sig_index)
@@ -434,5 +416,43 @@ class Tx_generator
     tx = sign_tx(tx)
 
     return tx
+  end
+
+  def encoder(data)
+    return CKB::Utils.bin_to_hex([data].pack("Q<"))
+  end
+
+  def construct_change_output(input_cells, amount, fee, refund_capacity, change_lock_script, type_script = nil, encoder = nil, decoder = nil)
+    total_capacity = get_total_capacity(input_cells)
+    if type_script == nil
+      change_capacity = total_capacity - fee - amount - refund_capacity
+      output_data = "0x"
+    else
+      total_amount = get_total_amount(input_cells, type_script.compute_hash, decoder)
+      refund_amount = total_amount - amount
+      change_capacity = total_capacity - fee - refund_capacity
+      output_data = encoder.call(refund_amount)
+    end
+
+    # construct asset change output.
+    change_output = CKB::Types::Output.new(
+      capacity: change_capacity,
+      lock: change_lock_script,
+      type: type_script,
+    )
+    return { output: change_output, output_data: output_data }
+  end
+
+  def construct_gpc_output(gpc_capacity, amount, id, timeout, remote_pubkey, type_script, encoder)
+    local_pubkey = (CKB::Key.blake160(CKB::Key.pubkey(@key.privkey)))[2..-1]
+    remote_pubkey = remote_pubkey[2..-1]
+    init_args = generate_lock_args(id, 0, timeout, 0, remote_pubkey, local_pubkey)
+    gpc_output = CKB::Types::Output.new(
+      capacity: gpc_capacity,
+      lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
+      type: type_script,
+    )
+    gpc_output_data = encoder == nil ? "0x" : encoder(amount)
+    return { output: gpc_output, output_data: gpc_output_data }
   end
 end
