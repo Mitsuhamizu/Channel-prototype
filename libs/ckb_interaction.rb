@@ -39,18 +39,9 @@ end
 
 def gather_fee_cell(lock_hashes, fee, from_block_number)
   return [] if fee == 0
-
   final_inputs = []
-  lock = CKB::Types::Script.generate_lock(CKB::Key.blake160(@key.pubkey), CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, CKB::ScriptHashType::TYPE)
   capacity_gathered = 0
-
-  change_output = CKB::Types::Output.new(
-    capacity: 0,
-    lock: lock,
-  )
-
-  change_output_data = "0x"
-  capacity_required = change_output.calculate_min_capacity(change_output_data) + fee
+  capacity_required = fee
   current_height = @api.get_tip_block_number()
 
   for lock_hash in lock_hashes
@@ -79,15 +70,45 @@ def gather_fee_cell(lock_hashes, fee, from_block_number)
   return capacity_gathered < capacity_required ? false : final_inputs
 end
 
-def gather_inputs(amount, fee, lock_hashes, type_script_hash = nil, decoder = nil, from_block_number = 0)
+def get_minimal_capacity(lock, type, output_data)
+  output = CKB::Types::Output.new(
+    capacity: 0,
+    lock: lock,
+    type: type,
+  )
+  return 0 if lock == nil
+  return output.calculate_min_capacity(output_data)
+end
+
+def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_script, local_type, from_block_number = 0)
+  type_script_hash = local_type[:type_script] == nil ? "" : local_type[:type_script].compute_hash
 
   # gather fund inputs.
-  fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, decoder, from_block_number)
+  fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, local_type[:decoder], from_block_number)
   return false if !fund_inputs
 
-  # gather fee cells.
+  fund_inputs_capacity = get_total_amount(fund_inputs, "", nil)
 
-  fee_inputs = gather_fee_cell(lock_hashes, fee, from_block_number)
+  output_data = local_type[:encoder] == nil ? "0x" : local_type[:encoder].call(0)
+
+  change_minimal_capacity = 0
+  refund_minimal_capacity = 0
+
+  # change capacity
+  change_minimal_capacity = get_minimal_capacity(change_lock_script, local_type[:type_script], output_data)
+
+  # refund capacity
+  refund_minimal_capacity = get_minimal_capacity(refund_lock_script, local_type[:type_script], output_data)
+
+  required_capacity = type_script_hash == "" ?
+    refund_minimal_capacity + change_minimal_capacity + fee + amount :
+    refund_minimal_capacity + change_minimal_capacity + fee
+  diff_capacity = required_capacity - fund_inputs_capacity
+
+  return fund_inputs if diff_capacity <= 0
+
+  # gather fee cells.
+  fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, from_block_number)
   return false if !fee_inputs
 
   return fund_inputs + fee_inputs
@@ -159,7 +180,7 @@ def check_cells(cells, amount_required, fee_required, change, stx_info, type_scr
     return false if !amount_gathered
 
     # capacity right.
-    return false if amount_gathered != fee_required + amount_required + change[:output].capacity + stx_info[:outputs][0].capacity
+    return false if amount_gathered != fee_required + change[:output].capacity + stx_info[:outputs][0].capacity
 
     # true
     return true

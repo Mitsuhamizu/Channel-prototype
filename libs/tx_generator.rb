@@ -96,7 +96,7 @@ class Tx_generator
   end
 
   # need modification
-  def generate_empty_witness(id, flag, nounce, input_type, output_type)
+  def generate_empty_witness(id, flag, nounce, input_type = "", output_type = "")
     sig_A = "00" * 65
     sig_B = "00" * 65
     assemble_result = assemble_witness_args(flag, nounce)
@@ -255,29 +255,40 @@ class Tx_generator
     return tx
   end
 
-  def generate_closing_info(id, gpc_lock, capacity, gpc_output_data, witness, sig_index)
-
-    # load the args
-    args = generate_lock_args(id, 1, gpc_lock[:timeout], gpc_lock[:nounce], gpc_lock[:pubkey_A], gpc_lock[:pubkey_B])
-    gpc_output = CKB::Types::Output.new(
-      capacity: capacity,
-      lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
-    )
-
-    outputs = [gpc_output]
-    outputs_data = [gpc_output_data]
-
-    # I need to generate the witness!
-    msg = CKB::Serializers::OutputSerializer.new(gpc_output).serialize
-
-    # Also, the outputdata
-    msg += outputs_data[0][2..]
-
+  def generate_closing_info(id, output, output_data, witness, sig_index)
+    org_args = parse_lock_args(output.lock.args)
+    org_args[:nounce] += 1
+    output.lock.args = generate_lock_args(id, 1, org_args[:timeout], org_args[:nounce],
+                                          org_args[:pubkey_A], org_args[:pubkey_B])
+    msg = CKB::Serializers::OutputSerializer.new(output).serialize + output_data[2..]
     witness = generate_witness(id, 1, witness, msg, sig_index)
-
-    result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
+    result = { outputs: [output], outputs_data: [output_data], witnesses: [witness] }
     return result
   end
+
+  # def generate_closing_info(id, gpc_lock, capacity, gpc_output_data, witness, sig_index)
+
+  #   # load the args
+  #   args = generate_lock_args(id, 1, gpc_lock[:timeout], gpc_lock[:nounce], gpc_lock[:pubkey_A], gpc_lock[:pubkey_B])
+  #   gpc_output = CKB::Types::Output.new(
+  #     capacity: capacity,
+  #     lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
+  #   )
+
+  #   outputs = [gpc_output]
+  #   outputs_data = [gpc_output_data]
+
+  #   # I need to generate the witness!
+  #   msg = CKB::Serializers::OutputSerializer.new(gpc_output).serialize
+
+  #   # Also, the outputdata
+  #   msg += outputs_data[0][2..]
+
+  #   witness = generate_witness(id, 1, witness, msg, sig_index)
+
+  #   result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
+  #   return result
+  # end
 
   def generate_empty_settlement_info(amount, lock, type, encoder)
     output = CKB::Types::Output.new(
@@ -293,6 +304,24 @@ class Tx_generator
     outputs_data = [output_data]
     witnesses = [witness]
     return { outputs: outputs, outputs_data: outputs_data, witnesses: witnesses }
+  end
+
+  def sign_settlement_info(id, stx_info, witness, sig_index)
+    outputs = []
+    outputs_data = []
+    part1 = ""
+    part2 = ""
+    for info in stx_info
+      outputs << info[:outputs][0]
+      outputs_data << info[:outputs_data][0]
+      part1 += CKB::Serializers::OutputSerializer.new(info[:outputs][0]).serialize[2..-1]
+      part2 += info[:outputs_data][0][2..]
+    end
+    msg = "0x" + part1 + part2
+
+    witness = generate_witness(id, 0, witness, msg, sig_index)
+    result = { outputs: outputs, outputs_data: outputs_data, witnesses: [witness] }
+    return result
   end
 
   def generate_settlement_info(id, a, b, witness, sig_index)
@@ -425,7 +454,7 @@ class Tx_generator
   def construct_change_output(input_cells, amount, fee, refund_capacity, change_lock_script, type_script = nil, encoder = nil, decoder = nil)
     total_capacity = get_total_capacity(input_cells)
     if type_script == nil
-      change_capacity = total_capacity - fee - amount - refund_capacity
+      change_capacity = total_capacity - fee - refund_capacity
       output_data = "0x"
     else
       total_amount = get_total_amount(input_cells, type_script.compute_hash, decoder)
@@ -443,10 +472,8 @@ class Tx_generator
     return { output: change_output, output_data: output_data }
   end
 
-  def construct_gpc_output(gpc_capacity, amount, id, timeout, remote_pubkey, type_script, encoder)
-    local_pubkey = (CKB::Key.blake160(CKB::Key.pubkey(@key.privkey)))[2..-1]
-    remote_pubkey = remote_pubkey[2..-1]
-    init_args = generate_lock_args(id, 0, timeout, 0, remote_pubkey, local_pubkey)
+  def construct_gpc_output(gpc_capacity, amount, id, timeout, pubkey1, pubkey2, type_script, encoder)
+    init_args = generate_lock_args(id, 0, timeout, 0, pubkey1, pubkey2)
     gpc_output = CKB::Types::Output.new(
       capacity: gpc_capacity,
       lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
