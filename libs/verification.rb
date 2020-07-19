@@ -83,7 +83,7 @@ end
 def verify_info_sig(info, flag, pubkey, sig_index)
 
   # load signature
-  info_witness = @tx_generator.parse_witness(info[:witness][0])
+  info_witness = @tx_generator.parse_witness(info[:witnesses][0])
   info_witness_lock = @tx_generator.parse_witness_lock(info_witness.lock)
   signature = case sig_index
     when 0
@@ -96,13 +96,12 @@ def verify_info_sig(info, flag, pubkey, sig_index)
   msg_signed = generate_msg_from_info(info, flag)
 
   # add the length of witness.
-  witness_len = (info[:witness][0].bytesize - 2) / 2
+  witness_len = (info[:witnesses][0].bytesize - 2) / 2
   witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
 
   # add the empty witness.
   empty_witness = @tx_generator.generate_empty_witness(info_witness_lock[:id], info_witness_lock[:flag],
-                                                       info_witness_lock[:nounce], info_witness.input_type,
-                                                       info_witness.output_type)
+                                                       info_witness_lock[:nounce])
   empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
   msg_signed = (msg_signed + witness_len + empty_witness).strip
   msg_signed = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(msg_signed))
@@ -202,8 +201,8 @@ end
 def verify_info_args(info1, info2)
   # parse the witness.
   prefix_len = 52
-  witness_array1 = info1[:witness]
-  witness_array2 = info2[:witness]
+  witness_array1 = info1[:witnesses]
+  witness_array2 = info2[:witnesses]
 
   witness_array = Array.new()
   for witness1 in witness_array1
@@ -237,7 +236,7 @@ def verify_info_args(info1, info2)
   witness_array2 = witness_array2.map { |witness| CKB::Serializers::WitnessArgsSerializer.from(witness).serialize }
   # compare.
 
-  return false if info1[:witness].length != info2[:witness].length ||
+  return false if info1[:witnesses].length != info2[:witnesses].length ||
                   info1[:outputs].length != info2[:outputs].length ||
                   info1[:outputs_data].length != info2[:outputs_data].length
 

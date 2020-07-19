@@ -20,8 +20,8 @@ class Tx_generator
   def initialize(key)
     @key = key
     @api = CKB::API::new
-    @gpc_code_hash = "0x6d44e8e6ebc76927a48b581a0fb84576f784053ae9b53b8c2a20deafca5c4b7b"
-    @gpc_tx = "0xeda5b9d9c6d5db2d4ed894fd5419b4dbbfefdf364783593dbf62a719f650e020"
+    @gpc_code_hash = "0x00ef823681069daee2e08edad2d3d100d57d6693d0017d73d05bc9725bed547d"
+    @gpc_tx = "0x7d258b18155b3301c568055c6195888b320085b0c6cb1ba1c84228b799be29da"
   end
 
   def assemble_lock_args(status, timeout, nounce)
@@ -122,12 +122,14 @@ class Tx_generator
       else
         parse_witness(witness)
       end
+
     empty_witness.lock[prefix_len..-1] = "00" * 130
     empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
     witness_len = CKB::Utils.hex_to_bin("0x" + empty_witness).length
     witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
     message = (message + witness_len + empty_witness).strip
     message = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(message))
+    puts message
     signature = @key.sign_recoverable(message)[2..-1]
     s = prefix_len + sig_index * 65 * 2
     e = s + 65 * 2 - 1
@@ -307,20 +309,23 @@ class Tx_generator
   end
 
   def sign_settlement_info(id, stx_info, witness, sig_index)
-    outputs = []
-    outputs_data = []
     part1 = ""
     part2 = ""
-    for info in stx_info
-      outputs << info[:outputs][0]
-      outputs_data << info[:outputs_data][0]
-      part1 += CKB::Serializers::OutputSerializer.new(info[:outputs][0]).serialize[2..-1]
-      part2 += info[:outputs_data][0][2..]
+    for index in 0..(stx_info[:outputs].length - 1)
+      part1 += CKB::Serializers::OutputSerializer.new(stx_info[:outputs][index]).serialize[2..-1]
+      part2 += stx_info[:outputs_data][index][2..]
     end
+
+    # for info in stx_info
+    #   outputs << info[:outputs][0]
+    #   outputs_data << info[:outputs_data][0]
+    #   part1 += CKB::Serializers::OutputSerializer.new(info[:outputs][0]).serialize[2..-1]
+    #   part2 += info[:outputs_data][0][2..]
+    # end
     msg = "0x" + part1 + part2
 
     witness = generate_witness(id, 0, witness, msg, sig_index)
-    result = { outputs: outputs, outputs_data: outputs_data, witnesses: [witness] }
+    result = { outputs: stx_info[:outputs], outputs_data: stx_info[:outputs_data], witnesses: [witness] }
     return result
   end
 
@@ -357,14 +362,14 @@ class Tx_generator
     return result
   end
 
-  def generate_no_input_tx(inputs, closing_info)
+  def generate_no_input_tx(inputs, closing_info, type_dep = nil)
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],
       inputs: inputs,
       outputs: closing_info[:outputs], # If you add more cell, you should add more output!!!
       outputs_data: closing_info[:outputs_data],
-      witnesses: closing_info[:witness],
+      witnesses: closing_info[:witnesses],
     )
     use_dep_group = false
     if use_dep_group
@@ -378,6 +383,7 @@ class Tx_generator
       index: 0,
     )
     tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+    tx.cell_deps << type_dep if type_dep != nil
 
     tx.hash = tx.compute_hash
 

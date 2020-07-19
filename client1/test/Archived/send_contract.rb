@@ -11,11 +11,9 @@ key = CKB::Key.new(prikey)
 wallet = CKB::Wallet.from_hex(api, key.privkey)
 
 # read the contract.
-data = File.read("main")
+data = File.read("../binary/main")
 gpc_data_hash = CKB::Blake2b.hexdigest(data)
 gpc_tx_hash = wallet.send_capacity(wallet.address, CKB::Utils.byte_to_shannon(100000), CKB::Utils.bin_to_hex(data), fee: 10 ** 6)
-
-
 
 puts gpc_data_hash
 puts gpc_tx_hash

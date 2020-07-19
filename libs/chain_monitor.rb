@@ -26,6 +26,9 @@ class Minotor
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
+
+    @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
+    @lock_hash = @lock.compute_hash
   end
 
   def copy_db(src, trg)
@@ -45,9 +48,8 @@ class Minotor
 
   def json_to_info(json)
     info_h = JSON.parse(json, symbolize_names: true)
-    info = info_h
-    info[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
-    return info
+    info_h[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
+    return info_h
   end
 
   def json_to_input(input_hash)
@@ -123,7 +125,7 @@ class Minotor
             next if !script_hash_lib.keys.include? local_script
 
             remote = script_hash_lib[local_script]
-            stx_pend = @coll_sessions.find({ id: doc[:id] }).first[:stx_pend]
+            stx_pend = @coll_sessions.find({ id: doc[:id] }).first[:stx_info_pend]
 
             if (remote.include? :input_nounce) && (remote.include? :output_nounce)
               # closing
@@ -188,28 +190,91 @@ class Minotor
     end
   end
 
+  def find_type(type_script_hash)
+    type_script = nil
+    decoder = nil
+    encoder = nil
+    type_dep = nil
+
+    # we need more options, here I only consider this case.
+    if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
+      type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                                           args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
+                                           hash_type: CKB::ScriptHashType::DATA)
+      out_point = CKB::Types::OutPoint.new(
+        tx_hash: "0xb0e1ade40b8a12edaf9ae4521dac6594da3d7527666fcc687a5f421856a7e45e",
+        index: 0,
+      )
+      type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+      decoder = method(:decoder)
+      encoder = method(:encoder)
+    end
+
+    return { type_script: type_script, type_dep: type_dep, decoder: decoder, encoder: encoder }
+  end
+
+  def find_type(type_script_hash)
+    type_script = nil
+    decoder = nil
+    encoder = nil
+    type_dep = nil
+
+    # we need more options, here I only consider this case.
+    if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
+      type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                                           args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
+                                           hash_type: CKB::ScriptHashType::DATA)
+      out_point = CKB::Types::OutPoint.new(
+        tx_hash: "0xb0e1ade40b8a12edaf9ae4521dac6594da3d7527666fcc687a5f421856a7e45e",
+        index: 0,
+      )
+      type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
+      decoder = method(:decoder)
+      encoder = method(:encoder)
+    end
+
+    return { type_script: type_script, type_dep: type_dep, decoder: decoder, encoder: encoder }
+  end
+
+  def decoder(data)
+    result = CKB::Utils.hex_to_bin(data).unpack("Q<")[0]
+    return result.to_i
+  end
+
+  def encoder(data)
+    return CKB::Utils.bin_to_hex([data].pack("Q<"))
+  end
+
   # Need to construct corresponding txs.
-  def send_tx(doc, type, fee = 10000)
-    tx_info = type == "closing" ? json_to_info(doc[:ctx]) : json_to_info(doc[:stx])
+  def send_tx(doc, type, fee = 1000)
+    tx_info = type == "closing" ? json_to_info(doc[:ctx_info]) : json_to_info(doc[:stx_info])
     gpc_input = type == "closing" ? doc[:ctx_input] : doc[:stx_input]
+    type_hash = doc[:type_hash]
+    type_info = find_type(type_hash)
+
     gpc_input = json_to_input(gpc_input)
 
-    fee_cell = gather_inputs(@cell_min_capacity, fee).inputs
+    local_change_output = CKB::Types::Output.new(
+      capacity: 0,
+      lock: @lock,
+      type: nil,
+    )
+    fee = local_change_output.calculate_min_capacity("0x") + fee
+
+    fee_cell = gather_fee_cell([@lock_hash], fee, 0)
+
     fee_cell_capacity = get_total_capacity(fee_cell)
     input = [gpc_input] + fee_cell
 
-    local_change_output = CKB::Types::Output.new(
-      capacity: fee_cell_capacity - fee,
-      lock: default_lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH,
-                                                  args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE),
-      type: nil,
-    )
+    local_change_output.capacity = fee_cell_capacity - fee
+
     tx_info[:outputs] << local_change_output
     for nosense in fee_cell
       tx_info[:outputs_data] << "0x"
-      tx_info[:witness] << CKB::Types::Witness.new
+      tx_info[:witnesses] << CKB::Types::Witness.new
     end
-    tx = @tx_generator.generate_no_input_tx(input, tx_info)
+
+    tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
 
     tx = @tx_generator.sign_tx(tx)
     if !tx
@@ -219,6 +284,7 @@ class Minotor
 
     tx_hash = false
     exist = @api.get_transaction(tx.hash)
+    CKB::MockTransactionDumper.new(@api, tx).write("gpc.json")
     # puts exist
     begin
       tx_hash = @api.send_transaction(tx) if exist == nil
