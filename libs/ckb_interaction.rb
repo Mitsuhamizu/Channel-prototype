@@ -34,7 +34,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, f
     break if amount_gathered > amount_required
   end
 
-  return amount_gathered < amount_required ? false : final_inputs
+  return amount_gathered < amount_required ? nil : final_inputs
 end
 
 def gather_fee_cell(lock_hashes, fee, from_block_number)
@@ -67,7 +67,7 @@ def gather_fee_cell(lock_hashes, fee, from_block_number)
     break if capacity_gathered > capacity_required
   end
 
-  return capacity_gathered < capacity_required ? false : final_inputs
+  return capacity_gathered < capacity_required ? nil : final_inputs
 end
 
 def get_minimal_capacity(lock, type, output_data)
@@ -85,7 +85,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
 
   # gather fund inputs.
   fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, local_type[:decoder], from_block_number)
-  return false if !fund_inputs
+  return nil if !fund_inputs
 
   fund_inputs_capacity = get_total_amount(fund_inputs, "", nil)
 
@@ -109,7 +109,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
 
   # gather fee cells.
   fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, from_block_number)
-  return false if !fee_inputs
+  return nil if !fee_inputs
 
   return fund_inputs + fee_inputs
 end
@@ -120,7 +120,7 @@ def get_total_capacity(cells)
   for cell in cells
     # check live.
     validation = @api.get_live_cell(cell.previous_output)
-    return false if validation.status != "live"
+    return nil if validation.status != "live"
 
     # add amount
     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
@@ -136,12 +136,11 @@ def get_total_amount(cells, type_script_hash, decoder)
   for cell in cells
     # check live.
     validation = @api.get_live_cell(cell.previous_output)
-    return false if validation.status != "live"
+    return nil if validation.status != "live"
 
     # add amount
     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
     type_script = tx.outputs[cell.previous_output.index].type
-    # nil, just jump into
     current_type_script_hash = type_script == nil ? "" : type_script.compute_hash
     next if current_type_script_hash != type_script_hash && type_script_hash != ""
     amount_gathered += decoder == nil ?

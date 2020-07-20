@@ -66,13 +66,14 @@ class GPCCLI < Thor
   end
 
   # --------------make payments
-  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> ", "Make payments"
+  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> --type_script_hash <type_script_hash>", "Make payments"
 
   option :pubkey, :required => true
   option :ip, :required => true
   option :port, :required => true
   option :id, :required => true
   option :amount, :required => true
+  option :type_script_hash
 
   def make_payment()
     # if ARGV.length != 11
@@ -81,7 +82,7 @@ class GPCCLI < Thor
     # end
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    communicator.send_payments(options[:ip], options[:port], options[:id], options[:amount].to_i)
+    communicator.send_payments(options[:ip], options[:port], options[:id], options[:amount].to_i, options[:type_script_hash])
   end
 
   # --------------monitor

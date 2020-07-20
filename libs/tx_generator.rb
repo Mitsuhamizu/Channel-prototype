@@ -15,13 +15,14 @@ class MyECDSA < Secp256k1::BaseKey
 end
 
 class Tx_generator
-  attr_reader :gpc_code_hash, :gpc_tx
+  attr_reader :gpc_code_hash, :gpc_tx, :gpc_hash_type
 
   def initialize(key)
     @key = key
     @api = CKB::API::new
     @gpc_code_hash = "0x00ef823681069daee2e08edad2d3d100d57d6693d0017d73d05bc9725bed547d"
     @gpc_tx = "0x7d258b18155b3301c568055c6195888b320085b0c6cb1ba1c84228b799be29da"
+    @gpc_hash_type = "data"
   end
 
   def assemble_lock_args(status, timeout, nounce)
@@ -129,7 +130,7 @@ class Tx_generator
     witness_len = CKB::Utils.bin_to_hex([witness_len].pack("Q<"))[2..-1]
     message = (message + witness_len + empty_witness).strip
     message = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(message))
-    puts message
+
     signature = @key.sign_recoverable(message)[2..-1]
     s = prefix_len + sig_index * 65 * 2
     e = s + 65 * 2 - 1
@@ -390,19 +391,26 @@ class Tx_generator
     return tx
   end
 
-  def update_stx(amount, stx_info, local_pubkey, remote_pubkey)
-    for output in stx_info[:outputs]
-      output.capacity = output.capacity + amount * (10 ** 8) if output.lock.args == remote_pubkey
-      output.capacity = output.capacity - amount * (10 ** 8) if output.lock.args == local_pubkey
+  def update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)
+    for index in (0..stx_info[:outputs].length - 1)
+      output = stx_info[:outputs][index]
+      output_data = stx_info[:outputs_data][index]
+      if type_info[:type_script] == nil
+        output.capacity = output.capacity + amount * (10 ** 8) if output.lock.args == remote_pubkey
+        output.capacity = output.capacity - amount * (10 ** 8) if output.lock.args == local_pubkey
+      else
+        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == remote_pubkey
+        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == local_pubkey
+      end
     end
 
     witness_new = Array.new()
-    for witness in stx_info[:witness]
+    for witness in stx_info[:witnesses]
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
-    stx_info[:witness] = witness_new
+    stx_info[:witnesses] = witness_new
 
     return stx_info
   end
@@ -416,12 +424,12 @@ class Tx_generator
     end
 
     witness_new = Array.new()
-    for witness in ctx_info[:witness]
+    for witness in ctx_info[:witnesses]
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
-    ctx_info[:witness] = witness_new
+    ctx_info[:witnesses] = witness_new
 
     return ctx_info
   end
