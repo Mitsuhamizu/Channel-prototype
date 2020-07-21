@@ -15,32 +15,12 @@ class Minotor
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
 
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC_copy")
-    # @db = @client.database
-    # @db.drop()
-    # copy_db("GPC", "GPC_copy")
-    # @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
 
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
-  end
-
-  def copy_db(src, trg)
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => src)
-    @client2 = Mongo::Client.new(["127.0.0.1:27017"], :database => trg)
-    @db_src = @client.database
-    @db_trg = @client2.database
-    for coll_name in @db_src.collection_names
-      @coll_src = @db_src[coll_name]
-      @coll_trg = @db_trg[coll_name]
-      view = @coll_src.find { }
-      view.each do |doc|
-        @coll_trg.insert_one(doc)
-      end
-    end
   end
 
   def json_to_info(json)
@@ -58,6 +38,9 @@ class Minotor
     return closing_input
   end
 
+  # reset the lock.
+  # which mean set the nounce and status in lock.args to 0.
+  # and return the serlizerd lock.
   def reset_lock(lock)
     lock_args = @tx_generator.parse_lock_args(lock.args)
     nounce = lock_args[:nounce]
@@ -68,6 +51,7 @@ class Minotor
     return { lock_ser: lock_ser, nounce: nounce }
   end
 
+  # parse since to a number.
   def parse_since(since)
     since = [since.to_i].pack("Q>")
     since[0] = [0].pack("C")
@@ -97,7 +81,7 @@ class Minotor
               previous_tx = @api.get_transaction(input.previous_output.tx_hash)
               previous_output_lock = previous_tx.transaction.outputs[input.previous_output.index].lock
 
-              # record it.
+              # record the nounce.
               next if previous_output_lock.code_hash != @tx_generator.gpc_code_hash || previous_output_lock.hash_type != @tx_generator.gpc_hash_type
               reset_result = reset_lock(previous_output_lock)
               if !script_hash_lib.keys.include? reset_result[:lock_ser]
@@ -121,7 +105,7 @@ class Minotor
           # if there is no gpc tx.
           next if script_hash_lib.length == 0
 
-          # travel docs.
+          # travel local docs.
           view = @coll_sessions.find { }
           view.each do |doc|
             local_script = doc[:gpc_script]
@@ -165,6 +149,8 @@ class Minotor
         end
       end
 
+      # the below logic maybe confusing
+      # I will rewrite it more clearly.
       view = @coll_sessions.find { }
       view.each do |doc|
         # well, if the ctx I sent can not be seen, just send it again.
@@ -233,6 +219,9 @@ class Minotor
     type_info = find_type(type_hash)
     input = [gpc_input]
 
+    # the fee rules for settlement and closing is difference.
+    # closing need extra fee, so you need to pay it.
+    # settlement need not.
     if type == "closing"
       local_change_output = CKB::Types::Output.new(
         capacity: 0,
@@ -240,6 +229,7 @@ class Minotor
         type: nil,
       )
 
+      # require the change ckbyte is greater than the min capacity.
       fee = local_change_output.calculate_min_capacity("0x") + fee
       fee_cell = gather_fee_cell([@lock_hash], fee, 0)
       return false if fee_cell == nil
@@ -253,6 +243,8 @@ class Minotor
         tx_info[:outputs_data] << "0x"
         tx_info[:witnesses] << CKB::Types::Witness.new
       end
+
+      # generate the tx.
       tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
       tx = @tx_generator.sign_tx(tx)
     elsif type == "settlement"

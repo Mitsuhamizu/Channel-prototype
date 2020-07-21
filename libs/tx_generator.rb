@@ -108,7 +108,6 @@ class Tx_generator
   # need modification
   def generate_witness(id, flag, witness, message, sig_index)
     prefix_len = 52
-
     witness_recover = case witness
       when CKB::Types::Witness
         witness
@@ -123,7 +122,7 @@ class Tx_generator
       else
         parse_witness(witness)
       end
-
+    # set signature to zero.
     empty_witness.lock[prefix_len..-1] = "00" * 130
     empty_witness = CKB::Serializers::WitnessArgsSerializer.from(empty_witness).serialize[2..-1]
     witness_len = CKB::Utils.hex_to_bin("0x" + empty_witness).length
@@ -131,31 +130,33 @@ class Tx_generator
     message = (message + witness_len + empty_witness).strip
     message = CKB::Blake2b.hexdigest(CKB::Utils.hex_to_bin(message))
 
+    # sign
     signature = @key.sign_recoverable(message)[2..-1]
     s = prefix_len + sig_index * 65 * 2
     e = s + 65 * 2 - 1
     witness_recover.lock[s..e] = signature
     witness_recover = CKB::Serializers::WitnessArgsSerializer.from(witness_recover).serialize
-    # load the sig
+
     return witness_recover
   end
 
-  def group_tx_input(tx)
-    group = Hash.new()
-    index = 0
-    for input in tx.inputs
-      validation = @api.get_live_cell(input.previous_output)
-      return false if validation.status != "live"
-      lock_args = validation.cell.output.lock.args
-      if !group.keys.include?(lock_args)
-        group[lock_args] = Array.new()
-      end
-      group[lock_args] << index
-      index += 1
-    end
-    return group
-  end
+  # def group_tx_input(tx)
+  #   group = Hash.new()
+  #   index = 0
+  #   for input in tx.inputs
+  #     validation = @api.get_live_cell(input.previous_output)
+  #     return false if validation.status != "live"
+  #     lock_args = validation.cell.output.lock.args
+  #     if !group.keys.include?(lock_args)
+  #       group[lock_args] = Array.new()
+  #     end
+  #     group[lock_args] << index
+  #     index += 1
+  #   end
+  #   return group
+  # end
 
+  # convert the output of tx into inputs.
   def convert_input(tx, index, since)
     out_point = CKB::Types::OutPoint.new(
       tx_hash: tx.hash,
@@ -168,6 +169,9 @@ class Tx_generator
     return input
   end
 
+  # group inputs.
+  # The output is
+  # {lock_script: [input positions]}
   def group_input(inputs_tuple)
     group = Hash.new()
     for input_tuple in inputs_tuple
@@ -186,6 +190,8 @@ class Tx_generator
   def sign_tx(tx, inputs_local)
 
     # sort local inputs according to the order in tx.
+    # it maybe confusing, but is is very hard to explain. I will intruduce the rationl
+    # in next meeting.
     inputs_tuple = []
     for input_local in inputs_local
       index = 0
@@ -295,30 +301,6 @@ class Tx_generator
     return result
   end
 
-  # def generate_closing_info(id, gpc_lock, capacity, gpc_output_data, witness, sig_index)
-
-  #   # load the args
-  #   args = generate_lock_args(id, 1, gpc_lock[:timeout], gpc_lock[:nounce], gpc_lock[:pubkey_A], gpc_lock[:pubkey_B])
-  #   gpc_output = CKB::Types::Output.new(
-  #     capacity: capacity,
-  #     lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
-  #   )
-
-  #   outputs = [gpc_output]
-  #   outputs_data = [gpc_output_data]
-
-  #   # I need to generate the witness!
-  #   msg = CKB::Serializers::OutputSerializer.new(gpc_output).serialize
-
-  #   # Also, the outputdata
-  #   msg += outputs_data[0][2..]
-
-  #   witness = generate_witness(id, 1, witness, msg, sig_index)
-
-  #   result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
-  #   return result
-  # end
-
   def generate_empty_settlement_info(amount, lock, type, encoder)
     output = CKB::Types::Output.new(
       capacity: 0,
@@ -343,49 +325,10 @@ class Tx_generator
       part2 += stx_info[:outputs_data][index][2..]
     end
 
-    # for info in stx_info
-    #   outputs << info[:outputs][0]
-    #   outputs_data << info[:outputs_data][0]
-    #   part1 += CKB::Serializers::OutputSerializer.new(info[:outputs][0]).serialize[2..-1]
-    #   part2 += info[:outputs_data][0][2..]
-    # end
     msg = "0x" + part1 + part2
 
     witness = generate_witness(id, 0, witness, msg, sig_index)
     result = { outputs: stx_info[:outputs], outputs_data: stx_info[:outputs_data], witnesses: [witness] }
-    return result
-  end
-
-  def generate_settlement_info(id, a, b, witness, sig_index)
-    output_A = CKB::Types::Output.new(
-      capacity: a[:capacity],
-      # lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
-      lock: a[:lock],
-    )
-
-    output_B = CKB::Types::Output.new(
-      capacity: b[:capacity],
-      # lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: args, hash_type: CKB::ScriptHashType::DATA),
-      lock: b[:lock],
-    )
-
-    outputs = [output_A, output_B]
-    outputs_data = [a[:data], b[:data]]
-
-    # I need to generate the witness!
-    msg = "0x"
-    for output in outputs
-      data = CKB::Serializers::OutputSerializer.new(output).serialize[2..-1]
-      msg += data
-    end
-
-    for data in outputs_data
-      msg += data[2..]
-    end
-
-    witness = generate_witness(id, 0, witness, msg, sig_index)
-    result = { outputs: outputs, outputs_data: outputs_data, witness: [witness] }
-
     return result
   end
 
@@ -394,7 +337,7 @@ class Tx_generator
       version: 0,
       cell_deps: [],
       inputs: inputs,
-      outputs: closing_info[:outputs], # If you add more cell, you should add more output!!!
+      outputs: closing_info[:outputs],
       outputs_data: closing_info[:outputs_data],
       witnesses: closing_info[:witnesses],
     )
@@ -417,16 +360,16 @@ class Tx_generator
     return tx
   end
 
-  def update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)
+  def update_stx(amount, stx_info, pubkey_payee, pubkey_payer, type_info)
     for index in (0..stx_info[:outputs].length - 1)
       output = stx_info[:outputs][index]
       output_data = stx_info[:outputs_data][index]
       if type_info[:type_script] == nil
-        output.capacity = output.capacity + amount * (10 ** 8) if output.lock.args == remote_pubkey
-        output.capacity = output.capacity - amount * (10 ** 8) if output.lock.args == local_pubkey
+        output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
+        output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
       else
-        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == remote_pubkey
-        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == local_pubkey
+        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
+        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
       end
     end
 
@@ -456,7 +399,6 @@ class Tx_generator
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
     ctx_info[:witnesses] = witness_new
-
     return ctx_info
   end
 
