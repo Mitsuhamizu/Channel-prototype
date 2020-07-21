@@ -168,14 +168,40 @@ class Tx_generator
     return input
   end
 
-  def sign_tx(tx)
-    input_group = group_tx_input(tx)
-    return false if !input_group
-    for key in input_group.keys
-      if key != CKB::Key.blake160(@key.pubkey)
-        next
+  def group_input(inputs_tuple)
+    group = Hash.new()
+    for input_tuple in inputs_tuple
+      input = input_tuple[1]
+      validation = @api.get_live_cell(input.previous_output)
+      return false if validation.status != "live"
+      lock_hash = validation.cell.output.lock.compute_hash
+      if !group.keys.include?(lock_hash)
+        group[lock_hash] = Array.new()
       end
+      group[lock_hash] << input_tuple[0]
+    end
+    return group
+  end
 
+  def sign_tx(tx, inputs_local)
+
+    # sort local inputs according to the order in tx.
+    inputs_tuple = []
+    for input_local in inputs_local
+      index = 0
+      for input_fund in tx.inputs
+        break if input_local.to_h == input_fund.to_h
+        index += 1
+      end
+      inputs_tuple << [index, input_local]
+    end
+    inputs_tuple = inputs_tuple.sort
+    local_inputs = inputs_tuple.map { |tuple| tuple[1] }
+
+    input_group = group_input(inputs_tuple)
+    return false if !input_group
+
+    for key in input_group.keys
       first_index = input_group[key][0]
 
       # include the content needed sign.
@@ -434,7 +460,7 @@ class Tx_generator
     return ctx_info
   end
 
-  def generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witness, sig_index)
+  def generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witness, sig_index, type_dep)
     tx = CKB::Types::Transaction.new(
       version: 0,
       cell_deps: [],
@@ -452,11 +478,11 @@ class Tx_generator
     tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
+    tx.cell_deps << type_dep if type_dep != nil
 
     tx.hash = tx.compute_hash
     empty_witness = generate_empty_witness(id, 0, nounce, witness[0].input_type, witness[0].output_type)
     tx.witnesses[0] = generate_witness(id, 0, empty_witness, tx.hash, sig_index)
-    tx = sign_tx(tx)
 
     return tx
   end

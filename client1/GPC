@@ -59,9 +59,10 @@ class GPCCLI < Thor
   def send_establishment_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
+    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_i) : options[:amount].to_i
 
     type_script_hash = options[:type_script_hash] == nil ? "" : options[:type_script_hash]
-    communicator.send_establish_channel(options[:ip], options[:port], options[:amount].to_i,
+    communicator.send_establish_channel(options[:ip], options[:port], amount,
                                         options[:fee].to_i, options[:since], type_script_hash)
   end
 
@@ -76,23 +77,16 @@ class GPCCLI < Thor
   option :type_script_hash
 
   def make_payment()
-    # if ARGV.length != 11
-    #   puts "The arg number is not right."
-    #   return false
-    # end
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    communicator.send_payments(options[:ip], options[:port], options[:id], options[:amount].to_i, options[:type_script_hash])
+    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_i) : options[:amount].to_i
+    communicator.send_payments(options[:ip], options[:port], options[:id], amount, options[:type_script_hash])
   end
 
   # --------------monitor
   desc "monitor <public key>", "Monitor the chain."
 
   def monitor(pubkey)
-    # if ARGV.length != 2
-    #   puts "The arg number is not right."
-    #   return false
-    # end
     private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
     monitor.monitor_chain()
@@ -123,7 +117,7 @@ class GPCCLI < Thor
   def send_closing_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    communicator.send_closing_request(options[:ip], options[:port], options[:id], options[:fee]) if options[:fee]
+    communicator.x(options[:ip], options[:port], options[:id], options[:fee]) if options[:fee]
     communicator.send_closing_request(options[:ip], options[:port], options[:id]) if !options[:fee]
   end
 end

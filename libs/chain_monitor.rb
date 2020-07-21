@@ -227,33 +227,37 @@ class Minotor
   def send_tx(doc, type, fee = 1000)
     tx_info = type == "closing" ? json_to_info(doc[:ctx_info]) : json_to_info(doc[:stx_info])
     gpc_input = type == "closing" ? doc[:ctx_input] : doc[:stx_input]
+    fee = 0 if type == "settlement"
     type_hash = doc[:type_hash]
     gpc_input = json_to_input(gpc_input)
     type_info = find_type(type_hash)
+    input = [gpc_input]
 
-    local_change_output = CKB::Types::Output.new(
-      capacity: 0,
-      lock: @lock,
-      type: nil,
-    )
+    if type == "closing"
+      local_change_output = CKB::Types::Output.new(
+        capacity: 0,
+        lock: @lock,
+        type: nil,
+      )
 
-    fee = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], fee, 0)
-    return false if fee_cell == nil
+      fee = local_change_output.calculate_min_capacity("0x") + fee
+      fee_cell = gather_fee_cell([@lock_hash], fee, 0)
+      return false if fee_cell == nil
 
-    fee_cell_capacity = get_total_capacity(fee_cell)
-    input = [gpc_input] + fee_cell
+      fee_cell_capacity = get_total_capacity(fee_cell)
+      input += fee_cell
 
-    local_change_output.capacity = fee_cell_capacity - fee
-
-    tx_info[:outputs] << local_change_output
-    for nosense in fee_cell
-      tx_info[:outputs_data] << "0x"
-      tx_info[:witnesses] << CKB::Types::Witness.new
+      local_change_output.capacity = fee_cell_capacity - fee
+      tx_info[:outputs] << local_change_output
+      for nosense in fee_cell
+        tx_info[:outputs_data] << "0x"
+        tx_info[:witnesses] << CKB::Types::Witness.new
+      end
+      tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
+      tx = @tx_generator.sign_tx(tx)
+    elsif type == "settlement"
+      tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
     end
-
-    tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
-    tx = @tx_generator.sign_tx(tx)
 
     if !tx
       puts "the input of the tx is spent."
