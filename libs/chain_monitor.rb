@@ -102,7 +102,7 @@ class Minotor
             end
           end
 
-          # if there is no gpc tx.
+          # if there is no gpc tx, next.
           next if script_hash_lib.length == 0
 
           # travel local docs.
@@ -125,22 +125,23 @@ class Minotor
                 send_tx(doc, "closing")
                 puts "send closing tx about #{doc[:id]} at block number #{i}."
               elsif remote[:output_nounce] == nounce_local
-                # my or remote latest ctx is accepted, so prepare to settle.
+                # my or remote latest ctx is accepted by chain, so prepare to settle.
                 timeout = parse_since(doc[:timeout])
                 stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout, stx_input: stx_input_h, stage: 3 } })
                 puts "#{doc[:id]} is closing at block number #{i}."
               elsif stx_pend != 0 && remote[:output_nounce] - nounce_local == 1
-                # remote one break his promise, so just prepare to send the pend stx.
+                # remote party break his promise, so just prepare to send the pending stx.
                 timeout = parse_since(doc[:timeout])
                 stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout, stx_input: stx_input_h, stx: stx_pend, stage: 3 } })
               end
             elsif (remote.include? :input_nounce) && !(remote.include? :output_nounce)
+              # this is the settlement tx.
               @coll_sessions.find_one_and_delete(id: doc[:id])
               puts "#{doc[:id]} is settled at block number #{i}."
             elsif !(remote.include? :input_nounce) && (remote.include? :output_nounce)
-              # fund
+              # this is the fund tx.
               ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
               @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h, stage: 1 } })
               puts "#{doc[:id]}'s fund tx on chain at block number #{i}."
@@ -166,6 +167,8 @@ class Minotor
           puts "send settlement tx about #{doc[:id]} at block number #{i}."
         end
 
+        # If remote party refuses the closing request, and the closing_time is passed.
+        # Just submit the closing tx.
         if current_height >= doc[:closing_time] && doc[:stage] == 2 && doc[:closing_time] != 0
           send_tx(doc, "closing")
           puts "send closing tx about #{doc[:id]} at block number #{i}."
@@ -219,9 +222,9 @@ class Minotor
     type_info = find_type(type_hash)
     input = [gpc_input]
 
-    # the fee rules for settlement and closing is difference.
-    # closing need extra fee, so you need to pay it.
-    # settlement need not.
+    # the fee rules for settlement and closing is different.
+    # closing need extra fee, so you need to pay it, which means you need one more input cells.
+    # settlement does not.
     if type == "closing"
       local_change_output = CKB::Types::Output.new(
         capacity: 0,

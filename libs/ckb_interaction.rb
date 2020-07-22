@@ -1,3 +1,6 @@
+# gather fund amount.
+# if decoder == nil and type_script_hash == ""
+# it means the asset type is ckbyte.
 def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, from_block_number)
   return [] if amount_required == 0
   final_inputs = []
@@ -81,6 +84,7 @@ def get_minimal_capacity(lock, type, output_data)
 end
 
 def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_script, local_type, from_block_number = 0)
+  # If type_script == nil, it means the asset is ckbyte.
   type_script_hash = local_type[:type_script] == nil ? "" : local_type[:type_script].compute_hash
 
   # gather fund inputs.
@@ -88,7 +92,8 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   return nil if !fund_inputs
 
   fund_inputs_capacity = get_total_amount(fund_inputs, "", nil)
-
+  # generate an output_data
+  # I need it to calculate the minimal capacity of change output and refund output.
   output_data = local_type[:encoder] == nil ? "0x" : local_type[:encoder].call(0)
 
   change_minimal_capacity = 0
@@ -103,8 +108,10 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   required_capacity = type_script_hash == "" ?
     refund_minimal_capacity + change_minimal_capacity + fee + amount :
     refund_minimal_capacity + change_minimal_capacity + fee
-  diff_capacity = required_capacity - fund_inputs_capacity
 
+  # check whether the fund cells' capacity is enought.
+  # If yes, it is unnecessary to gather fee cells.
+  diff_capacity = required_capacity - fund_inputs_capacity
   return fund_inputs if diff_capacity <= 0
 
   # gather fee cells.
@@ -152,11 +159,9 @@ def get_total_amount(cells, type_script_hash, decoder)
 end
 
 def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
-  # def check_cells(cells, amount_required, fee_required, change, type_script_hash, decoder)
-  # 2. the amount is enough, amount_gathered = amount_gpc + amount_change
-  # 3. the capacity is enough.
   amount_gathered = get_total_amount(cells, type_script_hash, decoder)
 
+  # check the ckbyte is enough to support this output.
   return false if change[:output].capacity < change[:output].calculate_min_capacity(change[:output_data])
   return false if stx_info[:outputs][0].capacity < stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
 

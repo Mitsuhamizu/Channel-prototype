@@ -235,7 +235,7 @@ class Communication
 
       # gather local fund inputs.
       local_cells = gather_inputs(local_amount, local_fee_fund + local_fee_settlement, lock_hashes, change_lock_script,
-                                  refund_lock_script, local_type, 15000)
+                                  refund_lock_script, local_type)
       return false if local_cells == nil
 
       # generate the settlement infomation.
@@ -273,11 +273,11 @@ class Communication
       outputs.insert(0, gpc_cell[:output])
       outputs_data.insert(0, gpc_cell[:output_data])
 
-      # generate the inputs and witness of fund.
+      # generate the inputs and witness of fund tx.
       fund_cells = remote_cells + local_cells
       fund_witnesses = Array.new()
       for iter in fund_cells
-        fund_witnesses << CKB::Types::Witness.new       # the witness will be customized in UDT.
+        fund_witnesses << CKB::Types::Witness.new
       end
 
       # Let us create the fund tx!
@@ -343,7 +343,7 @@ class Communication
       end
 
       # require there is no my cells in remote cells.
-      # otherwise, if remote party uses my cell as his cells.
+      # otherwise, if remote party uses my cell as his funding.
       # My signature is misused.
       local_cell_lock_lib = Set[]
       for cell in local_cells
@@ -355,7 +355,6 @@ class Communication
       if remote_amount == 0
         puts "It is a one-way channel, tell me whether you want to accept it."
         while true
-          # testing
           response = STDIN.gets.chomp
           if response == "yes"
             break
@@ -409,7 +408,7 @@ class Communication
       end
 
       #-------------------------------------------------
-      # I think is is unnecessary to do...
+      # I think is is unnecessary to do in a prototype...
       # just verify the other part (version, deps, )
       # verify_result = verify_tx(fund_tx)
       # if verify_result == -1
@@ -436,6 +435,7 @@ class Communication
 
       # generate empty witnesses.
       # the two magic number is flag of witness and the nounce.
+      # The nounce of first pair of stx and ctx is 1.
       witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, 1)
       witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, 1)
 
@@ -474,6 +474,8 @@ class Communication
       remote_stx_info = json_to_info(msg[:stx_info])
 
       # veirfy the remote signature is right.
+      # sig_index is the the signature index. 0 or 1.
+      # So I just load my local sig_index, 1-sig_index is the remote sig_index.
       remote_ctx_result = verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
       remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
@@ -482,7 +484,7 @@ class Communication
         return false
       end
 
-      # check the ctx_info and stx_info args is right.
+      # check the ctx_info and stx_info args are right.
       # just generate it by myself and compare.
       witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, 1)
       witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, 1)
@@ -769,9 +771,8 @@ class Communication
         return false
       end
 
-      # send the signed ctx.
+      # generate the signed msg from info.
       msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
-      # sign ctx and stx and send them.
       witness_new = Array.new()
       for witness in remote_ctx_info[:witnesses]
         witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
@@ -848,7 +849,7 @@ class Communication
 
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund + fee_settlement, lock_hashes, change_lock_script,
-                                refund_lock_script, local_type, 10000)
+                                refund_lock_script, local_type)
     asset = { type_script_hash => amount }
 
     local_pubkey = CKB::Key.blake160(@key.pubkey)
