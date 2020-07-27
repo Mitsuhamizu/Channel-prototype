@@ -1,0 +1,3 @@
+[submodule "ckb-gpc-contract"]
+	path = ckb-gpc-contract
+	url = git@github.com:ZhichunLu-11/ckb-gpc-contract.git
