@@ -52,13 +52,13 @@ class Tx_generator
     output_type_length_check = output_type_length > 0 ? [witness_ser[output_type_start..output_type_start + 7]].pack("H*").unpack("V")[0] : output_type_length
 
     if input_lock_length_check != input_lock_length
-      return -1
+      return nil
     end
     if input_type_length_check != input_type_length
-      return -1
+      return nil
     end
     if output_type_length_check != output_type_length
-      return -1
+      return nil
     end
 
     length = 8
