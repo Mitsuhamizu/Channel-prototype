@@ -1,5 +1,9 @@
 # send the contract to blockchain.
 
+# gpc
+
+# udt
+
 # send initialize the two data base.
 
 # listen
