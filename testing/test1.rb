@@ -2,6 +2,7 @@ require "./libs/gpctest.rb"
 require "./libs/types.rb"
 require "mongo"
 require "json"
+# require "open4"
 
 Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
@@ -66,31 +67,29 @@ file = File.new("./files/commands.json", "w")
 file.syswrite(commands.to_json)
 file.close()
 
-system("ruby ../client1/GPC init #{private_key_A}")
-system("ruby ../client1/GPC init #{private_key_B}")
+spawn ("ruby ../client1/GPC init #{private_key_A}")
+spawn ("ruby ../client1/GPC init #{private_key_B}")
 
-monitor_A = Thread.new { system("ruby ../client1/GPC monitor #{pubkey_A}") }
-
-monitor_B = Thread.new { system("ruby ../client1/GPC monitor #{pubkey_B}") }
+monitor_A = spawn("ruby ../client1/GPC monitor #{pubkey_A}")
+monitor_B = spawn("ruby ../client1/GPC monitor #{pubkey_B}")
 
 # Create channel
-listener_B = Thread.new { system("ruby ../client1/GPC listen #{pubkey_B} #{listen_port_B}") }
+listener_B = spawn("ruby ../client1/GPC listen #{pubkey_B} #{listen_port_B}")
 
 # give enough time for listener to start.
 sleep(2)
 
-sender_A = Thread.new {
-  system("ruby ../client1/GPC send_establishment_request --pubkey #{pubkey_A} --ip 127.0.0.1 --port #{listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-}
+sender_A = spawn("ruby ../client1/GPC send_establishment_request --pubkey #{pubkey_A} --ip 127.0.0.1 --port #{listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
 
-sender_A.join
+Process.wait sender_A
 
 balance_after_funding_A = test1.get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
 balance_after_funding_B = test1.get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
 test1.assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "funding not right")
-close = Thread.new { system("npx kill-port #{listen_port_B}") }
-close.join
+system("kill #{monitor_A}")
+system("kill #{monitor_B}")
+system("kill #{listener_B}")
 
 # making payments
 
