@@ -1,8 +1,8 @@
 #!/usr/bin/ruby -w
 
-require "../libs/initialization.rb"
-require "../libs/communication.rb"
-require "../libs/chain_monitor.rb"
+require "./libs/initialization.rb"
+require "./libs/communication.rb"
+require "./libs/chain_monitor.rb"
 require "mongo"
 require "thor"
 

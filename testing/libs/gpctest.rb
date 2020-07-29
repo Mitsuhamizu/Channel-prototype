@@ -1,6 +1,8 @@
 require "rubygems"
 require "bundler/setup"
+require "minitest/autorun"
 require "ckb"
+
 # udt_code: https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/f39fd7774019d0333857f8e6861300a67fb1e266/c/simple_udt.c
 # note that I change the byte of amount in UDT to 8.
 
@@ -10,8 +12,9 @@ require "ckb"
 # 2. deploy the udt contract.
 # 3. create and disseminate UDT to two account.
 
-class Minitest
-  def initialize
+class Gpctest < Minitest::Test
+  def initialize(name)
+    super(name)
     @privkey = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
     @api = CKB::API::new
     @rpc = CKB::RPC.new
@@ -22,7 +25,6 @@ class Minitest
     for i in 0..num
       rpc.generate_block
     end
-
     return true
   end
 

@@ -84,6 +84,12 @@ class Communication
     return result
   end
 
+  def load_command()
+    command_raw = File.read("./files/commands.json")
+    command_json = JSON.parse(command_raw, symbolize_names: true)
+    return command_json
+  end
+
   # find the type_script, type_dep, decoder and encoder by type_script_hash.
   # the decoder and encoder denotes the logic of udt. Here, we only parse the
   # first 8 bytes.
@@ -102,13 +108,18 @@ class Communication
     encoder = nil
     type_dep = nil
 
+    # load the type in the file...
+    data_raw = File.read("./files/contract_info.json")
+    data_json = JSON.parse(data_raw, symbolize_names: true)
+    type_script_json = data_json[:type_script]
+    type_script_h = JSON.parse(type_script_json, symbolize_names: true)
+    type_script_in_file = CKB::Types::Script.from_h(type_script_h)
+
     # we need more options, here I only consider this case.
-    if type_script_hash == "0x4128764be3d34d0f807f59a25c29ba5aff9b4b9505156c654be2ec3ba84d817d"
-      type_script = CKB::Types::Script.new(code_hash: "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
-                                           args: "0x32e555f3ff8e135cece1351a6a2971518392c1e30375c1e006ad0ce8eac07947",
-                                           hash_type: CKB::ScriptHashType::DATA)
+    if type_script_hash == type_script_in_file.compute_hash
+      type_script = type_script_in_file
       out_point = CKB::Types::OutPoint.new(
-        tx_hash: "0xb0e1ade40b8a12edaf9ae4521dac6594da3d7527666fcc687a5f421856a7e45e",
+        tx_hash: data_json[:udt_tx_hash],
         index: 0,
       )
       type_dep = CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
@@ -182,7 +193,6 @@ class Communication
       lock_hashes = [@lock_hash]
       refund_lock_script = @lock
       change_lock_script = refund_lock_script
-      local_cells_h = local_cells.map(&:to_h)
 
       # find the type hash and decoder.
       local_type_script_hash = remote_asset.keys.first.to_s
@@ -192,9 +202,9 @@ class Communication
       local_type = find_type(local_type_script_hash)
       remote_type = find_type(remote_type_script_hash)
 
-      # check remote cells.
       remote_cell_check = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, remote_type_script_hash, remote_type[:decoder])
 
+      # check remote cells.
       if !remote_cell_check
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
@@ -206,10 +216,14 @@ class Communication
       puts "The fund fee is #{remote_fee_fund}."
       puts "Tell me whether you are willing to accept this request."
 
+      commands = load_command()
+
+      # read data from json file.
+
       # It should be more robust.
       while true
         # testing
-        response = STDIN.gets.chomp
+        response = commands[:recv_reply]
         # response = "yes"
         if response == "yes"
           break
@@ -225,8 +239,8 @@ class Communication
       # Get the capacity and fee. These code need to be more robust.
       while true
         puts "Please input the amount and fee you want to use for funding"
-        local_amount = STDIN.gets.chomp.to_i
-        local_fee_fund = STDIN.gets.chomp.to_i
+        local_amount = commands[:recv_fund].to_i
+        local_fee_fund = commands[:recv_fee].to_i
 
         # CKB to shannon.
         local_amount = local_type_script_hash == "" ? CKB::Utils.byte_to_shannon(local_amount) : local_amount
@@ -283,7 +297,7 @@ class Communication
       # Let us create the fund tx!
       fund_tx = @tx_generator.generate_fund_tx(fund_cells, outputs, outputs_data, fund_witnesses, local_type[:type_dep])
       local_change_h = cell_to_hash(local_change)
-
+      local_cells_h = local_cells.map(&:to_h)
       # send it
       msg_reply = { id: msg[:id], type: 2, amount: local_amount, fee_fund: local_fee_fund,
                     fund_tx: fund_tx.to_h, stx_info: local_empty_stx_json, pubkey: local_pubkey }.to_json
@@ -349,11 +363,14 @@ class Communication
         local_cell_lock_lib.add(output.lock.compute_hash)
       end
 
+      commands = load_command()
+
       # About the one way channel.
       if remote_amount == 0
         puts "It is a one-way channel, tell me whether you want to accept it."
         while true
-          response = STDIN.gets.chomp
+          # response = STDIN.gets.chomp
+          response = commands[:sender_one_way_permission]
           if response == "yes"
             break
           elsif response == "no"
@@ -419,7 +436,8 @@ class Communication
       puts "The fund fee is #{remote_fee_fund}."
       puts "Tell me whether you are willing to accept this request"
       while true
-        response = STDIN.gets.chomp
+        response = commands[:sender_reply]
+        # response = STDIN.gets.chomp
         if response == "yes"
           break
         elsif response == "no"
