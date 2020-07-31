@@ -12,6 +12,8 @@ require "../libs/tx_generator.rb"
 require "../libs/mongodb_operate.rb"
 require "../libs/verification.rb"
 
+$VERBOSE = nil
+
 class Communication
   def initialize(private_key)
     @key = CKB::Key.new(private_key)
@@ -619,7 +621,7 @@ class Communication
       while true
         exist = @api.get_transaction(fund_tx.hash)
         break if exist != nil
-        @api.send_transaction(fund_tx)
+        fund_tx_hash = @api.send_transaction(fund_tx)
       end
       # update the database
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
@@ -643,6 +645,7 @@ class Communication
       if msg_type == "payment"
         local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
         sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+        type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         payment_type_hash = msg[:payment_type]
         payment_type = find_type(payment_type_hash)
         amount = msg[:amount]
@@ -664,12 +667,15 @@ class Communication
 
         return false if !ctx_result || !stx_result
 
+        commands = load_command()
+
         # ask users whether the payments are right.
         amount_print = payment_type_hash == "" ? amount / (10 ** 8) : amount
         puts "The remote node wants to pay you #{amount_print} with type hash #{payment_type_hash} in channel #{id}."
         puts "Tell me whether you are willing to accept this payment."
         while true
-          response = STDIN.gets.chomp
+          response = commands[:payment_reply]
+          # response = STDIN.gets.chomp
           if response == "yes"
             break
           elsif response == "no"
@@ -725,9 +731,11 @@ class Communication
 
         puts "#{remote_pubkey} wants to close the channel with id #{id}."
         puts "Tell me whether you are willing to accept this request"
+        commands = load_command()
 
         while true
-          response = STDIN.gets.chomp
+          response = commands[:closing_reply]
+          # response = STDIN.gets.chomp
           if response == "yes"
             break
           elsif response == "no"
@@ -912,7 +920,8 @@ class Communication
     stx = @coll_sessions.find({ id: id }).first[:stx_info]
     ctx = @coll_sessions.find({ id: id }).first[:ctx_info]
     nounce = @coll_sessions.find({ id: id }).first[:nounce]
-    type_info = find_type(type_script_hash)
+    type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
+    type_info = find_type(type_hash)
 
     stx_info = json_to_info(stx)
     ctx_info = json_to_info(ctx)
@@ -941,7 +950,7 @@ class Communication
 
     # send the msg.
     msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json,
-            amount: amount, msg_type: "payment", payment_type: type_script_hash }.to_json
+            amount: amount, msg_type: "payment", payment_type: type_hash }.to_json
     s.puts(msg)
 
     # update the local database.
@@ -1001,6 +1010,7 @@ class Communication
     s.puts(msg)
 
     # update database.
+
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2, msg_cache: msg,
                                                                 closing_time: current_height + 20 } })
     s.close

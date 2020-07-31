@@ -218,10 +218,9 @@ class Minotor
   end
 
   # Need to construct corresponding txs.
-  def send_tx(doc, type, fee = 1000)
+  def send_tx(doc, type, fee = 2000)
     tx_info = type == "closing" ? json_to_info(doc[:ctx_info]) : json_to_info(doc[:stx_info])
     gpc_input = type == "closing" ? doc[:ctx_input] : doc[:stx_input]
-    fee = 0 if type == "settlement"
     type_hash = doc[:type_hash]
     gpc_input = json_to_input(gpc_input)
     type_info = find_type(type_hash)
@@ -230,34 +229,30 @@ class Minotor
     # the fee rules for settlement and closing is different.
     # closing need extra fee, so you need to pay it, which means you need one more input cells.
     # settlement does not.
-    if type == "closing"
-      local_change_output = CKB::Types::Output.new(
-        capacity: 0,
-        lock: @lock,
-        type: nil,
-      )
+    local_change_output = CKB::Types::Output.new(
+      capacity: 0,
+      lock: @lock,
+      type: nil,
+    )
 
-      # require the change ckbyte is greater than the min capacity.
-      fee = local_change_output.calculate_min_capacity("0x") + fee
-      fee_cell = gather_fee_cell([@lock_hash], fee, 0)
-      return false if fee_cell == nil
+    # require the change ckbyte is greater than the min capacity.
+    fee = local_change_output.calculate_min_capacity("0x") + fee
+    fee_cell = gather_fee_cell([@lock_hash], fee, 0)
+    return false if fee_cell == nil
 
-      fee_cell_capacity = get_total_capacity(fee_cell)
-      input += fee_cell
+    fee_cell_capacity = get_total_capacity(fee_cell)
+    input += fee_cell
 
-      local_change_output.capacity = fee_cell_capacity - fee
-      tx_info[:outputs] << local_change_output
-      for nosense in fee_cell
-        tx_info[:outputs_data] << "0x"
-        tx_info[:witnesses] << CKB::Types::Witness.new
-      end
-
-      # generate the tx.
-      tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
-      tx = @tx_generator.sign_tx(tx)
-    elsif type == "settlement"
-      tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
+    local_change_output.capacity = fee_cell_capacity - fee
+    tx_info[:outputs] << local_change_output
+    for nosense in fee_cell
+      tx_info[:outputs_data] << "0x"
+      tx_info[:witnesses] << CKB::Types::Witness.new
     end
+
+    # generate the tx.
+    tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
+    tx = @tx_generator.sign_tx(tx, tx.inputs[1..])
 
     if !tx
       puts "the input of the tx is spent."
@@ -267,7 +262,6 @@ class Minotor
     tx_hash = false
     exist = @api.get_transaction(tx.hash)
 
-    # puts exist
     begin
       tx_hash = @api.send_transaction(tx) if exist == nil
     rescue

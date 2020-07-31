@@ -3,6 +3,7 @@
 require "rubygems"
 require "bundler/setup"
 require "ckb"
+require "json"
 require "secp256k1"
 require "../libs/ckb_interaction.rb"
 
@@ -20,8 +21,11 @@ class Tx_generator
   def initialize(key)
     @key = key
     @api = CKB::API::new
-    @gpc_code_hash = "0x00ef823681069daee2e08edad2d3d100d57d6693d0017d73d05bc9725bed547d"
-    @gpc_tx = "0x7d258b18155b3301c568055c6195888b320085b0c6cb1ba1c84228b799be29da"
+
+    data_raw = File.read("./files/contract_info.json")
+    data_json = JSON.parse(data_raw, symbolize_names: true)
+    @gpc_code_hash = data_json[:gpc_code_hash]
+    @gpc_tx = data_json[:gpc_tx_hash]
     @gpc_hash_type = "data"
   end
 
@@ -361,9 +365,13 @@ class Tx_generator
   end
 
   def update_stx(amount, stx_info, pubkey_payee, pubkey_payer, type_info)
+    puts "------------------------------------------------------------------------"
+    puts amount
+    puts "------------------------------------------------------------------------"
     for index in (0..stx_info[:outputs].length - 1)
       output = stx_info[:outputs][index]
       output_data = stx_info[:outputs_data][index]
+
       if type_info[:type_script] == nil
         output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
         output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
