@@ -21,7 +21,6 @@ class Tx_generator
   def initialize(key)
     @key = key
     @api = CKB::API::new
-
     data_raw = File.read("./files/contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     @gpc_code_hash = data_json[:gpc_code_hash]
@@ -365,17 +364,16 @@ class Tx_generator
   end
 
   def update_stx(amount, stx_info, pubkey_payee, pubkey_payer, type_info)
-    puts "------------------------------------------------------------------------"
-    puts amount
-    puts "------------------------------------------------------------------------"
     for index in (0..stx_info[:outputs].length - 1)
       output = stx_info[:outputs][index]
       output_data = stx_info[:outputs_data][index]
 
       if type_info[:type_script] == nil
+        return false if output.capacity - amount < 0
         output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
         output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
       else
+        return false if type_info[:decoder].call(output_data) - amount < 0
         stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
       end

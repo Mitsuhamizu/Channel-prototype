@@ -7,7 +7,6 @@ require "mongo"
 require "thor"
 
 $VERBOSE = nil
-
 Mongo::Logger.logger.level = Logger::FATAL
 
 def pubkey_to_privkey(pubkey)
@@ -19,6 +18,7 @@ def pubkey_to_privkey(pubkey)
 end
 
 class GPCCLI < Thor
+  $VERBOSE = nil
   desc "init <private-key>", "Init with the private key."
 
   # --------------init

@@ -38,19 +38,6 @@ class Minotor
     return closing_input
   end
 
-  # reset the lock.
-  # which mean set the nounce and status in lock.args to 0.
-  # and return the serlizerd lock.
-  def reset_lock(lock)
-    lock_args = @tx_generator.parse_lock_args(lock.args)
-    nounce = lock_args[:nounce]
-    lock.args = @tx_generator.generate_lock_args(lock_args[:id], 0, lock_args[:timeout],
-                                                 0, lock_args[:pubkey_A], lock_args[:pubkey_B])
-    lock_ser = CKB::Serializers::ScriptSerializer.new(lock).serialize
-
-    return { lock_ser: lock_ser, nounce: nounce }
-  end
-
   # parse since to a number.
   def parse_since(since)
     since = [since.to_i].pack("Q>")
@@ -69,7 +56,7 @@ class Minotor
         block = @api.get_block_by_number(i)
         for transaction in block.transactions
           index = 0
-          script_hash_lib = {}
+          id_lib = {}
 
           # travel inputs.
           for input in transaction.inputs
@@ -83,9 +70,9 @@ class Minotor
 
               # record the nounce.
               next if previous_output_lock.code_hash != @tx_generator.gpc_code_hash || previous_output_lock.hash_type != @tx_generator.gpc_hash_type
-              reset_result = reset_lock(previous_output_lock)
-              if !script_hash_lib.keys.include? reset_result[:lock_ser]
-                script_hash_lib[reset_result[:lock_ser]] = { input_nounce: reset_result[:nounce] }
+              lock_args = @tx_generator.parse_lock_args(previous_output_lock.args)
+              if !id_lib.keys.include? lock_args[:id]
+                id_lib[lock_args[:id]] = { input_nounce: lock_args[:nounce] }
               end
             end
           end
@@ -94,25 +81,24 @@ class Minotor
           for output in transaction.outputs
             remote_output_lock = output.lock
             next if remote_output_lock.code_hash != @tx_generator.gpc_code_hash || remote_output_lock.hash_type != @tx_generator.gpc_hash_type
-            reset_result = reset_lock(remote_output_lock)
-            if !script_hash_lib.keys.include? reset_result[:lock_ser]
-              script_hash_lib[reset_result[:lock_ser]] = { output_nounce: reset_result[:nounce] }
-            else
-              script_hash_lib[reset_result[:lock_ser]][:output_nounce] = reset_result[:nounce]
-            end
+            lock_args = @tx_generator.parse_lock_args(remote_output_lock.args)
+            remote_nounce = if !id_lib.keys.include? lock_args[:id]
+                id_lib[lock_args[:id]] = { output_nounce: lock_args[:nounce] }
+              else
+                id_lib[lock_args[:id]][:output_nounce] = lock_args[:nounce]
+              end
           end
 
           # if there is no gpc tx, next.
-          next if script_hash_lib.length == 0
+          next if id_lib.length == 0
 
           # travel local docs.
           view = @coll_sessions.find { }
           view.each do |doc|
-            local_script = doc[:gpc_script]
             nounce_local = doc[:nounce]
-            next if !script_hash_lib.keys.include? local_script
+            next if !id_lib.keys.include? doc[:id]
 
-            remote = script_hash_lib[local_script]
+            remote = id_lib[doc[:id]]
             stx_pend = @coll_sessions.find({ id: doc[:id] }).first[:stx_info_pend]
 
             if (remote.include? :input_nounce) && (remote.include? :output_nounce)
