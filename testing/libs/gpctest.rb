@@ -63,7 +63,7 @@ class Gpctest < Minitest::Test
     setup()
     init_client()
     @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
-    sleep(4)
+    sleep(5)
   end
 
   def generate_blocks(rpc, num, interval = 0)
@@ -210,12 +210,12 @@ class Gpctest < Minitest::Test
     system("kill #{monitor_B}")
     system("npx kill-port 1000")
     system("npx kill-port 2000")
-    # db.drop()
+    db.drop()
   end
 
   def init_client()
-    spawn ("ruby -W0 ../client1/GPC init #{@private_key_A}")
-    spawn ("ruby -W0 ../client1/GPC init #{@private_key_B}")
+    system ("ruby -W0 ../client1/GPC init #{@private_key_A}")
+    system ("ruby -W0 ../client1/GPC init #{@private_key_B}")
   end
 
   def load_json_file(path)
@@ -271,7 +271,7 @@ class Gpctest < Minitest::Test
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
                    recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
+                   payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
       sender_A = spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")

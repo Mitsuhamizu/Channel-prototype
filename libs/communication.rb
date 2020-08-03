@@ -739,15 +739,17 @@ class Communication
         fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
         fund_tx = CKB::Types::Transaction.from_h(fund_tx)
         local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
-        remote_change = hash_to_cell(msg[:change])
+        remote_change = CKB::Types::Output.from_h(msg[:change])
         remote_fee_cells = msg[:fee_cell].map { |cell| CKB::Types::Input.from_h(cell) }
-
         remote_fee = get_total_capacity(remote_fee_cells) - remote_change.capacity
+        nounce = @coll_sessions.find({ id: id }).first[:nounce]
+        type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
+        current_height = @api.get_tip_block_number
+        type_info = find_type(type_hash)
 
         puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
         puts "Tell me whether you are willing to accept this request"
         commands = load_command()
-
         while true
           response = commands[:closing_reply]
           # response = STDIN.gets.chomp
@@ -761,13 +763,11 @@ class Communication
             puts "your input is invalid"
           end
         end
-
         while true
           puts "Please input fee you want to use for settlement"
           local_fee = commands[:recv_fee].to_i
           break
         end
-
         local_change_output = CKB::Types::Output.new(
           capacity: 0,
           lock: @lock,
@@ -775,13 +775,21 @@ class Communication
         )
         total_fee = local_change_output.calculate_min_capacity("0x") + local_fee
         local_fee_cell = gather_fee_cell([@lock_hash], total_fee, 0)
-        local_change_output.capacity = fee_cell_capacity - fee
+        fee_cell_capacity = get_total_capacity(local_fee_cell)
+        return false if local_fee_cell == nil
+        local_change_output.capacity = fee_cell_capacity - local_fee
 
-        input_fund = @tx_generator.convert_input(fund_tx, 0, 0)
+        input_fund = @tx_generator.convert_input(fund_tx, 0, 0) # index and since.
         inputs = [input_fund] + remote_fee_cells + local_fee_cell
-        outputs = stx_info[:outputs] + [remote_change, local_change]
-        outputs_data = stx_info[:outputs_data] + ["0x", "0x"]
-        witnesses = stx_info[:witnesses]
+
+        outputs = local_stx_info[:outputs] + [remote_change, local_change_output]
+        outputs_data = local_stx_info[:outputs_data] + ["0x", "0x"]
+        witnesses = local_stx_info[:witnesses]
+
+        # add witnesses of change.
+        witnesses << CKB::Types::Witness.new
+        witnesses << CKB::Types::Witness.new
+
         witnesses = witnesses.map do |witness|
           case witness
           when CKB::Types::Witness
@@ -790,8 +798,11 @@ class Communication
             @tx_generator.parse_witness(witness)
           end
         end
-
-        return false if local_fee_cell == nil
+        terminal_tx = @tx_generator.generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witnesses, sig_index, type_info[:type_dep])
+        terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell).to_h
+        msg_reply = { id: msg[:id], type: 9, terminal_tx: terminal_tx }.to_json
+        client.puts(msg_reply)
+        @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2, closing_time: current_height + 20 } })
       end
     when 7
 
@@ -873,6 +884,65 @@ class Communication
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_json, stx_info: stx_pend,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
                                                                   nounce: nounce + 1 } })
+      return "done"
+    when 9
+      id = msg[:id]
+      terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
+      sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+      local_fee_cell = @coll_sessions.find({ id: id }).first[:settlement_fee_cell]
+      local_change_output = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:settlement_fee_change], symbolize_names: true)
+      remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
+      fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
+      fund_tx = CKB::Types::Transaction.from_h(fund_tx)
+      local_fee_cell = local_fee_cell.map { |cell| JSON.parse(cell.to_json, symbolize_names: true) }
+      input_fund = @tx_generator.convert_input(fund_tx, 0, 0)
+
+      for output in local_stx_info[:outputs].map(&:to_h)
+        if !terminal_tx.outputs.map(&:to_h).include? output
+          msg_reply = generate_text_msg(msg[:id], "sry, the settlement outputs are inconsistent with my local one.")
+          client.puts(msg_reply)
+          return false
+        end
+      end
+
+      terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
+      remote_fee_cell = terminal_tx.inputs.map(&:to_h) - local_fee_cell - [input_fund.to_h]
+      remote_fee_cell = remote_fee_cell.map { |cell| CKB::Types::Input.from_h(cell) }
+      remote_change_output = terminal_tx.outputs.map(&:to_h) - [local_change_output] - local_stx_info[:outputs].map(&:to_h)
+
+      remote_change_output = remote_change_output.map { |output| CKB::Types::Output.from_h(output) }
+      remote_fee = get_total_capacity(remote_fee_cell) - remote_change_output.map(&:capacity).inject(0, &:+)
+
+      puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
+      puts "Tell me whether you are willing to accept this request"
+      commands = load_command()
+      while true
+        response = commands[:closing_reply]
+        # response = STDIN.gets.chomp
+        if response == "yes"
+          break
+        elsif response == "no"
+          msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request.")
+          client.puts(msg_reply)
+          return false
+        else
+          puts "your input is invalid"
+        end
+      end
+
+      # add my signature and send it to blockchain.
+      local_fee_cell = local_fee_cell.map { |cell| CKB::Types::Input.from_h(cell) }
+      terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell)
+      terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
+
+      tx_hash = false
+      exist = @api.get_transaction(terminal_tx.hash)
+
+      begin
+        tx_hash = @api.send_transaction(terminal_tx) if exist == nil
+      rescue
+      end
       return "done"
     end
   end
@@ -1046,8 +1116,7 @@ class Communication
     fee_cell_h = fee_cell.map(&:to_h)
     msg = { id: id, type: 6, fee: fee, fee_cell: fee_cell_h, change: local_change_output.to_h, msg_type: "closing" }.to_json
     s.puts(msg)
-    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2, status: 9, msg_cache: msg, closing_time: current_height + 20,
-                                                                settlement_fee_cell: fee_cell_h, settlement_fee_change: local_change_output.to_h } })
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stage: 2, status: 9, msg_cache: msg, closing_time: current_height + 20, settlement_fee_cell: fee_cell_h, settlement_fee_change: local_change_output.to_h.to_json } })
 
     begin
       timeout(5) do

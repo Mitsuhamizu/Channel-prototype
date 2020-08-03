@@ -87,6 +87,8 @@ class GPCCLI < Thor
   desc "monitor <public key>", "Monitor the chain."
 
   def monitor(pubkey)
+    old_sync = $stdout.sync
+    $stdout.sync = true
     private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
     monitor.monitor_chain()
