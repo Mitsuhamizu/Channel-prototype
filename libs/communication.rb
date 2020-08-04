@@ -100,6 +100,12 @@ class Communication
     file.close()
   end
 
+  def record_success(msg)
+    file = File.new("./files/successes.json", "w")
+    file.syswrite(msg.to_json)
+    file.close()
+  end
+
   # find the type_script, type_dep, decoder and encoder by type_script_hash.
   # the decoder and encoder denotes the logic of udt. Here, we only parse the
   # first 8 bytes.
@@ -497,7 +503,6 @@ class Communication
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-      closing_output_data = "0x"
 
       remote_ctx_info = json_to_info(msg[:ctx_info])
       remote_stx_info = json_to_info(msg[:stx_info])
@@ -633,7 +638,7 @@ class Communication
       while true
         exist = @api.get_transaction(fund_tx.hash)
         break if exist != nil
-        fund_tx_hash = @api.send_transaction(fund_tx)
+        @api.send_transaction(fund_tx)
       end
       # update the database
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
@@ -936,11 +941,10 @@ class Communication
       terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell)
       terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
 
-      tx_hash = false
       exist = @api.get_transaction(terminal_tx.hash)
 
       begin
-        tx_hash = @api.send_transaction(terminal_tx) if exist == nil
+        @api.send_transaction(terminal_tx) if exist == nil
       rescue
       end
       return "done"
@@ -969,12 +973,12 @@ class Communication
     lock_hashes = [@lock_hash]
     local_type = find_type(type_script_hash)
 
+
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type)
     if local_cells == nil
-      errors_msg = { send_fund_insufficient: 1 }
-      record_error(errors_msg)
+      record_error({ sender_gather_funding_error_insufficient: 1 })
       return false
     end
     asset = { type_script_hash => amount }
@@ -1006,6 +1010,8 @@ class Communication
             stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0, local_change: local_change_h.to_json,
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
+
+    record_success({ sender_gather_funding_success: 1 })
 
     begin
       timeout(5) do
@@ -1094,13 +1100,6 @@ class Communication
   def send_closing_request(remote_ip, remote_port, id, fee = 1000)
     s = TCPSocket.open(remote_ip, remote_port)
     current_height = @api.get_tip_block_number
-    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
-    stage = @coll_sessions.find({ id: id }).first[:stage]
-    stx_info = json_to_info(@coll_sessions.find({ id: id }).first[:stx_info])
-    nounce = @coll_sessions.find({ id: id }).first[:nounce]
-    fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
-    type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
-    type_info = find_type(type_hash)
 
     local_change_output = CKB::Types::Output.new(
       capacity: 0,

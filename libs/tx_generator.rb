@@ -205,7 +205,6 @@ class Tx_generator
       inputs_tuple << [index, input_local]
     end
     inputs_tuple = inputs_tuple.sort
-    local_inputs = inputs_tuple.map { |tuple| tuple[1] }
 
     input_group = group_input(inputs_tuple)
     return false if !input_group

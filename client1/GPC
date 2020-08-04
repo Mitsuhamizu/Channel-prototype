@@ -3,10 +3,9 @@
 require "../libs/initialization.rb"
 require "../libs/communication.rb"
 require "../libs/chain_monitor.rb"
+require "stringio"
 require "mongo"
 require "thor"
-
-$VERBOSE = nil
 
 Mongo::Logger.logger.level = Logger::FATAL
 
@@ -18,9 +17,16 @@ def pubkey_to_privkey(pubkey)
   return private_key
 end
 
+def silence
+  $stdout = temp_out = StringIO.new
+  yield
+  temp_out.string
+ensure
+  $stdout = STDOUT
+end
+
 class GPCCLI < Thor
   desc "init <private-key>", "Init with the private key."
-
   # --------------init
   def init(private_key)
     if ARGV.length != 2
@@ -59,8 +65,9 @@ class GPCCLI < Thor
   def send_establishment_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_i) : options[:amount].to_i
+    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_f) : options[:amount].to_i
 
+    puts amount.to_i
     type_script_hash = options[:type_script_hash] == nil ? "" : options[:type_script_hash]
     communicator.send_establish_channel(options[:ip], options[:port], amount,
                                         options[:fee].to_i, options[:since], type_script_hash)
@@ -87,8 +94,6 @@ class GPCCLI < Thor
   desc "monitor <public key>", "Monitor the chain."
 
   def monitor(pubkey)
-    old_sync = $stdout.sync
-    $stdout.sync = true
     private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
     monitor.monitor_chain()
