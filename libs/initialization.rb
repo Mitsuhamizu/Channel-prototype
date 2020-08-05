@@ -18,5 +18,9 @@ class Init
     else
       puts "the initialization has been down."
     end
+    live_cell_pool = pubkey + "_cell_pool"
+    coll_cells = db[pool_name]
+    doc = { id: 0, privkey: privkey }
+    view = coll_cells.find({ privkey: privkey })
   end
 end

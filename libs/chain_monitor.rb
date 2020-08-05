@@ -163,6 +163,9 @@ class Minotor
 
       @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { current_block_num: current_height } })
       # just update the checked block!
+
+      # add and remove live cells pool.
+      
     end
   end
 

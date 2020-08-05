@@ -1,7 +1,7 @@
 # gather fund amount.
 # if decoder == nil and type_script_hash == ""
 # it means the asset type is ckbyte.
-def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, from_block_number)
+def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, from_block_number = 0, used_cells = [])
   return [] if amount_required == 0
   final_inputs = []
   amount_gathered = 0
@@ -40,7 +40,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, f
   return amount_gathered < amount_required ? nil : final_inputs
 end
 
-def gather_fee_cell(lock_hashes, fee, from_block_number)
+def gather_fee_cell(lock_hashes, fee, from_block_number = 0, used_cells = [])
   return [] if fee == 0
   final_inputs = []
   capacity_gathered = 0
@@ -83,7 +83,7 @@ def get_minimal_capacity(lock, type, output_data)
   return output.calculate_min_capacity(output_data)
 end
 
-def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_script, local_type, from_block_number = 0)
+def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_script, local_type, from_block_number = 0, used_cells = [])
   # If type_script == nil, it means the asset is ckbyte.
   type_script_hash = local_type[:type_script] == nil ? "" : local_type[:type_script].compute_hash
 

@@ -65,9 +65,9 @@ class GPCCLI < Thor
   def send_establishment_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_f) : options[:amount].to_i
+    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(BigDecimal(options[:amount])) : BigDecimal(options[:amount])
+    amount = amount.to_i
 
-    puts amount.to_i
     type_script_hash = options[:type_script_hash] == nil ? "" : options[:type_script_hash]
     communicator.send_establish_channel(options[:ip], options[:port], amount,
                                         options[:fee].to_i, options[:since], type_script_hash)

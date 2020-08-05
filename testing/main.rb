@@ -1,5 +1,6 @@
 require "./libs/gpctest.rb"
 require "mongo"
+require "bigdecimal"
 
 def record_error(msg)
   file = File.new("./files/errors.json", "w")
@@ -20,6 +21,7 @@ tests = Gpctest.new("test")
 # tests.test1()
 
 # party_stage_type_info.
+# 519873491499995001
 
 # here is the ckb version.
 investment_fee = []
@@ -29,25 +31,23 @@ balance_A, balance_B = tests.get_account_balance_ckb()
 base = 2 * 61 * 10 ** 8
 fee_A = 5000
 fee_B = 5000
+
 # 1.1 A investment + fee + 2 * base_capacity > total_capacity
-
-investment_A = (balance_A - base - fee_A + 1).to_f / 10 ** 8
-investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
-
 puts balance_A - base - fee_A + 1
-
+investment_A = BigDecimal((balance_A - base - fee_A + 1).to_s) / 10 ** 8
+investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
 error_type = :sender_gather_funding_error_insufficient
 investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
-# 1.2 A investment + fee + 2 * base_capacity < total_capacity
-investment_A = (balance_A - base - fee_A - 1).to_f / 10 ** 8
-investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
-success_type = :sender_gather_funding_success
-investment_fee << [investment_A, investment_B, fee_A, fee_B, success_type]
-# 1.3 A investment + fee + 2 * base_capacity == total_capacity
-investment_A = (balance_A - base - fee_A).to_f / 10 ** 8
-investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
-error_type = :sender_gather_funding_success1
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+# # 1.2 A investment + fee + 2 * base_capacity < total_capacity
+# investment_A = (balance_A - base - fee_A - 1).to_f / 10 ** 8
+# investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
+# success_type = :sender_gather_funding_success
+# investment_fee << [investment_A, investment_B, fee_A, fee_B, success_type]
+# # 1.3 A investment + fee + 2 * base_capacity == total_capacity
+# investment_A = (balance_A - base - fee_A).to_f / 10 ** 8
+# investment_B = (balance_B - 10 ** 8 - fee_B).to_f / 10 ** 8
+# error_type = :sender_gather_funding_success1
+# investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
 
 # 1.4 B investment + fee + 2 * base_capacity > total_capacity
 # 1.5 B investment + fee + 2 * base_capacity < total_capacity

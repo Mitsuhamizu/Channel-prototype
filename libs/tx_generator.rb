@@ -191,20 +191,18 @@ class Tx_generator
   end
 
   def sign_tx(tx, inputs_local)
-
+    puts inputs_local.map(&:to_h)
     # sort local inputs according to the order in tx.
     # it maybe confusing, but is is very hard to explain. I will intruduce the rationl
     # in next meeting.
+    index = 0
     inputs_tuple = []
-    for input_local in inputs_local
-      index = 0
-      for input_fund in tx.inputs
-        break if input_local.to_h == input_fund.to_h
-        index += 1
+    for input_fund in tx.inputs
+      for input_local in inputs_local
+        inputs_tuple << [index, input_local] if input_local.to_h == input_fund.to_h
       end
-      inputs_tuple << [index, input_local]
+      index += 1
     end
-    inputs_tuple = inputs_tuple.sort
 
     input_group = group_input(inputs_tuple)
     return false if !input_group

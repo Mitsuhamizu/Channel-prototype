@@ -973,7 +973,6 @@ class Communication
     lock_hashes = [@lock_hash]
     local_type = find_type(type_script_hash)
 
-
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type)
