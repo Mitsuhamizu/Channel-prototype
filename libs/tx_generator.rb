@@ -75,14 +75,12 @@ class Tx_generator
 
   def parse_lock_args(args_ser)
     id = args_ser[2..33]
-
     assemble_result = "0x" + args_ser[34..67]
     assemble_result = CKB::Utils.hex_to_bin(assemble_result)
     pubkey_A = args_ser[68..107]
     pubkey_B = args_ser[108, 147]
     result = assemble_result.unpack("cQQ")
     result = { id: id, status: result[0], timeout: result[1], nounce: result[2], pubkey_A: pubkey_A, pubkey_B: pubkey_B }
-
     return result
   end
 

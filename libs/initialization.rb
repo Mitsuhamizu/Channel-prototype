@@ -12,15 +12,12 @@ class Init
     pool_name = pubkey + "_session_pool"
     coll_sessions = db[pool_name]
     doc = { id: 0, privkey: privkey, current_block_num: 0 }
-    view = coll_sessions.find({ privkey: privkey })
+    view = coll_sessions.find({ id: 0 })
+
     if view.count_documents() == 0
       coll_sessions.insert_one(doc)
     else
       puts "the initialization has been down."
     end
-    live_cell_pool = pubkey + "_cell_pool"
-    coll_cells = db[pool_name]
-    doc = { id: 0, privkey: privkey }
-    view = coll_cells.find({ privkey: privkey })
   end
 end

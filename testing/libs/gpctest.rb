@@ -371,6 +371,11 @@ class Gpctest < Minitest::Test
       funding_B = investment_B
       since = "9223372036854775908"
 
+      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
+                   recv_fee: fee_B, sender_one_way_permission: "yes",
+                   payment_reply: "yes", closing_reply: "yes" }
+      create_commands_file(commands)
+
       sender_A = flag == "ckb" ? spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}") : spawn("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_A} --port #{@listen_port_B} --amount 10 --id #{channel_id} --type_script_hash #{type_script_hash}")
       Process.wait sender_A
 

@@ -10,7 +10,6 @@ require "mongo"
 require "set"
 require "timeout"
 require "../libs/tx_generator.rb"
-require "../libs/mongodb_operate.rb"
 require "../libs/verification.rb"
 
 $VERBOSE = nil
@@ -27,6 +26,7 @@ class Communication
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
+    @coll_cells = @db[@key.pubkey + "_cell_pool"]
     @command_string = File.read("../testing/files/commands.json")
     @command_json = JSON.parse(@command_string, symbolize_names: true)
   end
@@ -255,20 +255,22 @@ class Communication
       # Get the capacity and fee. These code need to be more robust.
       while true
         puts "Please input the amount and fee you want to use for funding"
-        local_amount = commands[:recv_fund].to_i
+        local_amount = BigDecimal(commands[:recv_fund])
         local_fee_fund = commands[:recv_fee].to_i
-
+        puts local_amount
         # CKB to shannon.
-        local_amount = local_type_script_hash == "" ? CKB::Utils.byte_to_shannon(local_amount) : local_amount
+        local_amount = local_type_script_hash == "" ? local_amount * 10 ** 8 : local_amount
         break
       end
-
+      puts local_amount
+      # puts local_amount.to_i
       # gather local fund inputs.
       local_cells = gather_inputs(local_amount, local_fee_fund, lock_hashes, change_lock_script,
-                                  refund_lock_script, local_type)
+                                  refund_lock_script, local_type, @coll_cells)
+      # puts local_cells.map(&:to_h)
 
       if local_cells == nil
-        errors_msg = { recv_fund_insufficient: 1 }
+        errors_msg = { receiver_gather_funding_error_insufficient: 1 }
         record_error(errors_msg)
         return false
       end
@@ -331,7 +333,7 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-
+      record_success({ sender_gather_funding_success: 1 })
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -779,7 +781,7 @@ class Communication
           type: nil,
         )
         total_fee = local_change_output.calculate_min_capacity("0x") + local_fee
-        local_fee_cell = gather_fee_cell([@lock_hash], total_fee, 0)
+        local_fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
         fee_cell_capacity = get_total_capacity(local_fee_cell)
         return false if local_fee_cell == nil
         local_change_output.capacity = fee_cell_capacity - local_fee
@@ -975,7 +977,8 @@ class Communication
 
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
-                                refund_lock_script, local_type)
+                                refund_lock_script, local_type, @coll_cells)
+
     if local_cells == nil
       record_error({ sender_gather_funding_error_insufficient: 1 })
       return false
@@ -1106,7 +1109,7 @@ class Communication
       type: nil,
     )
     total_fee = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], total_fee, 0)
+    fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
     return false if fee_cell == nil
 
     fee_cell_capacity = get_total_capacity(fee_cell)

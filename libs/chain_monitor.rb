@@ -4,7 +4,6 @@ require "bundler/setup"
 require "ckb"
 require "mongo"
 require "../libs/tx_generator.rb"
-require "../libs/mongodb_operate.rb"
 require "../libs/ckb_interaction.rb"
 require "../libs/verification.rb"
 
@@ -18,6 +17,7 @@ class Minotor
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
+    @coll_cells = @db[@key.pubkey + "_cell_pool"]
 
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
@@ -44,6 +44,18 @@ class Minotor
     since[0] = [0].pack("C")
     timeout = since.unpack("Q>")[0]
     return timeout
+  end
+
+  def monitor_pending_cells()
+    while true
+      view = @coll_sessions.find { }
+      view.each do |doc|
+        timeout = doc[:revival].to_i
+        current_time = (Time.new).to_i
+        @coll_cells.find_one_and_delete(id: doc[:id]) if current_time >= timeout
+      end
+      sleep(1)
+    end
   end
 
   def monitor_chain()
@@ -165,7 +177,7 @@ class Minotor
       # just update the checked block!
 
       # add and remove live cells pool.
-      
+
     end
   end
 
