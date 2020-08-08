@@ -25,9 +25,8 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
       for cell in cells
         tx = @api.get_transaction(cell.out_point.tx_hash).transaction
         type_script = tx.outputs[cell.out_point.index].type
-        next if decoder != nil &&
-                (type_script == nil ||
-                 type_script.compute_hash != type_script_hash)
+        cell_type_script_hash = type_script == nil ? "" : type_script.compute_hash
+        next if cell_type_script_hash != type_script_hash
         current_input = CKB::Types::Input.new(
           previous_output: cell.out_point,
           since: 0,
@@ -39,7 +38,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
           decoder.call(tx.outputs_data[cell.out_point.index])
         final_inputs << current_input
         doc = { cell: current_input.to_h, revival: (Time.new).to_i + 60 }
-        insert_with_check(coll_cells, doc)
+        coll_cells.insert_one(doc)
         break if amount_gathered > amount_required
       end
 
@@ -164,7 +163,7 @@ def get_total_amount(cells, type_script_hash, decoder)
     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
     type_script = tx.outputs[cell.previous_output.index].type
     current_type_script_hash = type_script == nil ? "" : type_script.compute_hash
-    next if current_type_script_hash != type_script_hash && type_script_hash != ""
+    next if current_type_script_hash != type_script_hash
     amount_gathered += decoder == nil ?
       tx.outputs[cell.previous_output.index].capacity :
       decoder.call(tx.outputs_data[cell.previous_output.index])

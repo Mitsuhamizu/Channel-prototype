@@ -52,6 +52,7 @@ class Tx_generator
       tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
       tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
     end
+    
     #just sign the tx
     tx = tx.sign(@key)
 

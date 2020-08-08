@@ -215,6 +215,11 @@ class Communication
       remote_type_script_hash = remote_asset.keys.first.to_s
       remote_amount = remote_asset[remote_asset.keys.first]
 
+      if remote_amount < 0 || remote_fee_fund < 0
+        record_error(sender_gather_funding_error_negtive: 1)
+        return false
+      end
+
       local_type = find_type(local_type_script_hash)
       remote_type = find_type(remote_type_script_hash)
 
@@ -257,16 +262,21 @@ class Communication
         puts "Please input the amount and fee you want to use for funding"
         local_amount = BigDecimal(commands[:recv_fund])
         local_fee_fund = commands[:recv_fee].to_i
-        puts local_amount
         # CKB to shannon.
         local_amount = local_type_script_hash == "" ? local_amount * 10 ** 8 : local_amount
+        local_amount = local_amount.to_i
         break
       end
-      puts local_amount
-      # puts local_amount.to_i
+
+      if local_amount < 0 || local_fee_fund < 0
+        record_error(receiver_gather_funding_error_negtive: 1)
+        return false
+      end
+
       # gather local fund inputs.
       local_cells = gather_inputs(local_amount, local_fee_fund, lock_hashes, change_lock_script,
                                   refund_lock_script, local_type, @coll_cells)
+      # puts "client2 invests #{local_cells.length}"
       # puts local_cells.map(&:to_h)
 
       if local_cells == nil
@@ -455,7 +465,7 @@ class Communication
 
       # check the remote capcity is satisfactory.
       amount_print = local_type_script_hash == "" ? remote_amount / (10 ** 8) : remote_amount
-      puts "#{remote_pubkey} wants to establish channel with you. The remote fund amount: #{amount_print}. The type script hash #{remote_type_script_hash}."
+      puts "#{remote_pubkey} reply you with: The remote fund amount: #{amount_print}. The type script hash #{remote_type_script_hash}."
       puts "The fund fee is #{remote_fee_fund}."
       puts "Tell me whether you are willing to accept this request"
       while true
@@ -495,7 +505,7 @@ class Communication
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
                                                                         stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
-
+      record_success({ receiver_gather_funding_error_insufficient: 1 })
       return true
     when 3
 
@@ -679,11 +689,11 @@ class Communication
         local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey, payment_type)
         local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
 
-        if local_update_stx_info == false
-          errors_msg = { Insufficient_amount_to_pay: 1 }
-          record_error(errors_msg)
-          return false
-        end
+        # if local_update_stx_info == false
+        #   errors_msg = { Insufficient_amount_to_pay: 1 }
+        #   record_error(errors_msg)
+        #   return false
+        # end
 
         # check the updated info is right.
         ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
@@ -975,9 +985,15 @@ class Communication
     lock_hashes = [@lock_hash]
     local_type = find_type(type_script_hash)
 
+    if amount < 0 || fee_fund < 0
+      record_error(sender_gather_funding_error_negtive: 1)
+      return false
+    end
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type, @coll_cells)
+
+    # puts "client1 invest #{local_cells.length}"
 
     if local_cells == nil
       record_error({ sender_gather_funding_error_insufficient: 1 })
@@ -1055,11 +1071,11 @@ class Communication
     stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)
     ctx_info = @tx_generator.update_ctx(amount, ctx_info)
 
-    if stx_info == false
-      errors_msg = { Insufficient_amount_to_pay: 1 }
-      record_error(errors_msg)
-      return false
-    end
+    # if stx_info == false
+    #   errors_msg = { Insufficient_amount_to_pay: 1 }
+    #   record_error(errors_msg)
+    #   return false
+    # end
 
     # sign the stx.
     msg_signed = generate_msg_from_info(stx_info, "settlement")

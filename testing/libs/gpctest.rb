@@ -181,7 +181,7 @@ class Gpctest < Minitest::Test
         for cell in cells
           validation = @api.get_live_cell(cell.out_point)
           return nil if validation.status != "live"
-
+          
           tx = @api.get_transaction(cell.out_point.tx_hash).transaction
           type_script = tx.outputs[cell.out_point.index].type
           type_script_hash_current = type_script == nil ? "" : type_script.compute_hash

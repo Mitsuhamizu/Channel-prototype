@@ -189,7 +189,7 @@ class Tx_generator
   end
 
   def sign_tx(tx, inputs_local)
-    puts inputs_local.map(&:to_h)
+    # puts inputs_local.map(&:to_h)
     # sort local inputs according to the order in tx.
     # it maybe confusing, but is is very hard to explain. I will intruduce the rationl
     # in next meeting.
