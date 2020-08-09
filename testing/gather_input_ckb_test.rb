@@ -18,10 +18,6 @@ Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
 
 tests = Gpctest.new("test")
-# tests.test1()
-
-# party_stage_type_info.
-# 519873491499995001
 
 # here is the ckb version.
 investment_fee = []
@@ -32,68 +28,68 @@ base = 2 * 61 * 10 ** 8
 fee_A = 5000
 fee_B = 5000
 
-# from 1.1 to 1.4, it is unnecessary to care about the amount of B's funding.
+# For the first five testings, it is unnecessary to care about the amount of B's funding.
 
 # A investment + fee + 2 * base_capacity > total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A + 1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
-error_type = :sender_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :sender_gather_funding_error_insufficient
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 # A investment + fee + 2 * base_capacity < total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A - 1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
-success_type = :sender_gather_funding_success
-investment_fee << [investment_A, investment_B, fee_A, fee_B, success_type]
+expect = :sender_gather_funding_success
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 # A investment + fee + 2 * base_capacity == total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
-error_type = :sender_gather_funding_success
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :sender_gather_funding_success
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # A investment < 0
 investment_A = BigDecimal((-1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
-error_type = :sender_gather_funding_error_negtive
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :sender_gather_funding_error_negtive
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # A fee < 0
 fee_A = -1
 investment_A = BigDecimal((balance_A - base - fee_A - 1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
-error_type = :sender_gather_funding_error_negtive
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :sender_gather_funding_error_negtive
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 fee_A = 5000
 
 # B investment + fee + 2 * base_capacity > total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B + 1).to_s) / 10 ** 8
-error_type = :receiver_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :receiver_gather_funding_error_insufficient
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment + fee + 2 * base_capacity < total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B - 1).to_s) / 10 ** 8
-error_type = :receiver_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :receiver_gather_funding_error_insufficient
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment + fee + 2 * base_capacity == total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B).to_s) / 10 ** 8
-error_type = :receiver_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :receiver_gather_funding_error_insufficient
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment + fee + 2 * base_capacity == total_capacity
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((-1).to_s) / 10 ** 8
-error_type = :receiver_gather_funding_error_negtive
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :receiver_gather_funding_error_negtive
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B fee < 0
 fee_B = -1
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B - 1).to_s) / 10 ** 8
-error_type = :receiver_gather_funding_error_negtive
-investment_fee << [investment_A, investment_B, fee_A, fee_B, error_type]
+expect = :receiver_gather_funding_error_negtive
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 fee_B = 5000
 
 for record in investment_fee

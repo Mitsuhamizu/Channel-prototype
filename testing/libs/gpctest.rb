@@ -181,7 +181,7 @@ class Gpctest < Minitest::Test
         for cell in cells
           validation = @api.get_live_cell(cell.out_point)
           return nil if validation.status != "live"
-          
+
           tx = @api.get_transaction(cell.out_point.tx_hash).transaction
           type_script = tx.outputs[cell.out_point.index].type
           type_script_hash_current = type_script == nil ? "" : type_script.compute_hash
@@ -352,6 +352,9 @@ class Gpctest < Minitest::Test
     begin
       init_client()
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
+      # UDT type
+      type_script_hash = load_type()
+      type_info = find_type(type_script_hash)
 
       # locks
       lock_hashes_A = [@default_lock_A.compute_hash]
@@ -376,7 +379,8 @@ class Gpctest < Minitest::Test
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
-      sender_A = flag == "ckb" ? spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}") : spawn("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_A} --port #{@listen_port_B} --amount 10 --id #{channel_id} --type_script_hash #{type_script_hash}")
+      sender_A = flag == "ckb" ? spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}") :
+        spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
       Process.wait sender_A
 
       if "#{record_type}".include? "error"

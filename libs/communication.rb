@@ -988,7 +988,8 @@ class Communication
     if amount < 0 || fee_fund < 0
       record_error(sender_gather_funding_error_negtive: 1)
       return false
-    end
+    end\
+
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type, @coll_cells)

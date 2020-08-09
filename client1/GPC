@@ -3,7 +3,6 @@
 require "../libs/initialization.rb"
 require "../libs/communication.rb"
 require "../libs/chain_monitor.rb"
-require "stringio"
 require "mongo"
 require "thor"
 
