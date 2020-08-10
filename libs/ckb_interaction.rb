@@ -39,14 +39,14 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
         final_inputs << current_input
         doc = { cell: current_input.to_h, revival: (Time.new).to_i + 60 }
         coll_cells.insert_one(doc)
-        break if amount_gathered > amount_required
+        break if amount_gathered >= amount_required
       end
 
-      break if amount_gathered > amount_required
+      break if amount_gathered >= amount_required
       from_block_number = current_to + 1
     end
 
-    break if amount_gathered > amount_required
+    break if amount_gathered >= amount_required
   end
 
   return amount_gathered < amount_required ? nil : final_inputs
@@ -74,14 +74,14 @@ def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 0)
         next if view.count_documents() != 0
         capacity_gathered += cell.capacity
         final_inputs << current_input
-        break if capacity_gathered > capacity_required
+        break if capacity_gathered >= capacity_required
       end
 
-      break if capacity_gathered > capacity_required
+      break if capacity_gathered >= capacity_required
       from_block_number = current_to + 1
     end
 
-    break if capacity_gathered > capacity_required
+    break if capacity_gathered >= capacity_required
   end
 
   return capacity_gathered < capacity_required ? nil : final_inputs

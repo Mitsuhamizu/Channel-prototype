@@ -2,18 +2,6 @@ require "./libs/gpctest.rb"
 require "mongo"
 require "bigdecimal"
 
-def record_error(msg)
-  file = File.new("./files/errors.json", "w")
-  file.syswrite(msg.to_json)
-  file.close()
-end
-
-def record_success(msg)
-  file = File.new("./files/successes.json", "w")
-  file.syswrite(msg.to_json)
-  file.close()
-end
-
 Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
 
@@ -31,17 +19,24 @@ fee_B = 5000
 # For the first five testings, it is unnecessary to care about the amount of B's funding.
 
 # A investment + fee + 2 * base_capacity > total_capacity
+# both gather_funding and gather_fee
+# note: because the asset type is ckb. So if the gather_funding can not supply the amount
+# the gather_fee can not also. So there is only one case about it.
 investment_A = BigDecimal((balance_A - base - fee_A + 1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
 expect = :sender_gather_funding_error_insufficient
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
+
 # A investment + fee + 2 * base_capacity < total_capacity
+# both gather_funding and gather_fee
+# the same about above case, here gather_fuding and gather_fee are binding.
 investment_A = BigDecimal((balance_A - base - fee_A - 1).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
 expect = :sender_gather_funding_success
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
-# A investment + fee + 2 * base_capacity == total_capacity
-investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
+
+# A investment = 0
+investment_A = BigDecimal(0.to_s)
 investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
 expect = :sender_gather_funding_success
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
@@ -60,28 +55,33 @@ expect = :sender_gather_funding_error_negtive
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 fee_A = 5000
 
+#---------------------------------------------------------------------------------------------------------------------
+
 # B investment + fee + 2 * base_capacity > total_capacity
+# both gather_funding and gather_fee
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B + 1).to_s) / 10 ** 8
 expect = :receiver_gather_funding_error_insufficient
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment + fee + 2 * base_capacity < total_capacity
+# both gather_funding and gather_fee
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((balance_B - base - fee_B - 1).to_s) / 10 ** 8
-expect = :receiver_gather_funding_error_insufficient
+expect = :receiver_gather_funding_success
+
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
-# B investment + fee + 2 * base_capacity == total_capacity
-investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
-investment_B = BigDecimal((balance_B - base - fee_B).to_s) / 10 ** 8
-expect = :receiver_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
-
-# B investment + fee + 2 * base_capacity == total_capacity
+# B investment < 0
 investment_A = BigDecimal((balance_A - base - fee_A).to_s) / 10 ** 8
 investment_B = BigDecimal((-1).to_s) / 10 ** 8
 expect = :receiver_gather_funding_error_negtive
+investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
+
+# B investment = 0
+investment_A = BigDecimal(0.to_s) / 10 ** 8
+investment_B = BigDecimal((balance_B - 10 ** 8 - fee_B).to_s) / 10 ** 8
+expect = :receiver_gather_funding_success
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B fee < 0
@@ -92,7 +92,10 @@ expect = :receiver_gather_funding_error_negtive
 investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 fee_B = 5000
 
+counter = 0
 for record in investment_fee
-  puts "#{record}"
+  puts record, counter
+  tests.preparation_before_test
   tests.check_investment_fee(record[0], record[1], record[2], record[3], record[4], "ckb")
+  counter = counter + 1
 end

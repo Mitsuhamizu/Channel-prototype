@@ -227,6 +227,7 @@ class Communication
 
       # check remote cells.
       if !remote_cell_check
+        puts "11111"
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
@@ -649,6 +650,7 @@ class Communication
       # send the fund tx to chain.
       while true
         exist = @api.get_transaction(fund_tx.hash)
+        puts exist
         break if exist != nil
         @api.send_transaction(fund_tx)
       end
@@ -988,18 +990,16 @@ class Communication
     if amount < 0 || fee_fund < 0
       record_error(sender_gather_funding_error_negtive: 1)
       return false
-    end\
-
+    end
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type, @coll_cells)
-
-    # puts "client1 invest #{local_cells.length}"
 
     if local_cells == nil
       record_error({ sender_gather_funding_error_insufficient: 1 })
       return false
     end
+
     asset = { type_script_hash => amount }
 
     local_pubkey = CKB::Key.blake160(@key.pubkey)
