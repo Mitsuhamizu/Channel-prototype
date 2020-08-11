@@ -237,8 +237,8 @@ class Minotor
     )
 
     # require the change ckbyte is greater than the min capacity.
-    fee = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], fee, @coll_cells, 0)
+    fee_total = local_change_output.calculate_min_capacity("0x") + fee
+    fee_cell = gather_fee_cell([@lock_hash], fee_total, @coll_cells, 0)
     return false if fee_cell == nil
 
     fee_cell_capacity = get_total_capacity(fee_cell)

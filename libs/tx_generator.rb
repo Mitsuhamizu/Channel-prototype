@@ -358,7 +358,7 @@ class Tx_generator
     return tx
   end
 
-  def update_stx(amount, stx_info, pubkey_payee, pubkey_payer, type_info)
+  def update_stx(amount, stx_info, pubkey_payer, pubkey_payee, type_info)
     for index in (0..stx_info[:outputs].length - 1)
       output = stx_info[:outputs][index]
       output_data = stx_info[:outputs_data][index]

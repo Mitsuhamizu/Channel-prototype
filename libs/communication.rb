@@ -146,6 +146,19 @@ class Communication
     return { type_script: type_script, type_dep: type_dep, decoder: decoder, encoder: encoder }
   end
 
+  def get_balance_in_channel(stx_info, type_info, pubkey)
+    balance = nil
+    for index in (0..stx_info[:outputs].length - 1)
+      output = stx_info[:outputs][index]
+      output_data = stx_info[:outputs_data][index]
+      if output.lock.args == pubkey
+        balance = type_info[:type_script] == nil ? output.capacity - output.calculate_min_capacity(output_data) : type_info[:decoder].call(output_data)
+        break
+      end
+    end
+    return balance
+  end
+
   # The main part of communcator
   def process_recv_message(client, msg)
 
@@ -1067,6 +1080,12 @@ class Communication
       puts "the fund tx is not on chain, so the you can not make payment now..."
       return false
     end
+
+    # show current balance.
+    puts "here is the balance of current account."
+    puts local_pubkey
+    puts get_balance_in_channel(stx_info, type_info, local_pubkey)
+    puts get_balance_in_channel(stx_info, type_info, remote_pubkey)
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)

@@ -274,11 +274,14 @@ class Gpctest < Minitest::Test
   end
 
   def close_all_thread(monitor_A, monitor_B, db)
-    system("kill #{monitor_A}")
-    system("kill #{monitor_B}")
-    system("npx kill-port 1000")
-    system("npx kill-port 2000")
-    db.drop()
+    begin
+      system("kill #{monitor_A}")
+      system("kill #{monitor_B}")
+      system("npx kill-port 1000")
+      system("npx kill-port 2000")
+      db.drop()
+    rescue => exception
+    end
   end
 
   def init_client()
@@ -388,7 +391,7 @@ class Gpctest < Minitest::Test
   end
 
   # A and B invest 20 UDT respectively.
-  def create_udt_channel(funding_A, funding_B)
+  def create_udt_channel(funding_A, funding_B, fee_A = 4000, fee_B = 2000)
     begin
       preparation_before_test()
       init_client()
@@ -406,8 +409,6 @@ class Gpctest < Minitest::Test
       balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
       # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
       since = "9223372036854775908"
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
@@ -434,18 +435,17 @@ class Gpctest < Minitest::Test
       assert_db_filed(@coll_session_A, channel_id, :stage, 1)
       assert_db_filed(@coll_session_B, channel_id, :nounce, 1)
       assert_db_filed(@coll_session_B, channel_id, :stage, 1)
+      return channel_id, @monitor_A, @monitor_B
     rescue Exception => e
       raise e
-    ensure
-      return channel_id, @monitor_A, @monitor_B, @db
     end
   end
 
-  def create_ckb_channel(funding_A, funding_B)
-    assert_raise
-      preparation_before_test()
+  def create_ckb_channel(funding_A, funding_B, fee_A = 4000, fee_B = 2000)
+    begin
       init_client()
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
+      base = 61 * 10 ** 8
       # lock
       lock_hashes_A = [@default_lock_A.compute_hash]
       lock_hashes_B = [@default_lock_B.compute_hash]
@@ -455,8 +455,6 @@ class Gpctest < Minitest::Test
       balance_begin_B = get_balance(lock_hashes_B)
 
       # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
       since = "9223372036854775908"
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
@@ -472,26 +470,20 @@ class Gpctest < Minitest::Test
       balance_after_funding_A = get_balance(lock_hashes_A)
       balance_after_funding_B = get_balance(lock_hashes_B)
 
-      puts funding_A * 10 ** 8
-      puts balance_begin_A - balance_after_funding_A
       # assert the balance after funding are right.
-      puts assert_equal(funding_A * 10 ** 8, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_A * 10 ** 8, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B * 10 ** 8, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
+      assert_equal(funding_A * 10 ** 8 + base + fee_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
+      assert_equal(funding_B * 10 ** 8 + base + fee_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
 
-      puts "ididid"
       channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
-      puts "ididid"
 
       # assert the nounce and the stage?
       assert_db_filed(@coll_session_A, channel_id, :nounce, 1)
       assert_db_filed(@coll_session_A, channel_id, :stage, 1)
       assert_db_filed(@coll_session_B, channel_id, :nounce, 1)
       assert_db_filed(@coll_session_B, channel_id, :stage, 1)
+      return channel_id, @monitor_A, @monitor_B
     rescue Exception => e
       raise e
-    ensure
-      return channel_id, @monitor_A, @monitor_B, @db
     end
   end
 
@@ -524,9 +516,10 @@ class Gpctest < Minitest::Test
   def closing_B_A(channel_id)
     system("ruby -W0 ../client1/GPC send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id}")
     # give time for closing tx.
+    generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
-    generate_blocks(@rpc, 200)
     # give time for settlement tx.
+    generate_blocks(@rpc, 200)
     generate_blocks(@rpc, 5, 1)
   end
 
