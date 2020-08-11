@@ -60,6 +60,7 @@ class Gpctest < Minitest::Test
 
     @wallet_A = CKB::Wallet.from_hex(@api, @private_key_A)
     @wallet_B = CKB::Wallet.from_hex(@api, @private_key_B)
+    @type_script_hash = load_type()
   end
 
   def preparation_before_test()
@@ -297,7 +298,6 @@ class Gpctest < Minitest::Test
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)
     type_script = CKB::Types::Script.from_h(type_script_h)
-    puts type_script_h
     type_script_hash = type_script.compute_hash
     return type_script_hash
   end
@@ -326,9 +326,7 @@ class Gpctest < Minitest::Test
 
   def get_account_balance_udt()
     type_script_hash = load_type()
-    puts type_script_hash
     type_info = find_type(type_script_hash)
-    puts type_info
     # locks
     lock_hashes_A = [@default_lock_A.compute_hash]
     lock_hashes_B = [@default_lock_B.compute_hash]
@@ -444,7 +442,7 @@ class Gpctest < Minitest::Test
   end
 
   def create_ckb_channel(funding_A, funding_B)
-    begin
+    assert_raise
       preparation_before_test()
       init_client()
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
@@ -474,11 +472,16 @@ class Gpctest < Minitest::Test
       balance_after_funding_A = get_balance(lock_hashes_A)
       balance_after_funding_B = get_balance(lock_hashes_B)
 
+      puts funding_A * 10 ** 8
+      puts balance_begin_A - balance_after_funding_A
       # assert the balance after funding are right.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
+      puts assert_equal(funding_A * 10 ** 8, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
+      assert_equal(funding_A * 10 ** 8, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
+      assert_equal(funding_B * 10 ** 8, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
 
+      puts "ididid"
       channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
+      puts "ididid"
 
       # assert the nounce and the stage?
       assert_db_filed(@coll_session_A, channel_id, :nounce, 1)
@@ -493,11 +496,11 @@ class Gpctest < Minitest::Test
   end
 
   def make_payment_udt_A_B(channel_id, amount)
-    system("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id} --type_script_hash #{type_script_hash}")
+    system("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
   end
 
   def make_payment_udt_B_A(channel_id, amount)
-    system("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id} --type_script_hash #{type_script_hash}")
+    system("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
   end
 
   def make_payment_ckb_A_B(channel_id, amount)
@@ -511,9 +514,10 @@ class Gpctest < Minitest::Test
   def closing_A_B(channel_id)
     system("ruby -W0 ../client1/GPC send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id}")
     # give time for closing tx.
+    generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
-    generate_blocks(@rpc, 200)
     # give time for settlement tx.
+    generate_blocks(@rpc, 200)
     generate_blocks(@rpc, 5, 1)
   end
 

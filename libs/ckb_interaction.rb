@@ -25,6 +25,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
       for cell in cells
         tx = @api.get_transaction(cell.out_point.tx_hash).transaction
         type_script = tx.outputs[cell.out_point.index].type
+        next if cell.output_data_len != 0 && type_script == nil
         cell_type_script_hash = type_script == nil ? "" : type_script.compute_hash
         next if cell_type_script_hash != type_script_hash
         current_input = CKB::Types::Input.new(
@@ -64,12 +65,15 @@ def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 0)
       current_to = [from_block_number + 100, current_height].min
       cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
       for cell in cells
+        # testinghahaha
+        next if cell.output_data_len != 0
         next if cell.type != nil
         # add the input.
         current_input = CKB::Types::Input.new(
           previous_output: cell.out_point,
           since: 0,
         )
+        # next if current_output_data != "0x" && type_script == nil
         view = coll_cells.find({ cell: current_input.to_h })
         next if view.count_documents() != 0
         capacity_gathered += cell.capacity
@@ -105,7 +109,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, local_type[:decoder], coll_cells, from_block_number)
   return nil if !fund_inputs
 
-  fund_inputs_capacity = get_total_amount(fund_inputs, "", nil)
+  fund_inputs_capacity = get_total_capacity(fund_inputs)
   # generate an output_data
   # I need it to calculate the minimal capacity of change output and refund output.
   output_data = local_type[:encoder] == nil ? "0x" : local_type[:encoder].call(0)
@@ -178,19 +182,15 @@ def check_cells(cells, amount_required, fee_required, change, stx_info, type_scr
   # check the ckbyte is enough to support this output.
   return false if change[:output].capacity < change[:output].calculate_min_capacity(change[:output_data])
   return false if stx_info[:outputs][0].capacity < stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
-
   if type_script_hash != ""
-    capacity_gathered = get_total_amount(cells, "", nil)
-
+    capacity_gathered = get_total_capacity(cells)
     # cell live
     return false if !amount_gathered || !capacity_gathered
-
     # amount right
     return false if amount_gathered != decoder.call(stx_info[:outputs_data][0]) + decoder.call(change[:output_data])
 
     # capacity right
     return false if capacity_gathered != fee_required + change[:output].capacity + stx_info[:outputs][0].capacity
-
     # true
     return true
   else

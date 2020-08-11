@@ -227,7 +227,6 @@ class Communication
 
       # check remote cells.
       if !remote_cell_check
-        puts "11111"
         client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
         return false
       end
@@ -1014,6 +1013,7 @@ class Communication
 
     local_change = @tx_generator.construct_change_output(local_cells, amount, fee_fund, refund_capacity, change_lock_script,
                                                          local_type[:type_script], local_type[:encoder], local_type[:decoder])
+
     local_change_h = cell_to_hash(local_change)
     local_cells_h = local_cells.map(&:to_h)
     msg = { id: session_id, type: 1, pubkey: local_pubkey, cells: local_cells_h, fee_fund: fee_fund,

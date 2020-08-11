@@ -177,7 +177,7 @@ class Minotor
       # just update the checked block!
 
       # add and remove live cells pool.
-
+      sleep(1)
     end
   end
 
@@ -238,7 +238,7 @@ class Minotor
 
     # require the change ckbyte is greater than the min capacity.
     fee = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], fee, 0)
+    fee_cell = gather_fee_cell([@lock_hash], fee, @coll_cells, 0)
     return false if fee_cell == nil
 
     fee_cell_capacity = get_total_capacity(fee_cell)
@@ -265,7 +265,7 @@ class Minotor
 
     begin
       tx_hash = @api.send_transaction(tx) if exist == nil
-    rescue
+    rescue Exception => e
     end
 
     return tx_hash
