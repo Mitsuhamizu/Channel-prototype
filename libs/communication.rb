@@ -274,7 +274,7 @@ class Communication
       while true
         puts "Please input the amount and fee you want to use for funding"
         local_amount = BigDecimal(commands[:recv_fund])
-        local_fee_fund = commands[:recv_fee].to_i
+        local_fee_fund = commands[:recv_fund_fee].to_i
         # CKB to shannon.
         local_amount = local_type_script_hash == "" ? local_amount * 10 ** 8 : local_amount
         local_amount = local_amount.to_i
@@ -796,7 +796,7 @@ class Communication
         end
         while true
           puts "Please input fee you want to use for settlement"
-          local_fee = commands[:recv_fee].to_i
+          local_fee = commands[:recv_settle_fee].to_i
           break
         end
         local_change_output = CKB::Types::Output.new(
@@ -804,8 +804,8 @@ class Communication
           lock: @lock,
           type: nil,
         )
-        total_fee = local_change_output.calculate_min_capacity("0x") + local_fee
-        local_fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
+        get_total_capacity = local_change_output.calculate_min_capacity("0x") + local_fee
+        local_fee_cell = gather_fee_cell([@lock_hash], get_total_capacity, @coll_cells, 0)
         fee_cell_capacity = get_total_capacity(local_fee_cell)
         return false if local_fee_cell == nil
         local_change_output.capacity = fee_cell_capacity - local_fee
@@ -1082,10 +1082,10 @@ class Communication
     end
 
     # show current balance.
-    puts "here is the balance of current account."
-    puts local_pubkey
-    puts get_balance_in_channel(stx_info, type_info, local_pubkey)
-    puts get_balance_in_channel(stx_info, type_info, remote_pubkey)
+    # puts "here is the balance of current account."
+    # puts local_pubkey
+    # puts get_balance_in_channel(stx_info, type_info, local_pubkey)
+    # puts get_balance_in_channel(stx_info, type_info, remote_pubkey)
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)

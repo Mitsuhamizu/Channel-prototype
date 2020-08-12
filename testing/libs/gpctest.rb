@@ -61,10 +61,7 @@ class Gpctest < Minitest::Test
     @wallet_A = CKB::Wallet.from_hex(@api, @private_key_A)
     @wallet_B = CKB::Wallet.from_hex(@api, @private_key_B)
     @type_script_hash = load_type()
-  end
-
-  def preparation_before_test()
-    setup()
+    @logger = Logger.new("gpc1.log")
   end
 
   def generate_blocks(rpc, num, interval = 0)
@@ -192,11 +189,10 @@ class Gpctest < Minitest::Test
         for cell in cells
           validation = @api.get_live_cell(cell.out_point)
           return nil if validation.status != "live"
-
           tx = @api.get_transaction(cell.out_point.tx_hash).transaction
           type_script = tx.outputs[cell.out_point.index].type
           type_script_hash_current = type_script == nil ? "" : type_script.compute_hash
-          next if type_script_hash_current != type_script_hash
+          next if type_script_hash_current != type_script_hash && type_script_hash != ""
           amount_gathered += decoder == nil ?
             tx.outputs[cell.out_point.index].capacity :
             decoder.call(tx.outputs_data[cell.out_point.index])
@@ -208,68 +204,12 @@ class Gpctest < Minitest::Test
     return amount_gathered
   end
 
-  # def exhaust_ckb_A(output_capacity)
-  #   return true if output_capacity == 0
-  #   lock_hashes = [@default_lock_A.compute_hash]
-  #   type_script_hash = ""
-  #   from_block_number = 0
-  #   final_inputs = []
-  #   outputs = []
-
-  #   current_height = @api.get_tip_block_number
-  #   for lock_hash in lock_hashes
-  #     while from_block_number <= current_height
-  #       current_to = [from_block_number + 100, current_height].min
-  #       cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
-  #       for cell in cells
-  #         validation = @api.get_live_cell(cell.out_point)
-  #         return nil if validation.status != "live"
-
-  #         tx = @api.get_transaction(cell.out_point.tx_hash).transaction
-  #         type_script = tx.outputs[cell.out_point.index].type
-  #         type_script_hash_current = type_script == nil ? "" : type_script.compute_hash
-  #         next if type_script_hash_current != type_script_hash
-
-  #         current_input = CKB::Types::Input.new(
-  #           previous_output: cell.out_point,
-  #           since: 0,
-  #         )
-  #         final_inputs << current_input
-  #       end
-  #       from_block_number = current_to + 1
-  #     end
-  #   end
-
-  #   outputs << CKB::Types::Output.new(
-  #     capacity: output_capacity,
-  #     lock: @default_lock_A,
-  #     type: nil,
-  #   )
-
-  #   outputs_data = ["0x"]
-
-  #   tx = CKB::Types::Transaction.new(
-  #     version: 0,
-  #     cell_deps: [],
-  #     inputs: final_inputs,
-  #     outputs: outputs,
-  #     outputs_data: outputs_data,
-  #     witnesses: [CKB::Types::Witness.new],
-  #   )
-
-  #   tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
-  #   tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-
-  #   signed_tx = tx.sign(@wallet_A.key)
-  #   root_udt_tx_hash = @api.send_transaction(signed_tx)
-  #   generate_blocks(@rpc, 5)
-  # end
-
   def start_listen_monitor()
     monitor_A = spawn("ruby -W0 ../client1/GPC monitor #{@pubkey_A}")
     monitor_B = spawn("ruby -W0 ../client1/GPC monitor #{@pubkey_B}")
     listener_A = spawn("ruby -W0 ../client1/GPC listen #{@pubkey_A} #{@listen_port_A}")
     listener_B = spawn("ruby -W0 ../client1/GPC listen #{@pubkey_B} #{@listen_port_B}")
+    sleep(3)
     return monitor_A, monitor_B, listener_A, listener_B
   end
 
@@ -311,9 +251,14 @@ class Gpctest < Minitest::Test
     file.close()
   end
 
-  def assert_db_filed(collection, id, filed, value)
-    value_check = collection.find({ id: id }).first[filed]
-    assert_equal(value_check, value, "#{filed} wrong.")
+  def assert_db_filed_A(id, field, value)
+    value_check = @coll_session_A.find({ id: id }).first[field]
+    assert_equal(value_check, value, "#{field} wrong.")
+  end
+
+  def assert_db_filed_B(id, field, value)
+    value_check = @coll_session_B.find({ id: id }).first[field]
+    assert_equal(value_check, value, "#{field} wrong.")
   end
 
   def get_account_balance_ckb()
@@ -391,10 +336,10 @@ class Gpctest < Minitest::Test
   end
 
   # A and B invest 20 UDT respectively.
-  def create_udt_channel(funding_A, funding_B, fee_A = 4000, fee_B = 2000)
+  def create_udt_channel(funding_A, funding_B, fee_A_fund = 4000, fee_B_fund = 2000, fee_A_settle = 1000, fee_B_settle = 1000)
     begin
-      preparation_before_test()
       init_client()
+      container_min = 134 * 10 ** 8
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
       # load the asset...
       type_script_hash = load_type()
@@ -408,44 +353,53 @@ class Gpctest < Minitest::Test
       balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
       balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
+      capacity_begin_A = get_balance(lock_hashes_A)
+      capacity_begin_B = get_balance(lock_hashes_B)
+
       # prepare the funding info.
       since = "9223372036854775908"
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
+                   recv_fund_fee: fee_B_fund, recv_settle_fee: fee_B_settle, sender_one_way_permission: "yes",
+                   payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
-      system("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
+      system("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since} --type_script_hash #{type_script_hash}")
 
       # make the tx on chain.
-      generate_blocks(@rpc, 5, 0.5)
+      generate_blocks(@rpc, 10, 0.5)
 
       balance_after_funding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
       balance_after_funding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
+      capacity_after_funding_A = get_balance(lock_hashes_A)
+      capacity_after_funding_B = get_balance(lock_hashes_B)
+
       # assert the balance after funding on chain.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
+      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "A'balance after funding is wrong.")
+      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "B'balance after funding is wrong.")
+
+      assert_equal(container_min + fee_A_fund, capacity_begin_A - capacity_after_funding_A, "A'capacity after funding is wrong.")
+      assert_equal(container_min + fee_B_fund, capacity_begin_B - capacity_after_funding_B, "B'capacity after funding is wrong.")
 
       channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
 
       # assert the nounce and the stage?
-      assert_db_filed(@coll_session_A, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_A, channel_id, :stage, 1)
-      assert_db_filed(@coll_session_B, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_B, channel_id, :stage, 1)
+      assert_db_filed_A(channel_id, :nounce, 1)
+      assert_db_filed_A(channel_id, :stage, 1)
+      assert_db_filed_B(channel_id, :nounce, 1)
+      assert_db_filed_B(channel_id, :stage, 1)
       return channel_id, @monitor_A, @monitor_B
     rescue Exception => e
       raise e
     end
   end
 
-  def create_ckb_channel(funding_A, funding_B, fee_A = 4000, fee_B = 2000)
+  def create_ckb_channel(funding_A, funding_B, fee_A_fund = 4000, fee_B_fund = 2000, fee_A_settle = 1000, fee_B_settle = 1000)
     begin
       init_client()
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
-      base = 61 * 10 ** 8
+      container_min = 61 * 10 ** 8
       # lock
       lock_hashes_A = [@default_lock_A.compute_hash]
       lock_hashes_B = [@default_lock_B.compute_hash]
@@ -459,10 +413,10 @@ class Gpctest < Minitest::Test
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
                    recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
+                   payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
-      system("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
+      system("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since}")
 
       # make the tx on chain.
       generate_blocks(@rpc, 5, 0.5)
@@ -471,16 +425,16 @@ class Gpctest < Minitest::Test
       balance_after_funding_B = get_balance(lock_hashes_B)
 
       # assert the balance after funding are right.
-      assert_equal(funding_A * 10 ** 8 + base + fee_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B * 10 ** 8 + base + fee_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
+      assert_equal(funding_A * 10 ** 8 + container_min + fee_A_fund, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
+      assert_equal(funding_B * 10 ** 8 + container_min + fee_B_fund, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
 
       channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
 
       # assert the nounce and the stage?
-      assert_db_filed(@coll_session_A, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_A, channel_id, :stage, 1)
-      assert_db_filed(@coll_session_B, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_B, channel_id, :stage, 1)
+      assert_db_filed_A(channel_id, :nounce, 1)
+      assert_db_filed_A(channel_id, :stage, 1)
+      assert_db_filed_B(channel_id, :nounce, 1)
+      assert_db_filed_B(channel_id, :stage, 1)
       return channel_id, @monitor_A, @monitor_B
     rescue Exception => e
       raise e
@@ -528,225 +482,5 @@ class Gpctest < Minitest::Test
                  recv_fee: fee_B, sender_one_way_permission: "yes",
                  payment_reply: "yes", closing_reply: "no" }
     create_commands_file(commands)
-  end
-
-  def test1()
-    begin
-      preparation_before_test()
-
-      # load the asset...
-      type_script_hash = load_type()
-      type_info = find_type(type_script_hash)
-
-      # locks
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
-
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
-      funding_A = 100
-      funding_B = 100
-      since = "9223372036854775908"
-
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
-      create_commands_file(commands)
-
-      system("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-
-      # make the tx on chain.
-      generate_blocks(@rpc, 5, 0.5)
-
-      balance_after_funding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_after_funding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      # assert the balance after funding on chain.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
-
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
-
-      # assert the nounce and the stage?
-      assert_db_filed(@coll_session_A, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_A, channel_id, :stage, 1)
-      assert_db_filed(@coll_session_B, channel_id, :nounce, 1)
-      assert_db_filed(@coll_session_B, channel_id, :stage, 1)
-
-      system("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_A} --port #{@listen_port_B} --amount 10 --id #{channel_id} --type_script_hash #{type_script_hash}")
-
-      # closing
-      closing_A_to_B = spawn("ruby -W0 ../client1/GPC send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id}")
-      Process.wait closing_A_to_B
-
-      # give time for closing tx.
-      generate_blocks(@rpc, 5, 1)
-      generate_blocks(@rpc, 200)
-      # give time for settlement tx.
-      generate_blocks(@rpc, 5, 1)
-
-      balance_refunding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_refunding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-      assert_equal(-10, balance_begin_A - balance_refunding_A, "refunding not right")
-      assert_equal(10, balance_begin_B - balance_refunding_B, "refunding not right")
-    rescue Exception => e
-      raise e
-    ensure
-      close_all_thread(@monitor_A, @monitor_B, @db)
-    end
-    # delete databases
-
-  end
-
-  # B wants to invest the UDT beyond he can afford.
-  # Test different invest of UDT.
-  def test3()
-    begin
-      # load the asset...
-      type_script_hash = load_type()
-      type_info = find_type(type_script_hash)
-
-      # locks
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
-
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
-      funding_A = balance_begin_A
-      funding_B = balance_begin_B + 1
-      since = "9223372036854775908"
-
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
-      create_commands_file(commands)
-
-      sender_A = spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-      Process.wait sender_A
-
-      error_json = load_json_file("./files/errors.json")
-      assert_equal(1, error_json[:recv_fund_insufficient], "Insufficient check failed")
-    rescue Exception => e
-      raise e
-    ensure
-      close_all_thread(@monitor_A, @monitor_B, @db)
-    end
-    # delete databases
-
-  end
-
-  # A and B invest all their UDT.
-  # A try to pay the money he can not afford.
-  def test4()
-    begin
-      # load the asset...
-      type_script_hash = load_type()
-      type_info = find_type(type_script_hash)
-
-      # locks
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
-
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
-      funding_A = balance_begin_A
-      funding_B = balance_begin_B
-      since = "9223372036854775908"
-
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
-      create_commands_file(commands)
-
-      sender_A = spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-      Process.wait sender_A
-
-      # make the tx on chain.
-      generate_blocks(@rpc, 5, 0.5)
-
-      balance_after_funding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_after_funding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      # assert the balance after funding are right.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
-
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
-      payment_A_to_B = spawn("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_A} --port #{@listen_port_B} --amount #{funding_A + 1} --id #{channel_id} --type_script_hash #{type_script_hash}")
-      Process.wait payment_A_to_B
-
-      error_json = load_json_file("./files/errors.json")
-      assert_equal(1, error_json[:Insufficient_amount_to_pay], "Insufficient check failed")
-    rescue Exception => e
-      raise e
-    ensure
-      close_all_thread(@monitor_A, @monitor_B, @db)
-    end
-    # delete databases
-
-  end
-
-  # A and B invest all their ckb.
-  # A try to pay the ckb.
-  def test5()
-    begin
-      # locks
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
-
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A)
-      balance_begin_B = get_balance(lock_hashes_B)
-
-      # prepare the funding info.
-      fee_A = 4000
-      fee_B = 2000
-      funding_A = 1000
-      funding_B = 2000
-      since = "9223372036854775908"
-
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "no" }
-      create_commands_file(commands)
-
-      sender_A = spawn("ruby -W0 ../client1/GPC send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
-      Process.wait sender_A
-
-      # make the tx on chain.
-      generate_blocks(@rpc, 5, 0.5)
-
-      balance_after_funding_A = get_balance(lock_hashes_A)
-      balance_after_funding_B = get_balance(lock_hashes_B)
-
-      # assert the balance after funding are right.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
-
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
-      # payment_A_to_B = spawn("ruby -W0 ../client1/GPC make_payment --pubkey #{@pubkey_A} --ip #{@ip_A} --port #{@listen_port_B} --amount #{funding_A + 1} --id #{channel_id}")
-      # Process.wait payment_A_to_B
-    rescue Exception => e
-      raise e
-    ensure
-      close_all_thread(@monitor_A, @monitor_B, @db)
-    end
-    # delete databases
-
   end
 end
