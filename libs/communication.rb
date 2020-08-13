@@ -9,9 +9,8 @@ require "digest/sha1"
 require "mongo"
 require "set"
 require "timeout"
-require "../libs/tx_generator.rb"
-require "../libs/verification.rb"
-
+require_relative "tx_generator.rb"
+require_relative "verification.rb"
 $VERBOSE = nil
 
 class Communication
@@ -27,7 +26,8 @@ class Communication
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
-    @command_string = File.read("../testing/files/commands.json")
+
+    @command_string = File.read(__dir__ + "/../testing/files/commands.json")
     @command_json = JSON.parse(@command_string, symbolize_names: true)
   end
 
@@ -89,21 +89,21 @@ class Communication
   end
 
   def load_command()
-    command_raw = File.read("./files/commands.json")
+    command_raw = File.read(__dir__ + "/../testing/files/commands.json")
     command_json = JSON.parse(command_raw, symbolize_names: true)
     return command_json
   end
 
-  def record_error(msg)
-    file = File.new("./files/errors.json", "w")
-    file.syswrite(msg.to_json)
-    file.close()
-  end
-
-  def record_success(msg)
-    file = File.new("./files/successes.json", "w")
-    file.syswrite(msg.to_json)
-    file.close()
+  def record_result(msg)
+    data_json = {}
+    msg = msg.to_sym
+    if File.file?(__dir__ + "/../testing/files/result.json")
+      data_raw = File.read(__dir__ + "/../testing/files/result.json")
+      data_json = JSON.parse(eval(data_raw), symbolize_names: true)
+    end
+    data_json[msg] = 1
+    file = File.new(__dir__ + "/../testing/files/result.json", "w")
+    file.syswrite(data_json)
   end
 
   # find the type_script, type_dep, decoder and encoder by type_script_hash.
@@ -125,7 +125,7 @@ class Communication
     type_dep = nil
 
     # load the type in the file...
-    data_raw = File.read("./files/contract_info.json")
+    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)
@@ -229,7 +229,7 @@ class Communication
       remote_amount = remote_asset[remote_asset.keys.first]
 
       if remote_amount < 0 || remote_fee_fund < 0
-        record_error(sender_gather_funding_error_negtive: 1)
+        record_result("sender_gather_funding_error_negtive")
         return false
       end
 
@@ -282,7 +282,7 @@ class Communication
       end
 
       if local_amount < 0 || local_fee_fund < 0
-        record_error(receiver_gather_funding_error_negtive: 1)
+        record_result("receiver_gather_funding_error_negtive")
         return false
       end
 
@@ -293,8 +293,7 @@ class Communication
       # puts local_cells.map(&:to_h)
 
       if local_cells == nil
-        errors_msg = { receiver_gather_funding_error_insufficient: 1 }
-        record_error(errors_msg)
+        record_result("receiver_gather_funding_error_insufficient")
         return false
       end
 
@@ -356,7 +355,7 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      record_success({ sender_gather_funding_success: 1 })
+      record_result("sender_gather_funding_success")
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -518,7 +517,7 @@ class Communication
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
                                                                         stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
-      record_success({ receiver_gather_funding_error_insufficient: 1 })
+      record_result("receiver_gather_funding_error_insufficient")
       return true
     when 3
 
@@ -705,7 +704,7 @@ class Communication
 
         # if local_update_stx_info == false
         #   errors_msg = { Insufficient_amount_to_pay: 1 }
-        #   record_error(errors_msg)
+        #   record_result(errors_msg)
         #   return false
         # end
 
@@ -1000,15 +999,16 @@ class Communication
     local_type = find_type(type_script_hash)
 
     if amount < 0 || fee_fund < 0
-      record_error(sender_gather_funding_error_negtive: 1)
+      record_result("sender_gather_funding_error_negtive")
       return false
     end
+
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type, @coll_cells)
 
     if local_cells == nil
-      record_error({ sender_gather_funding_error_insufficient: 1 })
+      record_result("sender_gather_funding_error_insufficient")
       return false
     end
 
@@ -1043,7 +1043,8 @@ class Communication
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
-    record_success({ sender_gather_funding_success: 1 })
+    puts "success!!!!"
+    record_result("sender_gather_funding_success")
 
     begin
       timeout(5) do
@@ -1093,7 +1094,7 @@ class Communication
 
     # if stx_info == false
     #   errors_msg = { Insufficient_amount_to_pay: 1 }
-    #   record_error(errors_msg)
+    #   record_result(errors_msg)
     #   return false
     # end
 

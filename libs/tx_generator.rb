@@ -5,7 +5,7 @@ require "bundler/setup"
 require "ckb"
 require "json"
 require "secp256k1"
-require "../libs/ckb_interaction.rb"
+require_relative "ckb_interaction.rb"
 
 class MyECDSA < Secp256k1::BaseKey
   include Secp256k1::Utils, Secp256k1::ECDSA
@@ -20,9 +20,9 @@ class Tx_generator
 
   def initialize(key)
     @key = key
-    @api = CKB::API::new
-    data_raw = File.read("./files/contract_info.json")
+    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
+    @api = CKB::API::new
     @gpc_code_hash = data_json[:gpc_code_hash]
     @gpc_tx = data_json[:gpc_tx_hash]
     @gpc_hash_type = "data"

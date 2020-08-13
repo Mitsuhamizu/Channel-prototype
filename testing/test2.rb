@@ -1,0 +1,1 @@
+puts File.file?("123st.rb")

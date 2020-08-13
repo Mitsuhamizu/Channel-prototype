@@ -46,7 +46,6 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
       break if amount_gathered >= amount_required
       from_block_number = current_to + 1
     end
-
     break if amount_gathered >= amount_required
   end
 
@@ -110,6 +109,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   return nil if !fund_inputs
 
   fund_inputs_capacity = get_total_capacity(fund_inputs)
+
   # generate an output_data
   # I need it to calculate the minimal capacity of change output and refund output.
   output_data = local_type[:encoder] == nil ? "0x" : local_type[:encoder].call(0)
@@ -129,6 +129,8 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
 
   # check whether the fund cells' capacity is enought.
   # If yes, it is unnecessary to gather fee cells.
+
+
   diff_capacity = required_capacity - fund_inputs_capacity
   return fund_inputs if diff_capacity <= 0
 

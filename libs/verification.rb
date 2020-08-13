@@ -1,5 +1,5 @@
-require "../libs/ckb_interaction.rb"
-require "../libs/tx_generator.rb"
+require_relative "tx_generator.rb"
+require_relative "ckb_interaction.rb"
 
 def parse_witness(witness_ser)
   total_length = [witness_ser[2..9]].pack("H*").unpack("V")[0] * 2 + 2

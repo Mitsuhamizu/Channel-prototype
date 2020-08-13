@@ -3,9 +3,9 @@ require "rubygems"
 require "bundler/setup"
 require "ckb"
 require "mongo"
-require "../libs/tx_generator.rb"
-require "../libs/ckb_interaction.rb"
-require "../libs/verification.rb"
+require_relative "tx_generator.rb"
+require_relative "ckb_interaction.rb"
+require_relative "verification.rb"
 
 class Minotor
   def initialize(private_key)
@@ -188,7 +188,7 @@ class Minotor
     type_dep = nil
 
     # load the type in the file...
-    data_raw = File.read("./files/contract_info.json")
+    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)
