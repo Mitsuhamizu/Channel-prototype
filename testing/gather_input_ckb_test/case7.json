@@ -1,0 +1,10 @@
+{
+    "funding_fee_A": 2000,
+    "funding_fee_B": 3000,
+    "container_min": 12200000000,
+    "funding_amount_A": 519862305897988000,
+    "funding_amount_B": 1999999987799997001,
+    "expect_info": "receiver_gather_funding_error_insufficient",
+    "describe-line1": "CKb::Receiver::",
+    "describe-line2": "funding_amount_B + funding_fee_B + 2 * container_min > total_capacity."
+}

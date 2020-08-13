@@ -95,13 +95,14 @@ class Communication
   end
 
   def record_result(msg)
-    data_json = {}
+    data_hash = {}
     msg = msg.to_sym
     if File.file?(__dir__ + "/../testing/files/result.json")
       data_raw = File.read(__dir__ + "/../testing/files/result.json")
-      data_json = JSON.parse(eval(data_raw), symbolize_names: true)
+      data_hash = JSON.parse(data_raw, symbolize_names: true)
     end
-    data_json[msg] = 1
+    data_hash[msg] = 1
+    data_json = data_hash.to_json
     file = File.new(__dir__ + "/../testing/files/result.json", "w")
     file.syswrite(data_json)
   end
@@ -355,7 +356,8 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      record_result("sender_gather_funding_success")
+      puts "success!!!"
+      record_result("receiver_gather_funding_success")
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -517,7 +519,6 @@ class Communication
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
                                                                         stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
-      record_result("receiver_gather_funding_error_insufficient")
       return true
     when 3
 
@@ -1043,7 +1044,6 @@ class Communication
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
-    puts "success!!!!"
     record_result("sender_gather_funding_success")
 
     begin

@@ -49,6 +49,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
     break if amount_gathered >= amount_required
   end
 
+  puts "here is the gathered amount: #{amount_gathered}"
   return amount_gathered < amount_required ? nil : final_inputs
 end
 
@@ -130,8 +131,8 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   # check whether the fund cells' capacity is enought.
   # If yes, it is unnecessary to gather fee cells.
 
-
   diff_capacity = required_capacity - fund_inputs_capacity
+  puts "here is the diff: #{diff_capacity}"
   return fund_inputs if diff_capacity <= 0
 
   # gather fee cells.

@@ -223,7 +223,7 @@ class Gpctest < Minitest::Test
       system("kill #{monitor_B}")
       system("npx kill-port 1000")
       system("npx kill-port 2000")
-      # system("rm #{__dir__ + "/../files/result.json"}")
+      system("rm #{__dir__ + "/../files/result.json"}")
       db.drop()
     rescue => exception
     end
@@ -318,7 +318,7 @@ class Gpctest < Minitest::Test
       since = "9223372036854775908"
 
       commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fee: fee_B, sender_one_way_permission: "yes",
+                   recv_fund_fee: fee_B, sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
@@ -326,8 +326,7 @@ class Gpctest < Minitest::Test
         spawn("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
       Process.wait sender_A
 
-      result_json = load_json_file("../files/result.json")
-      puts result_json
+      result_json = load_json_file(@path_to_file + "/result.json")
       assert_equal(1, result_json[expect], "#{expect}")
     rescue Exception => e
       raise e
