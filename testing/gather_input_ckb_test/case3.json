@@ -2,9 +2,9 @@
     "funding_fee_A": 2000,
     "funding_fee_B": 2000,
     "container_min": 12200000000,
-    "funding_amount_A": 0,
+    "funding_amount_A": -1,
     "funding_amount_B": 20000001340000000,
-    "expect_info": "sender_gather_funding_success",
+    "expect_info": "sender_gather_funding_error_negtive",
     "describe-line1": "CKb::Sender::",
-    "describe-line2": "funding_amount_A = 0."
+    "describe-line2": "funding_amount_A < 0."
 }
