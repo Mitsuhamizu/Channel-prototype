@@ -224,7 +224,7 @@ class Gpctest < Minitest::Test
       system("npx kill-port 1000")
       system("npx kill-port 2000")
       system("rm #{__dir__ + "/../files/result.json"}")
-      db.drop()
+      # db.drop()
     rescue => exception
     end
   end

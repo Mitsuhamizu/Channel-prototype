@@ -27,7 +27,7 @@ lock.hash_type = "type"
 
 # Setup
 
-User A will deploy the [GPC](https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/master/main.c) and [UDT](https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/f39fd7774019d0333857f8e6861300a67fb1e266/c/simple_udt.c) contract and distribute 200 UDT cells with a denomination of 20 to itself and B. After initialization, the balances of A and B are.
+User A will deploy the [GPC](https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/master/main.c) and [UDT](https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/f39fd7774019d0333857f8e6861300a67fb1e266/c/simple_udt.c) contract and distribute 200 UDT cells with a denomination of 20 to itself and B. After initialization, the balances of A and B are. You can find the detail in [gpctest.rb](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/testing/libs/gpctest.rb#L97-L183)
 
 ``` 
 A
@@ -40,40 +40,3 @@ CKB: 2000000000000000000 (shannon)
 ```
 
 Please note that you need to set the miner account in ckb.toml to any user except A and B before testing. This is because we need to ensure that during the operation period, the balance of A and B will not change due to mining rewards.
-
-# Cases detail
-
-A is the initiator of the channel establishment and B is the recipient. So I'll refer to them in the following as sender and receiver.
-
-## case1
-**Description:** The sender puts in money equal to the maximum he can afford.
-
-**Expect:** *sender_gather_funding_success*
-## case2
-**Description:** The sender invested more than the maximum amount he can afford.
-
-**Expect:** *sender_gather_funding_error_insufficient*
-## case3
-**Description:** The funds invested by the sender are negative.
-
-**Expect:** *sender_gather_funding_error_negtive*
-## case4
-**Description:** The fee invested by the sender is negative.
-
-**Expect:** *sender_gather_funding_error_negtive*
-## case5
-**Description:** The receiver puts in money equal to the maximum he can afford.
-
-**Expect:** *receiver_gather_funding_success*
-## case6
-**Description:** The receiver invested more than the maximum amount he can afford.
-
-**Expect:** *receiver_gather_funding_error_insufficient*
-## case7
-**Description:** The funds invested by the receiver are negative.
-
-**Expect:** *receiver_gather_funding_error_negtive*
-## case8
-**Description:** The fee invested by the receiver is negative.
-
-**Expect:** *receiver_gather_funding_error_negtive*

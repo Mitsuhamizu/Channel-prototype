@@ -356,8 +356,6 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      puts "success!!!"
-      record_result("receiver_gather_funding_success")
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -1044,7 +1042,6 @@ class Communication
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
-    record_result("sender_gather_funding_success")
 
     begin
       timeout(5) do
