@@ -49,8 +49,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
     break if amount_gathered >= amount_required
   end
 
-  puts "here is the gathered amount: #{amount_gathered}"
-  return amount_gathered < amount_required ? nil : final_inputs
+  return amount_gathered < amount_required ? amount_gathered - amount_required : final_inputs
 end
 
 def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 0)
@@ -88,7 +87,7 @@ def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 0)
     break if capacity_gathered >= capacity_required
   end
 
-  return capacity_gathered < capacity_required ? nil : final_inputs
+  return capacity_gathered < capacity_required ? capacity_gathered - capacity_required : final_inputs
 end
 
 def get_minimal_capacity(lock, type, output_data)
@@ -107,7 +106,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
 
   # gather fund inputs.
   fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, local_type[:decoder], coll_cells, from_block_number)
-  return nil if !fund_inputs
+  return fund_inputs if fund_inputs.is_a? Numeric
 
   fund_inputs_capacity = get_total_capacity(fund_inputs)
 
@@ -137,8 +136,8 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
 
   # gather fee cells.
   fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, coll_cells, from_block_number)
-  return nil if !fee_inputs
-
+  return fee_inputs if fee_inputs.is_a? Numeric
+  
   return fund_inputs + fee_inputs
 end
 

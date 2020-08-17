@@ -94,14 +94,13 @@ class Communication
     return command_json
   end
 
-  def record_result(msg)
+  def record_result(result)
     data_hash = {}
-    msg = msg.to_sym
     if File.file?(__dir__ + "/../testing/files/result.json")
       data_raw = File.read(__dir__ + "/../testing/files/result.json")
       data_hash = JSON.parse(data_raw, symbolize_names: true)
     end
-    data_hash[msg] = 1
+    data_hash = data_hash.merge(result)
     data_json = data_hash.to_json
     file = File.new(__dir__ + "/../testing/files/result.json", "w")
     file.syswrite(data_json)
@@ -229,10 +228,11 @@ class Communication
       remote_type_script_hash = remote_asset.keys.first.to_s
       remote_amount = remote_asset[remote_asset.keys.first]
 
-      if remote_amount < 0 || remote_fee_fund < 0
-        record_result("sender_gather_funding_error_negtive")
-        return false
-      end
+      record_result({ "sender_gather_funding_error_negtive": remote_amount }) if remote_amount < 0
+
+      record_result({ "sender_gather_fee_error_negtive": remote_fee }) if remote_fee_fund < 0
+
+      return false if remote_amount < 0 || remote_fee_fund < 0
 
       local_type = find_type(local_type_script_hash)
       remote_type = find_type(remote_type_script_hash)
@@ -282,23 +282,23 @@ class Communication
         break
       end
 
-      if local_amount < 0 || local_fee_fund < 0
-        record_result("receiver_gather_funding_error_negtive")
-        return false
-      end
+      record_result({ "receiver_gather_funding_error_negtive": local_amount }) if local_amount < 0
+      record_result({ "receiver_gather_fee_error_negtive": local_fee_fund }) if local_fee_fund < 0
+      return false if local_amount < 0 || local_fee_fund < 0
 
       # gather local fund inputs.
       local_cells = gather_inputs(local_amount, local_fee_fund, lock_hashes, change_lock_script,
                                   refund_lock_script, local_type, @coll_cells)
-      # puts "client2 invests #{local_cells.length}"
-      # puts local_cells.map(&:to_h)
 
-      if local_cells == nil
-        record_result("receiver_gather_funding_error_insufficient")
+      if local_cells.is_a? Numeric
+        record_result({ "receiver_gather_funding_error_insufficient": local_cells })
         return false
       end
 
       return false if local_cells == nil
+
+      msg_digest = ((remote_cells + local_cells).map(&:to_h)).to_json
+      channel_id = Digest::MD5.hexdigest(msg_digest)
 
       # generate the settlement infomation.
 
@@ -311,6 +311,7 @@ class Communication
       # calculate change.
       local_change = @tx_generator.construct_change_output(local_cells, local_amount, local_fee_fund, refund_capacity, change_lock_script,
                                                            local_type[:type_script], local_type[:encoder], local_type[:decoder])
+      change_capacity = local_change[:output].capacity
       gpc_capacity = get_total_capacity(local_cells + remote_cells)
 
       outputs = Array.new()
@@ -329,7 +330,7 @@ class Communication
       gpc_type_script = local_type[:type_script]
 
       gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, local_amount + remote_amount,
-                                                    msg[:id], timeout, remote_pubkey[2..-1], local_pubkey[2..-1],
+                                                    channel_id, timeout, remote_pubkey[2..-1], local_pubkey[2..-1],
                                                     gpc_type_script, local_type[:encoder])
 
       outputs.insert(0, gpc_cell[:output])
@@ -346,16 +347,23 @@ class Communication
       fund_tx = @tx_generator.generate_fund_tx(fund_cells, outputs, outputs_data, fund_witnesses, local_type[:type_dep])
       local_cells_h = local_cells.map(&:to_h)
       # send it
-      msg_reply = { id: msg[:id], type: 2, amount: local_amount, fee_fund: local_fee_fund,
-                    fund_tx: fund_tx.to_h, stx_info: local_empty_stx_json, pubkey: local_pubkey }.to_json
+      msg_reply = { id: msg[:id], updated_id: channel_id, type: 2, amount: local_amount,
+                    fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx_json,
+                    pubkey: local_pubkey }.to_json
       client.puts(msg_reply)
 
       # update database.
-      doc = { id: msg[:id], local_pubkey: local_pubkey, remote_pubkey: remote_pubkey,
+      doc = { id: channel_id, local_pubkey: local_pubkey, remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx_info: 0, stx_info: stx_info_json,
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
+      puts "here we go!"
+      local_type_script_hash == "" ?
+        record_result({ receiver_status: 3, receiver_nounce: 0, receiver_investment_total: get_total_capacity(local_cells) - change_capacity }) :
+        record_result({ receiver_status: 3, receiver_nounce: 0, receiver_investment_ckb: get_total_capacity(local_cells) - change_capacity,
+                        receiver_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
+
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
 
@@ -366,6 +374,7 @@ class Communication
       remote_fee_fund = msg[:fee_fund]
       timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
       remote_stx_info = json_to_info(msg[:stx_info])
+      remote_updated_id = msg[:updated_id]
 
       # load local info.
       local_cells = (@coll_sessions.find({ id: msg[:id] }).first[:local_cells]).map(&:to_h)
@@ -392,6 +401,15 @@ class Communication
       # load gpc output.
       gpc_output = fund_tx.outputs[0]
       gpc_output_data = fund_tx.outputs_data[0]
+
+      # check updated_id.
+
+      msg_digest = ((local_cells + remote_cells).map(&:to_h)).to_json
+      locaL_updated_id = Digest::MD5.hexdigest(msg_digest)
+      if locaL_updated_id != remote_updated_id
+        client.puts(generate_text_msg(msg[:id], "sry, the channel ids are inconsistent."))
+        return false
+      end
 
       # require the outputs number.
       if fund_tx.outputs.length != 3
@@ -516,7 +534,7 @@ class Communication
 
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
-                                                                        stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1 } })
+                                                                        stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: locaL_updated_id } })
       return true
     when 3
 
@@ -997,17 +1015,16 @@ class Communication
     lock_hashes = [@lock_hash]
     local_type = find_type(type_script_hash)
 
-    if amount < 0 || fee_fund < 0
-      record_result("sender_gather_funding_error_negtive")
-      return false
-    end
+    record_result({ "sender_gather_funding_error_negtive": local_amount }) if amount < 0
+    record_result({ "sender_gather_fee_error_negtive": fee_fund }) if fee_fund < 0
+    return false if amount < 0 || fee_fund < 0
 
     # prepare the msg components.
     local_cells = gather_inputs(amount, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, local_type, @coll_cells)
 
-    if local_cells == nil
-      record_result("sender_gather_funding_error_insufficient")
+    if local_cells.is_a? Numeric
+      record_result({ "sender_gather_funding_error_insufficient": local_cells })
       return false
     end
 
@@ -1026,6 +1043,8 @@ class Communication
     local_change = @tx_generator.construct_change_output(local_cells, amount, fee_fund, refund_capacity, change_lock_script,
                                                          local_type[:type_script], local_type[:encoder], local_type[:decoder])
 
+    change_capacity = local_change[:output].capacity
+
     local_change_h = cell_to_hash(local_change)
     local_cells_h = local_cells.map(&:to_h)
     msg = { id: session_id, type: 1, pubkey: local_pubkey, cells: local_cells_h, fee_fund: fee_fund,
@@ -1042,6 +1061,10 @@ class Communication
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
+    type_script_hash == "" ?
+      record_result({ sender_status: 2, sender_nounce: 0, sender_investment_total: get_total_capacity(local_cells) - change_capacity }) :
+      record_result({ sender_status: 2, sender_nounce: 0, sender_investment_ckb: get_total_capacity(local_cells) - change_capacity,
+                      sender_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
 
     begin
       timeout(5) do

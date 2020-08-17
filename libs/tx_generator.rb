@@ -436,6 +436,7 @@ class Tx_generator
 
   def construct_change_output(input_cells, amount, fee, refund_capacity, change_lock_script, type_script = nil, encoder = nil, decoder = nil)
     total_capacity = get_total_capacity(input_cells)
+
     if type_script == nil
       change_capacity = total_capacity - fee - refund_capacity
       output_data = "0x"

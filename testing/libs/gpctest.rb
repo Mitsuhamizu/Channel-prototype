@@ -224,7 +224,7 @@ class Gpctest < Minitest::Test
       system("npx kill-port 1000")
       system("npx kill-port 2000")
       system("rm #{__dir__ + "/../files/result.json"}")
-      # db.drop()
+      db.drop()
     rescue => exception
     end
   end
@@ -326,8 +326,10 @@ class Gpctest < Minitest::Test
         spawn("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
       Process.wait sender_A
 
-      result_json = load_json_file(@path_to_file + "/result.json")
-      assert_equal(1, result_json[expect], "#{expect}")
+      result_json = load_json_file(@path_to_file + "/result.json").to_json
+      puts expect
+      puts result_json
+      assert_match(expect[1..-2], result_json, "#{expect}")
     rescue Exception => e
       raise e
     ensure

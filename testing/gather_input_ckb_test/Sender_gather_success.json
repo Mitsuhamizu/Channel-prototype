@@ -4,7 +4,7 @@
     "container_min": 12200000000,
     "funding_amount_A": 519862305897988000,
     "funding_amount_B": 20000001340000000,
-    "expect_info": "sender_gather_funding_success",
-    "describe-line1": "CKb::Sender::",
+    "expect_info": "{\"sender_status\":2,\"sender_nounce\":0,\"sender_investment_total\":519862311997990000}",
+    "describe-line1": "CKB::Sender::",
     "describe-line2": "funding_amount_A + funding_fee_A + 2 * container_min = total_capacity."
 }
