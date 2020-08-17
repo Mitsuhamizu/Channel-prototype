@@ -42,12 +42,6 @@ fee_A = 5000
 
 #---------------------------------------------------------------------------------------------------------------------
 
-# B investment  > total_udt
-# only gather_funding
-investment_A = BigDecimal((balance_A - 100).to_s)
-investment_B = BigDecimal((balance_B + 1).to_s)
-expect = :receiver_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment = total_udt && fee < total_capacity
 # both gather_funding and gather_fee

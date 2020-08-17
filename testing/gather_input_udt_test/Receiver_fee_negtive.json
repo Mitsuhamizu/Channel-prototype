@@ -1,0 +1,10 @@
+{
+    "funding_fee_A": 1000,
+    "funding_fee_B": -1,
+    "container_min": 26800000000,
+    "funding_amount_A": 100,
+    "funding_amount_B": 100,
+    "expect_info": "{\"receiver_gather_fee_error_negtive\":-1}",
+    "describe-line1": "CKB::Receiver::",
+    "describe-line2": "funding_fee_B < 0."
+}
