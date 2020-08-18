@@ -4,7 +4,9 @@
     "container_min": 12200000000,
     "funding_amount_A": 519862305897988000,
     "funding_amount_B": 1999999987799997000,
-    "expect_info": "{\"receiver_status\":3,\"receiver_nounce\":0,\"receiver_investment_total\":1999999993900000000}",
+    "expect_info": "{\"receiver_status\":3,\"receiver_investment_total\":1999999993900000000}",
     "describe-line1": "CKB::Receiver::",
-    "describe-line2": "funding_amount_B + funding_fee_B + 2 * container_min = total_capacity."
+    "describe-line2": "funding_amount_B + funding_fee_B + 2 * container_min = total_capacity.",
+    "describe-line3": "Status 3 means B complete the process successfully.",
+    "describe-line4": "Investment_total is the sum of fee and amount",
 }

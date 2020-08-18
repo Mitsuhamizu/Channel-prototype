@@ -180,6 +180,8 @@ class Gpctest < Minitest::Test
     file = File.new(@path_to_file + "contract_info.json", "w")
     file.syswrite(script_info.to_json)
     file.close()
+    puts "here is asset after setup."
+    puts get_account_balance_ckb
   end
 
   # get amount of asset by type and lock_hashes.

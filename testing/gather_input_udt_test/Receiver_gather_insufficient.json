@@ -5,6 +5,6 @@
     "funding_amount_A": 100,
     "funding_amount_B": 201,
     "expect_info": "{\"receiver_gather_funding_error_insufficient\":-1}",
-    "describe-line1": "CKB::Receiver::",
+    "describe-line1": "UDT::Receiver::",
     "describe-line2": "funding_amount_B > total amount."
 }

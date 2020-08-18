@@ -6,5 +6,6 @@
     "funding_amount_B": 20000001340000000,
     "expect_info": "{\"sender_gather_funding_error_negtive\":-2}",
     "describe-line1": "CKB::Sender::",
-    "describe-line2": "funding_amount_A < 0."
+    "describe-line2": "funding_amount_A < 0.",
+    "describe-line3": "The value of error type is the value is the value of a negative number detected."
 }

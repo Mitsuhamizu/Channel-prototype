@@ -6,5 +6,7 @@
     "funding_amount_B": 1999999987799997001,
     "expect_info": "{\"receiver_gather_funding_error_insufficient\":-1}",
     "describe-line1": "CKB::Receiver::",
-    "describe-line2": "funding_amount_B + funding_fee_B + 2 * container_min > total_capacity."
+    "describe-line2": "funding_amount_B + funding_fee_B + 2 * container_min > total_capacity.",
+    "describe-line3": "The value of expect_info is an excess. The max investment B can afford is 1999999987799997000",
+    "describe-line4": "Here we excess 1, so the value is -1. If the excess is 20, the value should be -20."
 }

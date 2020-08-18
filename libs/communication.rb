@@ -358,11 +358,11 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      puts "here we go!"
+
       local_type_script_hash == "" ?
-        record_result({ receiver_status: 3, receiver_nounce: 0, receiver_investment_total: get_total_capacity(local_cells) - change_capacity }) :
-        record_result({ receiver_status: 3, receiver_nounce: 0, receiver_investment_ckb: get_total_capacity(local_cells) - change_capacity,
-                        receiver_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
+        record_result({ receiver_status: 3, receiver_investment_total: get_total_capacity(local_cells) - change_capacity }) :
+        record_result({ receiver_status: 3, receiver_investment_ckb: get_total_capacity(local_cells) - change_capacity,
+                        receiver_investment_funding: get_total_amount(local_cells, local_type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
 
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
@@ -1062,8 +1062,8 @@ class Communication
     return false if !insert_with_check(@coll_sessions, doc)
 
     type_script_hash == "" ?
-      record_result({ sender_status: 2, sender_nounce: 0, sender_investment_total: get_total_capacity(local_cells) - change_capacity }) :
-      record_result({ sender_status: 2, sender_nounce: 0, sender_investment_ckb: get_total_capacity(local_cells) - change_capacity,
+      record_result({ sender_status: 2, sender_investment_total: get_total_capacity(local_cells) - change_capacity }) :
+      record_result({ sender_status: 2, sender_investment_ckb: get_total_capacity(local_cells) - change_capacity,
                       sender_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
 
     begin

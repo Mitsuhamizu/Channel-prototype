@@ -49,6 +49,8 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
     break if amount_gathered >= amount_required
   end
 
+  puts "here is available ckbyte."
+  puts amount_gathered
   return amount_gathered < amount_required ? amount_gathered - amount_required : final_inputs
 end
 
@@ -137,7 +139,7 @@ def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_scri
   # gather fee cells.
   fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, coll_cells, from_block_number)
   return fee_inputs if fee_inputs.is_a? Numeric
-  
+
   return fund_inputs + fee_inputs
 end
 

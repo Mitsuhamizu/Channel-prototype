@@ -17,12 +17,7 @@ capacity_A, capacity_B = tests.get_account_balance_ckb()
 fee_A = 5000
 fee_B = 5000
 
-# A investment  > total_udt
-# only gather_funding
-investment_A = BigDecimal((balance_A + 1).to_s)
-investment_B = BigDecimal((balance_B - 100).to_s)
-expect = :sender_gather_funding_error_insufficient
-investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
+
 
 # A investment = total_udt && fee < total_capacity
 # both gather_funding and gather_fee
@@ -43,12 +38,6 @@ fee_A = 5000
 #---------------------------------------------------------------------------------------------------------------------
 
 
-# B investment = total_udt && fee < total_capacity
-# both gather_funding and gather_fee
-investment_A = BigDecimal((balance_A - 100).to_s)
-investment_B = BigDecimal((balance_B).to_s)
-expect = :receiver_gather_funding_success
-investment_fee << [investment_A, investment_B, fee_A, fee_B, expect]
 
 # B investment = total_udt && fee >total_capacity
 # both gather_funding and gather_fee

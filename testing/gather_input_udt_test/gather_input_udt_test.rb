@@ -22,7 +22,7 @@ funding_amount_B = data_json[:funding_amount_B].to_i
 tests = Gpctest.new("test")
 tests.setup()
 
-investment_A = BigDecimal(funding_amount_A) / 10 ** 8
-investment_B = BigDecimal(funding_amount_B) / 10 ** 8
+investment_A = funding_amount_A
+investment_B = funding_amount_B
 expect = data_json[:expect_info]
-tests.check_investment_fee(investment_A, investment_B, funding_fee_A, funding_fee_B, expect, "ckb")
+tests.check_investment_fee(investment_A, investment_B, funding_fee_A, funding_fee_B, expect, "udt")
