@@ -1,4 +1,4 @@
-# Gather_input_ckb_test
+# Testing
 
 Tests in this dir is about the gather_input function in CKB and UDT. The two accounts used for testing are as follows
 

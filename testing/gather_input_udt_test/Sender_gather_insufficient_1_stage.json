@@ -5,6 +5,5 @@
     "funding_amount_A": 201,
     "funding_amount_B": 100,
     "expect_info": "{\"sender_gather_funding_error_insufficient\":-1}",
-    "describe-line1": "UDT::Sender::",
-    "describe-line2": "funding_amount_A + funding_fee_A + 2 * container_min > total_capacity."
+    "describe-line1": "UDT::Sender::"
 }

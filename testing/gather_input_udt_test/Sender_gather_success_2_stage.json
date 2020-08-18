@@ -1,0 +1,9 @@
+{
+    "funding_fee_A": 2000,
+    "funding_fee_B": 2000,
+    "container_min": 26800000000,
+    "funding_amount_A": 20,
+    "funding_amount_B": 100,
+    "expect_info": "{\"sender_status\":2,\"sender_investment_ckb\":13400002000,\"sender_investment_funding\":20}",
+    "describe-line1": "UDT::Sender::"
+}
