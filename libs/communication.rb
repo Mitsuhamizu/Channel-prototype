@@ -29,6 +29,7 @@ class Communication
 
     @command_string = File.read(__dir__ + "/../testing/files/commands.json")
     @command_json = JSON.parse(@command_string, symbolize_names: true)
+    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
   end
 
   # Generate the plain text msg, client will print it.
@@ -405,8 +406,8 @@ class Communication
       # check updated_id.
 
       msg_digest = ((local_cells + remote_cells).map(&:to_h)).to_json
-      locaL_updated_id = Digest::MD5.hexdigest(msg_digest)
-      if locaL_updated_id != remote_updated_id
+      local_updated_id = Digest::MD5.hexdigest(msg_digest)
+      if local_updated_id != remote_updated_id
         client.puts(generate_text_msg(msg[:id], "sry, the channel ids are inconsistent."))
         return false
       end
@@ -427,7 +428,6 @@ class Communication
       end
 
       commands = load_command()
-
       # About the one way channel.
       if remote_amount == 0
         puts "It is a one-way channel, tell me whether you want to accept it."
@@ -479,7 +479,8 @@ class Communication
                                                     msg[:id], timeout, local_pubkey[2..-1], remote_pubkey[2..-1],
                                                     local_type[:type_script], local_type[:encoder])
       if !(gpc_cell[:output].to_h == gpc_output.to_h &&
-           gpc_cell[:output_data] == gpc_output_data)
+           @logger.info("here is problem!")
+        gpc_cell[:output_data] == gpc_output_data)
         client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
         return false
       end
@@ -514,27 +515,27 @@ class Communication
       # generate empty witnesses.
       # the two magic number is flag of witness and the nounce.
       # The nounce of first pair of stx and ctx is 1.
-      witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, 1)
-      witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, 1)
+      witness_closing = @tx_generator.generate_empty_witness(local_updated_id, 1, 1)
+      witness_settlement = @tx_generator.generate_empty_witness(local_updated_id, 0, 1)
 
       # merge the stx_info.
       stx_info = merge_stx_info(local_stx_info, remote_stx_info)
 
       # generate and sign ctx and stx.
-      ctx_info = @tx_generator.generate_closing_info(msg[:id], gpc_output, gpc_output_data, witness_closing, sig_index)
-      stx_info = @tx_generator.sign_settlement_info(msg[:id], stx_info, witness_settlement, sig_index)
+      ctx_info = @tx_generator.generate_closing_info(local_updated_id, gpc_output, gpc_output_data, witness_closing, sig_index)
+      stx_info = @tx_generator.sign_settlement_info(local_updated_id, stx_info, witness_settlement, sig_index)
 
       # convert the info into json to store and send.
       stx_info_json = info_to_json(stx_info)
       ctx_info_json = info_to_json(ctx_info)
 
       # send the info
-      msg_reply = { id: msg[:id], type: 3, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+      msg_reply = { id: local_updated_id, type: 3, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
       client.puts(msg_reply)
 
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
-                                                                        stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: locaL_updated_id } })
+                                                                        stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: local_updated_id } })
       return true
     when 3
 
@@ -568,6 +569,11 @@ class Communication
       local_stx_info = @tx_generator.sign_settlement_info(msg[:id], local_stx_info, witness_settlement, sig_index)
 
       # check the args are same.
+      @logger.info(verify_info_args(local_ctx_info, remote_ctx_info))
+      @logger.info(verify_info_args(local_stx_info, remote_stx_info))
+      @logger.info(local_ctx_info)
+      @logger.info(remote_ctx_info)
+
       if !verify_info_args(local_ctx_info, remote_ctx_info) || !verify_info_args(local_stx_info, remote_stx_info)
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
         return false

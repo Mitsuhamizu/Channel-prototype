@@ -8,8 +8,8 @@ Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
 
 # load the json
-path = ARGV[0]
-data_raw = File.read(path)
+file = ARGV[0]
+data_raw = File.read(file)
 data_json = JSON.parse(data_raw, symbolize_names: true)
 
 container_min = data_json[:container_min].to_i

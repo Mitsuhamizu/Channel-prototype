@@ -33,7 +33,6 @@ class Gpctest < Minitest::Test
   def initialize(name)
     super(name)
 
-    @logger = Logger.new("gpc1.log")
     @path_to_binary = __dir__ + "/../binary/"
     @path_to_file = __dir__ + "/../files/"
     @path_to_gpc = __dir__ + "/../../client1/GPC"
@@ -171,6 +170,9 @@ class Gpctest < Minitest::Test
       signed_tx = tx.sign(@wallet_A.key)
       root_udt_tx_hash = @api.send_transaction(signed_tx)
       generate_blocks(@rpc, 5)
+
+      system("rm #{__dir__ + "/../files/result.json"}")
+      system("rm #{__dir__ + "/../files/gpc.log"}")
     end
 
     # record these info to json. So the gpc client can read them.
@@ -256,6 +258,13 @@ class Gpctest < Minitest::Test
     file = File.new(@path_to_file + "commands.json", "w")
     file.syswrite(commands.to_json)
     file.close()
+  end
+
+  def update_command(key, value)
+    commands_raw = File.read(@path_to_file + "commands.json")
+    commands = JSON.parse(commands_raw, symbolize_names: true)
+    commands[key] = value
+    create_commands_file(commands)
   end
 
   def assert_db_filed_A(id, field, value)
@@ -462,7 +471,13 @@ class Gpctest < Minitest::Test
     system("ruby -W0" + " ../../client1/GPC" + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
   end
 
-  def closing_A_B(channel_id, fee)
+  def closing_A_B(channel_id, fee, closing_type)
+    if closing_type == "bilateral"
+      update_command(:closing_reply, "yes")
+    elsif closing_type == "unilateral"
+      update_command(:closing_reply, "no")
+    end
+
     system("ruby -W0" + " ../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --fee #{fee}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
@@ -472,7 +487,15 @@ class Gpctest < Minitest::Test
     generate_blocks(@rpc, 5, 1)
   end
 
-  def closing_B_A(channel_id, fee)
+  def closing_B_A(channel_id, fee, closing_type)
+    if closing_type == "bilateral"
+      update_command(:closing_reply, "yes")
+    elsif closing_type == "unilateral"
+      update_command(:closing_reply, "no")
+    else
+      return false
+    end
+
     system("ruby -W0" + " ../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --fee #{fee}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
@@ -480,12 +503,5 @@ class Gpctest < Minitest::Test
     # give time for settlement tx.
     generate_blocks(@rpc, 200)
     generate_blocks(@rpc, 5, 1)
-  end
-
-  def update_command(key, value)
-    commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                 recv_fee: fee_B, sender_one_way_permission: "yes",
-                 payment_reply: "yes", closing_reply: "no" }
-    create_commands_file(commands)
   end
 end

@@ -1,1 +1,1 @@
-{"sender_reply":"yes","recv_reply":"yes","recv_fund":100,"recv_fund_fee":2000,"sender_one_way_permission":"yes","payment_reply":"yes","closing_reply":"yes"}
+{"sender_reply":"yes","recv_reply":"yes","recv_fund":1000000000,"recv_fund_fee":3000,"recv_settle_fee":2500,"sender_one_way_permission":"yes","payment_reply":"yes","closing_reply":"yes"}

@@ -7,7 +7,6 @@ Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
 @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
 @db = @client.database
-@logger = Logger.new("gpc1.log")
 tests = Gpctest.new("test")
 
 fee_A = 4000
