@@ -1,0 +1,25 @@
+{
+    "funding_fee_A": 2000,
+    "funding_fee_B": 3000,
+    "settle_fee_A": 2500,
+    "settle_fee_B": 2900,
+    "container_min": 26800000000,
+    "funding_amount_A": 100,
+    "funding_amount_B": 150,
+    "closing_type": "bilateral",
+    "payment_type": "udt",
+    "payments": {
+        "payment1": {
+            "sender": "A",
+            "receiver": "B",
+            "amount": 10,
+            "success": true
+        },
+        "payment2": {
+            "sender": "B",
+            "receiver": "A",
+            "amount": 20,
+            "success": true
+        }
+    }
+}

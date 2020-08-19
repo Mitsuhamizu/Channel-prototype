@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "mongo"
 require "json"
 require "ckb"
+require "logger"
 require_relative "types.rb"
 
 # udt_code: https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/f39fd7774019d0333857f8e6861300a67fb1e266/c/simple_udt.c
@@ -344,6 +345,7 @@ class Gpctest < Minitest::Test
 
   # A and B invest 20 UDT respectively.
   def create_udt_channel(funding_A, funding_B, fee_A_fund = 4000, fee_B_fund = 2000, fee_receiver_settle = 1000)
+    @logger = Logger.new(__dir__ + "/../files/" + "gpc.log")
     begin
       init_client()
       container_min = 134 * 10 ** 8
@@ -362,6 +364,9 @@ class Gpctest < Minitest::Test
 
       capacity_begin_A = get_balance(lock_hashes_A)
       capacity_begin_B = get_balance(lock_hashes_B)
+
+      @logger.info("A'balance before funding in udt channel: #{balance_begin_A}")
+      @logger.info("B'balance before funding in udt channel: #{balance_begin_B}")
 
       # prepare the funding info.
       since = "9223372036854775908"
@@ -382,6 +387,8 @@ class Gpctest < Minitest::Test
       capacity_after_funding_A = get_balance(lock_hashes_A)
       capacity_after_funding_B = get_balance(lock_hashes_B)
 
+      @logger.info("A'balance after_funding in udt channel: #{balance_after_funding_A}")
+      @logger.info("B'balance after_funding in udt channel: #{balance_after_funding_B}")
       # assert the balance after funding on chain.
       assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "A'balance after funding is wrong.")
       assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "B'balance after funding is wrong.")
