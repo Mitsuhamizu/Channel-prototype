@@ -3,7 +3,6 @@ require_relative "../libs/communication.rb"
 require_relative "../libs/chain_monitor.rb"
 require "mongo"
 require "thor"
-
 Mongo::Logger.logger.level = Logger::FATAL
 
 def pubkey_to_privkey(pubkey)
@@ -63,7 +62,8 @@ class GPCCLI < Thor
   end
 
   # --------------make payments
-  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> --type_script_hash <type_script_hash>", "Make payments"
+  # desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> --type_script_hash <type_script_hash>", "Make payments"
+  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount>", "Make payments"
 
   option :pubkey, :required => true
   option :ip, :required => true
@@ -73,9 +73,16 @@ class GPCCLI < Thor
   option :type_script_hash
 
   def make_payment()
+    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
     private_key = pubkey_to_privkey(options[:pubkey])
+    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+    @db = @client.database
+    @coll_sessions = @db[options[:pubkey] + "_session_pool"]
+    type_hash = @coll_sessions.find({ id: options[:id] }).first[:type_hash]
+
     communicator = Communication.new(private_key)
-    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(options[:amount].to_i) : options[:amount].to_i
+    amount = type_hash == "" ? (CKB::Utils.byte_to_shannon(options[:amount].to_f).to_i) : options[:amount].to_i
+    @logger.info("#{options[:pubkey]} tries to pay #{options[:ip]} with amount #{amount}")
     communicator.send_payments(options[:ip], options[:port], options[:id], amount, options[:type_script_hash])
   end
 
@@ -118,4 +125,5 @@ class GPCCLI < Thor
   end
 end
 
+$VERBOSE = nil
 GPCCLI.start(ARGV)

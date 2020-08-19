@@ -7,18 +7,20 @@
     "funding_amount_A": 2000000000,
     "funding_amount_B": 1000000000,
     "closing_type": "bilateral",
+    "payment_type": "ckb",
     "payments": {
         "payment1": {
             "sender": "A",
             "receiver": "B",
-            "amount": 10,
-            "payment_type": "udt"
+            "amount": -1,
+            "success": false
         },
         "payment2": {
             "sender": "B",
             "receiver": "A",
-            "amount": 20,
-            "payment_type": "ckb"
+            "amount": 10,
+            "success": true
         }
-    }
+    },
+    "expect_info": "{\"sender_make_payments_error_negtive\":-100000000}"
 }

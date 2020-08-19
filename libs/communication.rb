@@ -453,12 +453,12 @@ class Communication
       end
 
       # the local change
-      fund_tx_cell_1 = { output: fund_tx.outputs[1], output_data: fund_tx.outputs_data[1] }
+      local_change_check = { output: fund_tx.outputs[1], output_data: fund_tx.outputs_data[1] }
       remote_change = { output: fund_tx.outputs[2], output_data: fund_tx.outputs_data[2] }
 
       # local change checked.
-      if !(fund_tx_cell_1[:output].to_h == local_change[:output].to_h &&
-           fund_tx_cell_1[:output_data] == local_change[:output_data])
+      if !(local_change_check[:output].to_h == local_change[:output].to_h &&
+           local_change_check[:output_data] == local_change[:output_data])
         client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
         return false
       end
@@ -476,15 +476,18 @@ class Communication
 
       # regenerate the cell by myself, and check remote one is same as it.
       gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, local_amount + remote_amount,
-                                                    msg[:id], timeout, local_pubkey[2..-1], remote_pubkey[2..-1],
+                                                    local_updated_id, timeout, local_pubkey[2..-1], remote_pubkey[2..-1],
                                                     local_type[:type_script], local_type[:encoder])
-      if !(gpc_cell[:output].to_h == gpc_output.to_h &&
-           @logger.info("here is problem!")
-        gpc_cell[:output_data] == gpc_output_data)
+
+      # @logger.info("gpc_output 1: #{gpc_cell[:output].to_h}")
+      # @logger.info("gpc_output 2: #{gpc_output.to_h}")
+      # @logger.info("gpc_output_data 1: #{gpc_cell[:output_data]}")
+      # @logger.info("gpc_output_data 2: #{gpc_output_data}")
+      # @logger.info("result: #{(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)}")
+      if !(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)
         client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
         return false
       end
-
       #-------------------------------------------------
       # I think is is unnecessary to do in a prototype...
       # just verify the other part (version, deps, )
@@ -493,7 +496,6 @@ class Communication
       #   client.puts(generate_text_msg("sry, the fund tx has some problem..."))
       #   return -1
       # end
-
       # check the remote capcity is satisfactory.
       amount_print = local_type_script_hash == "" ? remote_amount / (10 ** 8) : remote_amount
       puts "#{remote_pubkey} reply you with: The remote fund amount: #{amount_print}. The type script hash #{remote_type_script_hash}."
@@ -517,7 +519,6 @@ class Communication
       # The nounce of first pair of stx and ctx is 1.
       witness_closing = @tx_generator.generate_empty_witness(local_updated_id, 1, 1)
       witness_settlement = @tx_generator.generate_empty_witness(local_updated_id, 0, 1)
-
       # merge the stx_info.
       stx_info = merge_stx_info(local_stx_info, remote_stx_info)
 
@@ -569,10 +570,6 @@ class Communication
       local_stx_info = @tx_generator.sign_settlement_info(msg[:id], local_stx_info, witness_settlement, sig_index)
 
       # check the args are same.
-      @logger.info(verify_info_args(local_ctx_info, remote_ctx_info))
-      @logger.info(verify_info_args(local_stx_info, remote_stx_info))
-      @logger.info(local_ctx_info)
-      @logger.info(remote_ctx_info)
 
       if !verify_info_args(local_ctx_info, remote_ctx_info) || !verify_info_args(local_stx_info, remote_stx_info)
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
@@ -684,7 +681,6 @@ class Communication
       # send the fund tx to chain.
       while true
         exist = @api.get_transaction(fund_tx.hash)
-        puts exist
         break if exist != nil
         @api.send_transaction(fund_tx)
       end
@@ -725,11 +721,10 @@ class Communication
         local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey, payment_type)
         local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
 
-        # if local_update_stx_info == false
-        #   errors_msg = { Insufficient_amount_to_pay: 1 }
-        #   record_result(errors_msg)
-        #   return false
-        # end
+        if local_update_stx_info.is_a? Numeric
+          record_result({ "receiver_make_payments_error_insufficient": local_update_stx_info })
+          return false
+        end
 
         # check the updated info is right.
         ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
@@ -937,6 +932,7 @@ class Communication
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_json, stx_info: stx_pend,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
                                                                   nounce: nounce + 1 } })
+      @logger.info("payment done, now the version in local db is #{nounce + 1}")
       return "done"
     when 9
       id = msg[:id]
@@ -1100,6 +1096,8 @@ class Communication
     type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
     type_info = find_type(type_hash)
 
+    @logger.info("#{local_pubkey} prepare to send payment with amount #{amount}")
+
     stx_info = json_to_info(stx)
     ctx_info = json_to_info(ctx)
 
@@ -1108,21 +1106,20 @@ class Communication
       return false
     end
 
-    # show current balance.
-    # puts "here is the balance of current account."
-    # puts local_pubkey
-    # puts get_balance_in_channel(stx_info, type_info, local_pubkey)
-    # puts get_balance_in_channel(stx_info, type_info, remote_pubkey)
+    if amount < 0
+      record_result({ "sender_make_payments_error_negtive": amount })
+      return false
+    end
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)
     ctx_info = @tx_generator.update_ctx(amount, ctx_info)
 
-    # if stx_info == false
-    #   errors_msg = { Insufficient_amount_to_pay: 1 }
-    #   record_result(errors_msg)
-    #   return false
-    # end
+    if stx_info.is_a? Numeric
+      @logger.info("The payment with amount #{amount} lack #{stx_info}.")
+      record_result({ "sender_make_payments_error_insufficient": stx_info })
+      return false
+    end
 
     # sign the stx.
     msg_signed = generate_msg_from_info(stx_info, "settlement")
@@ -1145,6 +1142,7 @@ class Communication
     # update the local database.
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json, ctx_pend: ctx_info_json,
                                                                 status: 7, msg_cache: msg } })
+    @logger.info("#{local_pubkey} send payment with amount #{amount}")
 
     begin
       timeout(5) do

@@ -26,6 +26,7 @@ class Tx_generator
     @gpc_code_hash = data_json[:gpc_code_hash]
     @gpc_tx = data_json[:gpc_tx_hash]
     @gpc_hash_type = "data"
+    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
   end
 
   def assemble_lock_args(status, timeout, nounce)
@@ -364,11 +365,12 @@ class Tx_generator
       output_data = stx_info[:outputs_data][index]
 
       if type_info[:type_script] == nil
-        return false if output.capacity - amount < 0
-        output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
+        @logger.info("current balance: #{output.capacity - output.calculate_min_capacity(output_data)}")
+        return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data)
         output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
+        output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
       else
-        return false if type_info[:decoder].call(output_data) - amount < 0
+        return type_info[:decoder].call(output_data) - amount if type_info[:decoder].call(output_data) - amount < 0
         stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
       end

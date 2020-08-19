@@ -170,11 +170,10 @@ class Gpctest < Minitest::Test
       signed_tx = tx.sign(@wallet_A.key)
       root_udt_tx_hash = @api.send_transaction(signed_tx)
       generate_blocks(@rpc, 5)
-
-      system("rm #{__dir__ + "/../files/result.json"}")
-      system("rm #{__dir__ + "/../files/gpc.log"}")
     end
 
+    system("rm #{__dir__ + "/../files/result.json"}")
+    system("rm #{__dir__ + "/../files/gpc.log"}")
     # record these info to json. So the gpc client can read them.
     script_info = { gpc_code_hash: gpc_code_hash, gpc_tx_hash: gpc_tx_hash,
                     udt_code_hash: udt_code_hash, udt_tx_hash: udt_tx_hash,
@@ -182,8 +181,6 @@ class Gpctest < Minitest::Test
     file = File.new(@path_to_file + "contract_info.json", "w")
     file.syswrite(script_info.to_json)
     file.close()
-    puts "here is asset after setup."
-    puts get_account_balance_ckb
   end
 
   # get amount of asset by type and lock_hashes.
@@ -227,7 +224,6 @@ class Gpctest < Minitest::Test
       system("kill #{monitor_B}")
       system("npx kill-port 1000")
       system("npx kill-port 2000")
-      system("rm #{__dir__ + "/../files/result.json"}")
       db.drop()
     rescue => exception
     end
@@ -338,8 +334,6 @@ class Gpctest < Minitest::Test
       Process.wait sender_A
 
       result_json = load_json_file(@path_to_file + "/result.json").to_json
-      puts expect
-      puts result_json
       assert_match(expect[1..-2], result_json, "#{expect}")
     rescue Exception => e
       raise e

@@ -15,6 +15,7 @@ data_json = JSON.parse(data_raw, symbolize_names: true)
 container_min = data_json[:container_min].to_i
 funding_fee_A = data_json[:funding_fee_A].to_i
 funding_fee_B = data_json[:funding_fee_B].to_i
+
 funding_amount_A = data_json[:funding_amount_A].to_i
 funding_amount_B = data_json[:funding_amount_B].to_i
 
