@@ -55,6 +55,8 @@ I will describe the test according to the lifecycle of the channel.
 When establishing a channel, the interaction between the client and the user is simply the amount invested and whether or not the establishment is accepted. The client is not yet able to interrupt the reconnection, so the answer to the connection request is YES, so we need to test only the amount of investment the user wants to make.
 
 [gather_input_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_ckb_test): Test various possibilities for the amount of money users put into the CKB channel.
+
+
 [gather_input_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users put into the UDT channel.
 
 ## Making payments
@@ -62,6 +64,8 @@ When establishing a channel, the interaction between the client and the user is 
 Similarly, here I have only discussed the various amounts that users make payments.
 
 [making_payment_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/making_payment_ckb_test): Test various possibilities for the amount of money users pay in the CKB channel.
+
+
 [making_payment_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users pay in the UDT channel.
 
 ## Closing channel
