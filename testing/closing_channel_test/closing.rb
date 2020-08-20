@@ -7,6 +7,7 @@ require "bigdecimal"
 Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
 
+@logger = Logger.new(__dir__ + "/../files/" + "gpc.log")
 @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
 @db = @client.database
 
@@ -19,6 +20,8 @@ funding_fee_A = data_json[:funding_fee_A].to_i
 funding_fee_B = data_json[:funding_fee_B].to_i
 settle_fee_A = data_json[:settle_fee_A].to_i
 settle_fee_B = data_json[:settle_fee_B].to_i
+settle_fee_unilateral = data_json[:settle_fee_unilateral].to_i
+closing_fee_unilateral = data_json[:closing_fee_unilateral].to_i
 
 funding_amount_A = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
 funding_amount_B = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
@@ -32,19 +35,10 @@ payments = data_json[:payments]
 tests = Gpctest.new("test")
 tests.setup()
 
-if payment_type == "ckb"
-  balance_A_begin, balance_B_begin = tests.get_account_balance_ckb()
-elsif payment_type == "udt"
-  balance_A_begin, balance_B_begin = tests.get_account_balance_udt()
-  capacity_A_begin, capacity_B_begin = tests.get_account_balance_ckb()
-end
+balance_A_begin, balance_B_begin = tests.get_account_balance_ckb()
 
 begin
-  if payment_type == "ckb"
-    channel_id, @monitor_A, @monitor_B = tests.create_ckb_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
-  elsif payment_type == "udt"
-    channel_id, @monitor_A, @monitor_B = tests.create_udt_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
-  end
+  channel_id, @monitor_A, @monitor_B = tests.create_ckb_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
 
   # make payments.
   amount_A_B = 0
@@ -62,12 +56,6 @@ begin
     elsif sender == "B" && receiver == "A" && payment_type == "ckb"
       tests.make_payment_ckb_B_A(channel_id, amount)
       amount_B_A += amount if success
-    elsif sender == "A" && receiver == "B" && payment_type == "udt"
-      tests.make_payment_udt_B_A(channel_id, amount)
-      amount_A_B += amount if success
-    elsif sender == "B" && receiver == "A" && payment_type == "udt"
-      tests.make_payment_udt_B_A(channel_id, amount)
-      amount_B_A += amount if success
     else
       return false
     end
@@ -75,25 +63,23 @@ begin
 
   amount_diff = amount_B_A - amount_A_B
 
+  # update settlement and closing fee.
+  tests.update_command(:closing_fee_unilateral, closing_fee_unilateral)
+  tests.update_command(:settle_fee_unilateral, settle_fee_unilateral)
+
   # B send the close request to A.
   tests.closing_B_A(channel_id, settle_fee_B, closing_type)
 
-  if payment_type == "ckb"
-    balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_ckb()
-  elsif payment_type == "udt"
-    balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_udt()
-    capacity_A_after_payment, capacity_B_after_payment = tests.get_account_balance_ckb()
-  end
+  balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_ckb()
 
-  if payment_type == "ckb"
+  # @logger.info("Diff of A: #{balance_A_begin - balance_A_after_payment}")
+  # @logger.info("Diff of B: #{balance_B_begin - balance_B_after_payment}")
+
+  if closing_type == "bilateral"
     tests.assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
     tests.assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
-  elsif payment_type == "udt"
-    tests.assert_equal(-amount, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-    tests.assert_equal(amount, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
-
-    tests.assert_equal(funding_fee_A + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
-    tests.assert_equal(funding_fee_B + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
+  elsif closing_type == "unilateral"
+    tests.assert(((-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_unilateral == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral == balance_B_begin - balance_B_after_payment)) || ((-amount_diff * 10 ** 8 + funding_fee_A == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == balance_B_begin - balance_B_after_payment)), "balance after payments wrong.")
   end
 
   if expect != nil

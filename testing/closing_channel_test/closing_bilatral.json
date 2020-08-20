@@ -3,6 +3,8 @@
     "funding_fee_B": 3000,
     "settle_fee_A": 2500,
     "settle_fee_B": 2900,
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
     "container_min": 12200000000,
     "funding_amount_A": 2000000000,
     "funding_amount_B": 1000000000,
@@ -15,6 +17,5 @@
             "amount": 10,
             "success": true
         }
-    },
-    "expect_info": "{\"sender_make_payments_error_negtive\":-100000000}"
+    }
 }

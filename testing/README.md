@@ -40,8 +40,30 @@ UDT: 200
 CKB(asset): 2000000000000000000 (shannon)
 CKB(total): 2000000134000000000 (shannon)
 ```
+
 The *CKB asset* represents the number of CKByte that a user can use for trading, while the *CKB total* represents the user's total CKB including containers. This is because, CKB is a special asset, a cell representing UDT also contains CKB, and users can store some data in output_data. Therefore, we should not consider these CKByte that support UDT or data as CKByte assets. For B, the 134000000000 additional CKBytes represent containers for 10 UDT cells. For A, the extra 9319600000000 CKBytes represents containers for 10 UDT cells, GPC and UDT contracts.
 
 You can find the detail of the setup work in [gpctest.rb](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/testing/libs/gpctest.rb#L97-L183). 
 
 **Note:** You need to set the miner account in ckb.toml to any user except A and B before testing. This is because we need to ensure that during the operation period, the balance of A and B will not change due to mining rewards.
+
+# Specification
+
+I will describe the test according to the lifecycle of the channel.
+
+## Establishment
+When establishing a channel, the interaction between the client and the user is simply the amount invested and whether or not the establishment is accepted. The client is not yet able to interrupt the reconnection, so the answer to the connection request is YES, so we need to test only the amount of investment the user wants to make.
+
+[gather_input_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_ckb_test): Test various possibilities for the amount of money users put into the CKB channel.
+[gather_input_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users put into the UDT channel.
+
+## Making payments
+
+Similarly, here I have only discussed the various amounts that users make payments.
+
+[making_payment_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/making_payment_ckb_test): Test various possibilities for the amount of money users pay in the CKB channel.
+[making_payment_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users pay in the UDT channel.
+
+## Closing channel
+
+[closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/closing_channel_test): Unilateral and bilateral closures are tested.

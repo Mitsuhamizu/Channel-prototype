@@ -18,9 +18,16 @@ class Minotor
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
+    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
 
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
+  end
+
+  def load_command()
+    command_raw = File.read(__dir__ + "/../testing/files/commands.json")
+    command_json = JSON.parse(command_raw, symbolize_names: true)
+    return command_json
   end
 
   def json_to_info(json)
@@ -226,6 +233,7 @@ class Minotor
     gpc_input = json_to_input(gpc_input)
     type_info = find_type(type_hash)
     input = [gpc_input]
+    commands = load_command()
 
     # the fee rules for settlement and closing is different.
     # closing need extra fee, so you need to pay it, which means you need one more input cells.
@@ -235,6 +243,17 @@ class Minotor
       lock: @lock,
       type: nil,
     )
+
+    closing_fee_unilateral = commands[:closing_fee_unilateral].to_i
+    settle_fee_unilateral = commands[:settle_fee_unilateral].to_i
+
+    if type == "closing"
+      fee = closing_fee_unilateral
+    elsif type == "settlement"
+      fee = settle_fee_unilateral
+    else
+      return false
+    end
 
     # require the change ckbyte is greater than the min capacity.
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
@@ -265,6 +284,7 @@ class Minotor
 
     begin
       tx_hash = @api.send_transaction(tx) if exist == nil
+      @logger.info("#{@key.pubkey} send tx with type #{type} fee #{fee}.")
     rescue Exception => e
     end
 
