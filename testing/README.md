@@ -71,3 +71,17 @@ Similarly, here I have only discussed the various amounts that users make paymen
 ## Closing channel
 
 [closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/closing_channel_test): Unilateral and bilateral closures are tested.
+
+
+# Usage
+
+```
+ruby ruby_file_name.rb case.json
+```
+
+Here is the example
+
+```
+cd making_payment_udt_test
+ruby making_payment.rb making_payment_success.json
+```
