@@ -57,7 +57,7 @@ class Gather_input_udt < Minitest::Test
     gather_input("Receiver_gather_success_2_stage.json")
   end
 
-  sender
+  # sender
 
   def test_sender_gather_insufficient_1_stage()
     gather_input("Sender_gather_insufficient_1_stage.json")

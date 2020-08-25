@@ -223,8 +223,8 @@ class Gpctest < Minitest::Test
     begin
       system("kill #{monitor_A}")
       system("kill #{monitor_B}")
-      system("npx kill-port 1000")
-      system("npx kill-port 2000")
+      system("lsof -ti:1000 | xargs kill")
+      system("lsof -ti:2000 | xargs kill")
       db.drop()
     rescue => exception
     end
