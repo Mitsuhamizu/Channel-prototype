@@ -76,12 +76,5 @@ Similarly, here I have only discussed the various amounts that users make paymen
 # Usage
 
 ```
-ruby ruby_file_name.rb case.json
-```
-
-Here is the example
-
-```
-cd making_payment_udt_test
-ruby making_payment.rb making_payment_success.json
+rake
 ```

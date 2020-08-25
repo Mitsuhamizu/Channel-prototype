@@ -8,5 +8,5 @@
     "describe-line1": "CKB::Sender::",
     "describe-line2": "funding_amount_A + funding_fee_A + 2 * container_min = total_capacity.",
     "describe-line3": "Status 2 means B complete the process successfully.",
-    "describe-line4": "Investment_total is the sum of fee and amount",
+    "describe-line4": "Investment_total is the sum of fee and amount"
 }

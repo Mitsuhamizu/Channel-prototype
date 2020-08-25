@@ -5,12 +5,12 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Gather_input_udt < Minitest::Test
+class Gather_input_ckb < Minitest::Test
   def gather_input(file_name)
     @logger = Logger.new(__dir__ + "/../files/" + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
-    flag = "udt"
+    flag = "ckb"
     begin
       data_raw = File.read(__dir__ + "/" + file_name)
       data_json = JSON.parse(data_raw, symbolize_names: true)
@@ -27,6 +27,10 @@ class Gather_input_udt < Minitest::Test
 
       investment_A = funding_amount_A
       investment_B = funding_amount_B
+
+      investment_A = BigDecimal(funding_amount_A) / 10 ** 8
+      investment_B = BigDecimal(funding_amount_B) / 10 ** 8
+
       expect = data_json[:expect_info]
       @monitor_A, @monitor_B = tests.check_investment_fee(investment_A, investment_B, funding_fee_A, funding_fee_B, expect, flag)
 
@@ -41,37 +45,36 @@ class Gather_input_udt < Minitest::Test
 
   # receiver
 
-  def test_receiver_gather_insufficient_1_stage()
-    gather_input("Receiver_gather_insufficient_1_stage.json")
+  def test_receiver_fee_negtive()
+    gather_input("Receiver_fee_negtive.json")
   end
 
-  def test_receiver_gather_insufficient_2_stage()
-    gather_input("Receiver_gather_insufficient_2_stage.json")
+  def test_receiver_funding_negtive()
+    gather_input("Receiver_funding_negtive.json")
   end
 
-  def test_receiver_gather_success_1_stage()
-    gather_input("Receiver_gather_success_1_stage.json")
+  def test_receiver_gather_insufficient()
+    gather_input("Receiver_gather_insufficient.json")
   end
 
-  def test_receiver_gather_success_2_stage()
-    gather_input("Receiver_gather_success_2_stage.json")
+  def test_receiver_gather_success()
+    gather_input("Receiver_gather_success.json")
   end
 
-  sender
-
-  def test_sender_gather_insufficient_1_stage()
-    gather_input("Sender_gather_insufficient_1_stage.json")
+  # sender
+  def test_sender_fee_negtive()
+    gather_input("Sender_fee_negtive.json")
   end
 
-  def test_sender_gather_insufficient_2_stage()
-    gather_input("Sender_gather_insufficient_2_stage.json")
+  def test_sender_funding_negtive()
+    gather_input("Sender_funding_negtive.json")
   end
 
-  def test_sender_gather_success_1_stage()
-    gather_input("Sender_gather_success_1_stage.json")
+  def test_sender_gather_insufficient()
+    gather_input("Sender_gather_insufficient.json")
   end
 
-  def test_sender_gather_success_2_stage()
-    gather_input("Sender_gather_success_2_stage.json")
+  def test_sender_gather_success()
+    gather_input("Sender_gather_success.json")
   end
 end

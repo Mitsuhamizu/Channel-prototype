@@ -1020,7 +1020,7 @@ class Communication
     lock_hashes = [@lock_hash]
     local_type = find_type(type_script_hash)
 
-    record_result({ "sender_gather_funding_error_negtive": local_amount }) if amount < 0
+    record_result({ "sender_gather_funding_error_negtive": amount }) if amount < 0
     record_result({ "sender_gather_fee_error_negtive": fee_fund }) if fee_fund < 0
     return false if amount < 0 || fee_fund < 0
 

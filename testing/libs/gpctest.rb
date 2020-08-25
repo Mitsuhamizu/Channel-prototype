@@ -329,7 +329,13 @@ class Gpctest < Minitest::Test
                    recv_fund_fee: fee_B, sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
-      
+
+      if flag == "ckb"
+        system("ruby " + __dir__ + "/../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
+      elsif flag == "udt"
+        system("ruby " + __dir__ + "/../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
+      end
+
       return @monitor_A, @monitor_B
     rescue Exception => e
       raise e
