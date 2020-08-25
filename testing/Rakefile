@@ -1,0 +1,9 @@
+require "rake/testtask"
+task default: "test"
+
+Rake::TestTask.new do |task|
+  task.warning = false
+  # task.pattern = FileList["making_payment_udt_test/test*.rb",
+  #                         "making_payment_ckb_test/test*.rb"]
+  task.pattern = FileList["gather_input_udt_test/test*.rb"]
+end

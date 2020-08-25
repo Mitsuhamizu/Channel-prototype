@@ -36,7 +36,7 @@ class Gpctest < Minitest::Test
 
     @path_to_binary = __dir__ + "/../binary/"
     @path_to_file = __dir__ + "/../files/"
-    @path_to_gpc = __dir__ + "/../../client1/GPC"
+    @path_to_gpc = __dir__ + "//../../client1/GPC"
 
     @api = CKB::API::new
     @rpc = CKB::RPC.new
@@ -211,10 +211,10 @@ class Gpctest < Minitest::Test
   end
 
   def start_listen_monitor()
-    monitor_A = spawn("ruby -W0" + " ../../client1/GPC" + " monitor #{@pubkey_A}")
-    monitor_B = spawn("ruby -W0" + " ../../client1/GPC" + " monitor #{@pubkey_B}")
-    listener_A = spawn("ruby -W0" + " ../../client1/GPC" + " listen #{@pubkey_A} #{@listen_port_A}")
-    listener_B = spawn("ruby -W0" + " ../../client1/GPC" + " listen #{@pubkey_B} #{@listen_port_B}")
+    monitor_A = spawn("ruby " + __dir__ + "/../../client1/GPC" + " monitor #{@pubkey_A}")
+    monitor_B = spawn("ruby " + __dir__ + "/../../client1/GPC" + " monitor #{@pubkey_B}")
+    listener_A = spawn("ruby " + __dir__ + "/../../client1/GPC" + " listen #{@pubkey_A} #{@listen_port_A}")
+    listener_B = spawn("ruby " + __dir__ + "/../../client1/GPC" + " listen #{@pubkey_B} #{@listen_port_B}")
     sleep(3)
     return monitor_A, monitor_B, listener_A, listener_B
   end
@@ -231,8 +231,8 @@ class Gpctest < Minitest::Test
   end
 
   def init_client()
-    system ("ruby -W0" + " ../../client1/GPC" + " init #{@private_key_A}")
-    system ("ruby -W0" + " ../../client1/GPC" + " init #{@private_key_B}")
+    system ("ruby " + __dir__ + "/../../client1/GPC" + " init #{@private_key_A}")
+    system ("ruby " + __dir__ + "/../../client1/GPC" + " init #{@private_key_B}")
   end
 
   def load_json_file(path)
@@ -329,17 +329,11 @@ class Gpctest < Minitest::Test
                    recv_fund_fee: fee_B, sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
-
-      sender_A = flag == "ckb" ? spawn("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}") :
-        spawn("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-      Process.wait sender_A
-
-      result_json = load_json_file(@path_to_file + "/result.json").to_json
-      assert_match(expect[1..-2], result_json, "#{expect}")
+      
+      return @monitor_A, @monitor_B
     rescue Exception => e
       raise e
     ensure
-      close_all_thread(@monitor_A, @monitor_B, @db)
     end
   end
 
@@ -376,7 +370,7 @@ class Gpctest < Minitest::Test
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
 
-      system("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since} --type_script_hash #{type_script_hash}")
+      system("ruby " + __dir__ + "/../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since} --type_script_hash #{type_script_hash}")
 
       # make the tx on chain.
       generate_blocks(@rpc, 10, 0.5)
@@ -431,7 +425,7 @@ class Gpctest < Minitest::Test
 
       create_commands_file(commands)
 
-      system("ruby -W0" + " ../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since}")
+      system("ruby " + __dir__ + "/../../client1/GPC" + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since}")
 
       # make the tx on chain.
       generate_blocks(@rpc, 5, 0.5)
@@ -457,19 +451,19 @@ class Gpctest < Minitest::Test
   end
 
   def make_payment_udt_A_B(channel_id, amount)
-    system("ruby -W0" + " ../../client1/GPC" + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
   end
 
   def make_payment_udt_B_A(channel_id, amount)
-    system("ruby -W0" + " ../../client1/GPC" + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
   end
 
   def make_payment_ckb_A_B(channel_id, amount)
-    system("ruby -W0" + " ../../client1/GPC" + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id}")
   end
 
   def make_payment_ckb_B_A(channel_id, amount)
-    system("ruby -W0" + " ../../client1/GPC" + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
   end
 
   def closing_A_B(channel_id, fee, closing_type)
@@ -479,7 +473,7 @@ class Gpctest < Minitest::Test
       update_command(:closing_reply, "no")
     end
 
-    system("ruby -W0" + " ../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --fee #{fee}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --fee #{fee}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
@@ -497,7 +491,7 @@ class Gpctest < Minitest::Test
       return false
     end
 
-    system("ruby -W0" + " ../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --fee #{fee}")
+    system("ruby " + __dir__ + "/../../client1/GPC" + " send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --fee #{fee}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
