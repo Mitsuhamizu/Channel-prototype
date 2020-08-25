@@ -1003,8 +1003,11 @@ class Communication
 
         #parse the msg
         while (1)
-          msg = JSON.parse(client.gets, symbolize_names: true)
-          ret = process_recv_message(client, msg)
+          msg = client.gets
+          msg = JSON.parse(msg, symbolize_names: true) if msg != nil
+          # puts "here is msg#{}"
+          # msg = JSON.parse(client.gets, symbolize_names: true)
+          ret = process_recv_message(client, msg) if msg != nil
           break if ret == 100
         end
       end
