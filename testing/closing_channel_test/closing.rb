@@ -1,8 +1,11 @@
 require_relative "../libs/gpctest.rb"
+require "test/unit/assertions"
 require "mongo"
 require "bigdecimal"
 require "logger"
 require "bigdecimal"
+
+include Test::Unit::Assertions
 
 Mongo::Logger.logger.level = Logger::FATAL
 $VERBOSE = nil
@@ -76,15 +79,15 @@ begin
   # @logger.info("Diff of B: #{balance_B_begin - balance_B_after_payment}")
 
   if closing_type == "bilateral"
-    tests.assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-    tests.assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
+    assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
+    assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
   elsif closing_type == "unilateral"
-    tests.assert(((-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_unilateral == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral == balance_B_begin - balance_B_after_payment)) || ((-amount_diff * 10 ** 8 + funding_fee_A == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == balance_B_begin - balance_B_after_payment)), "balance after payments wrong.")
+    assert(((-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_unilateral == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral == balance_B_begin - balance_B_after_payment)) || ((-amount_diff * 10 ** 8 + funding_fee_A == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == balance_B_begin - balance_B_after_payment)), "balance after payments wrong.")
   end
 
   if expect != nil
     result_json = tests.load_json_file(__dir__ + "/../files/result.json").to_json
-    tests.assert_match(expect[1..-2], result_json, "#{expect}")
+    assert_match(expect[1..-2], result_json, "#{expect}")
   end
 rescue Exception => e
   raise e

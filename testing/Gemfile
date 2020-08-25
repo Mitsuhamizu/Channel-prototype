@@ -1,4 +1,6 @@
-gem 'ckb-sdk-ruby', github: 'nervosnetwork/ckb-sdk-ruby', require: 'ckb'
+# gem 'net-http-persistent', '~> 3.1.0'
+gem 'ckb-sdk-ruby', '0.35.0', github: 'nervosnetwork/ckb-sdk-ruby', require: 'ckb'
 gem 'mongo', '~> 2.4'
 gem "minitest"
 gem 'thor'
+gem 'test-unit'
