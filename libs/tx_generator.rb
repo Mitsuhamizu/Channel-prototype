@@ -365,8 +365,9 @@ class Tx_generator
       output_data = stx_info[:outputs_data][index]
 
       if type_info[:type_script] == nil
-        @logger.info("current balance: #{output.capacity - output.calculate_min_capacity(output_data)}")
-        return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data)
+        @logger.info("#{pubkey_payer} current balance:  #{output.capacity - output.calculate_min_capacity(output_data)}") if output.lock.args == pubkey_payer
+        @logger.info("#{pubkey_payee} current balance:  #{output.capacity - output.calculate_min_capacity(output_data)}") if output.lock.args == pubkey_payee
+        return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
         output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
         output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
       else
@@ -380,6 +381,7 @@ class Tx_generator
     for witness in stx_info[:witnesses]
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
+      @logger.info("#{pubkey_payer} current nounce: #{lock[:nounce] + 1}")
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
     stx_info[:witnesses] = witness_new

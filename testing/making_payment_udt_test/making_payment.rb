@@ -25,7 +25,7 @@ settle_fee_A = data_json[:settle_fee_A].to_i
 settle_fee_B = data_json[:settle_fee_B].to_i
 
 funding_amount_A = data_json[:funding_amount_A]
-funding_amount_B = data_json[:funding_amount_A]
+funding_amount_B = data_json[:funding_amount_B]
 
 closing_type = data_json[:closing_type]
 expect = data_json[:expect_info]

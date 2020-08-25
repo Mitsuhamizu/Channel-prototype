@@ -24,7 +24,7 @@ settle_fee_A = data_json[:settle_fee_A].to_i
 settle_fee_B = data_json[:settle_fee_B].to_i
 
 funding_amount_A = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
-funding_amount_B = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
+funding_amount_B = BigDecimal(data_json[:funding_amount_B]) / 10 ** 8
 
 closing_type = data_json[:closing_type]
 expect = data_json[:expect_info]
@@ -61,9 +61,11 @@ begin
     success = payment[:success]
     if sender == "A" && receiver == "B" && payment_type == "ckb"
       tests.make_payment_ckb_A_B(channel_id, amount)
+      puts "A pays B happens."
       amount_A_B += amount if success
     elsif sender == "B" && receiver == "A" && payment_type == "ckb"
       tests.make_payment_ckb_B_A(channel_id, amount)
+      puts "B pays A happens."
       amount_B_A += amount if success
     elsif sender == "A" && receiver == "B" && payment_type == "udt"
       tests.make_payment_udt_B_A(channel_id, amount)
@@ -92,11 +94,11 @@ begin
     assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
     assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
   elsif payment_type == "udt"
-    assert_equal(-amount, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-    assert_equal(amount, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
+    assert_equal(-amount_diff, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
+    assert_equal(amount_diff, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
 
-    assert_equal(funding_fee_A + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
-    assert_equal(funding_fee_B + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
+    assert_equal(amount_diff + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
+    assert_equal(amount_diff + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
   end
 
   if expect != nil
