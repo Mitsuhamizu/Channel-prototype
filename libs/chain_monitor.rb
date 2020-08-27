@@ -18,14 +18,15 @@ class Minotor
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
-    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
-
+    
+    @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
   end
 
   def load_command()
-    command_raw = File.read(__dir__ + "/../testing/files/commands.json")
+    command_raw = File.read(@path_to_file + "commands.json")
     command_json = JSON.parse(command_raw, symbolize_names: true)
     return command_json
   end
@@ -195,7 +196,7 @@ class Minotor
     type_dep = nil
 
     # load the type in the file...
-    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
+    data_raw = File.read(@path_to_file + "contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)

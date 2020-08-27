@@ -27,9 +27,10 @@ class Communication
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
 
-    @command_string = File.read(__dir__ + "/../testing/files/commands.json")
+    @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
+    @command_string = File.read(@path_to_file + "commands.json")
     @command_json = JSON.parse(@command_string, symbolize_names: true)
-    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
+    @logger = Logger.new(@path_to_file + "gpc.log")
   end
 
   # Generate the plain text msg, client will print it.
@@ -90,20 +91,20 @@ class Communication
   end
 
   def load_command()
-    command_raw = File.read(__dir__ + "/../testing/files/commands.json")
+    command_raw = File.read(@path_to_file + "commands.json")
     command_json = JSON.parse(command_raw, symbolize_names: true)
     return command_json
   end
 
   def record_result(result)
     data_hash = {}
-    if File.file?(__dir__ + "/../testing/files/result.json")
-      data_raw = File.read(__dir__ + "/../testing/files/result.json")
+    if File.file?(@path_to_file + "result.json")
+      data_raw = File.read(@path_to_file + "result.json")
       data_hash = JSON.parse(data_raw, symbolize_names: true)
     end
     data_hash = data_hash.merge(result)
     data_json = data_hash.to_json
-    file = File.new(__dir__ + "/../testing/files/result.json", "w")
+    file = File.new(@path_to_file + "result.json", "w")
     file.syswrite(data_json)
   end
 
@@ -126,7 +127,7 @@ class Communication
     type_dep = nil
 
     # load the type in the file...
-    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
+    data_raw = File.read(@path_to_file + "contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)
@@ -166,6 +167,11 @@ class Communication
     # msg has two fixed field, type and id.
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
+
+    # record the msg
+    data_json = msg.to_json
+    file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
+    file.syswrite(data_json)
 
     # if there is no record and the msg is not the first step.
     if view.count_documents() == 0 && type != 1

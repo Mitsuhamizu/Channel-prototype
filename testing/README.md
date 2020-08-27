@@ -43,7 +43,7 @@ CKB(total): 2000000134000000000 (shannon)
 
 The *CKB asset* represents the number of CKByte that a user can use for trading, while the *CKB total* represents the user's total CKB including containers. This is because, CKB is a special asset, a cell representing UDT also contains CKB, and users can store some data in output_data. Therefore, we should not consider these CKByte that support UDT or data as CKByte assets. For B, the 134000000000 additional CKBytes represent containers for 10 UDT cells. For A, the extra 9319600000000 CKBytes represents containers for 10 UDT cells, GPC and UDT contracts.
 
-You can find the detail of the setup work in [gpctest.rb](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/testing/libs/gpctest.rb#L97-L183). 
+You can find the detail of the setup work in [gpctest.rb](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/testing/miscellaneous/libs/gpctest.rb#L97-L183). 
 
 **Note:** You need to set the miner account in ckb.toml to any user except A and B before testing. This is because we need to ensure that during the operation period, the balance of A and B will not change due to mining rewards.
 

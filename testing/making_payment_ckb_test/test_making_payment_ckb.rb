@@ -1,4 +1,4 @@
-require_relative "../libs/gpctest.rb"
+require_relative "../miscellaneous/libs/gpctest.rb"
 require "minitest/autorun"
 require "mongo"
 require "bigdecimal"
@@ -7,7 +7,8 @@ Mongo::Logger.logger.level = Logger::FATAL
 
 class Making_payment_ckb < Minitest::Test
   def make_payment(file_name)
-    @logger = Logger.new(__dir__ + "/../files/" + "gpc.log")
+    @path_to_file= __dir__ + "/../miscellaneous/files/"
+@logger = Logger.new( @path_to_file+ "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
 
@@ -99,7 +100,7 @@ class Making_payment_ckb < Minitest::Test
       end
 
       if expect != nil
-        result_json = tests.load_json_file(__dir__ + "/../files/result.json").to_json
+        result_json = tests.load_json_file(@path_to_file +"result.json").to_json
         assert_match(expect[1..-2], result_json, "#{expect}")
       end
     rescue Exception => e

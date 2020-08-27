@@ -73,7 +73,8 @@ class GPCCLI < Thor
   option :type_script_hash
 
   def make_payment()
-    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
+    @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
     private_key = pubkey_to_privkey(options[:pubkey])
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database

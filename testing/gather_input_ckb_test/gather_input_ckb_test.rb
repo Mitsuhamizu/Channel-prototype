@@ -1,4 +1,4 @@
-require_relative "../libs/gpctest.rb"
+require_relative "../miscellaneous/libs/gpctest.rb"
 require "mongo"
 require "bigdecimal"
 

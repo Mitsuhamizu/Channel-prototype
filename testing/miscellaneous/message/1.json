@@ -1,0 +1,32 @@
+{
+    "id": "e1cc71b3c65a24ce8a9cf917959506a8",
+    "type": 1,
+    "pubkey": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
+    "cells": [
+        {
+            "previous_output": {
+                "tx_hash": "0xb995c493f02090311dc82ca824124f8edab99fd2855c9c1e56b5c73a793fb2d9",
+                "index": "0x2"
+            },
+            "since": "0x0"
+        }
+    ],
+    "fee_fund": 2000,
+    "timeout": "9223372036854775908",
+    "asset": {
+        "": 2000000000
+    },
+    "change": {
+        "output": {
+            "capacity": "0x736ec043f8b48a0",
+            "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
+                "hash_type": "type"
+            },
+            "type": null
+        },
+        "output_data": "0x"
+    },
+    "stx_info": "{\"outputs\":[{\"capacity\":\"0x1e2cc3100\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0x470dcdc5e44064909650113a274b3b36aecb6dc7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0x10000000100000001000000010000000\"]}"
+}

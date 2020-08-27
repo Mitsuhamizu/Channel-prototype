@@ -20,13 +20,14 @@ class Tx_generator
 
   def initialize(key)
     @key = key
-    data_raw = File.read(__dir__ + "/../testing/files/contract_info.json")
+    @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
+    data_raw = File.read(@path_to_file + "contract_info.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     @api = CKB::API::new
     @gpc_code_hash = data_json[:gpc_code_hash]
     @gpc_tx = data_json[:gpc_tx_hash]
     @gpc_hash_type = "data"
-    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
+    @logger = Logger.new(@path_to_file + "gpc.log")
   end
 
   def assemble_lock_args(status, timeout, nounce)
