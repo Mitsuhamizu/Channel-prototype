@@ -9,13 +9,13 @@ You needs to have two ckb account that have sufficient ckb in you local chain, a
 # Send contract to chain.
 
 ```
-cd client1/test
+cd client/test
 ruby send_contract.rb
 ```
 
 Note that send_contract.rb will print two info, the first is the code hash, and the second is tx_hash. You should remember these info, and change the @gpc_tx and @gpc_code_hash to your local version.
 
-Now I just merge the component into the command line GPC. You can find it in both client1 and client2.
+Now I just merge the component into the command line GPC. You can find it in both client and client2.
 
 
 See the command in GPC by 
