@@ -9,8 +9,8 @@ require "digest/sha1"
 require "mongo"
 require "set"
 require "timeout"
-require_relative "tx_generator.rb"
-require_relative "verification.rb"
+require_relative "../libs/tx_generator.rb"
+require_relative "../libs/verification.rb"
 $VERBOSE = nil
 
 class Sender_bot
@@ -21,8 +21,9 @@ class Sender_bot
     @tx_generator = Tx_generator.new(@key)
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
-
-    @logger = Logger.new(__dir__ + "/../testing/files/" + "gpc.log")
+    @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
+    @logger = Logger.new(+"gpc.log")
   end
 
   def listen(src_port)
@@ -41,8 +42,9 @@ class Sender_bot
     }
   end
 
-  def send_msg(msg)
+  def send_msg(remote_ip, remote_port, msg)
     s = TCPSocket.open(remote_ip, remote_port)
     s.puts(msg)
+    s.close()
   end
 end

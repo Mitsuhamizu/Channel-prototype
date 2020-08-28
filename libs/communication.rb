@@ -248,7 +248,8 @@ class Communication
 
       # check remote cells.
       if !remote_cell_check
-        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
+        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not consistent with what you claimed."))
+        @logger.info(remote_cell_check)
         return false
       end
 
@@ -1009,12 +1010,15 @@ class Communication
 
         #parse the msg
         while (1)
-          msg = client.gets
-          msg = JSON.parse(msg, symbolize_names: true) if msg != nil
-          # puts "here is msg#{}"
-          # msg = JSON.parse(client.gets, symbolize_names: true)
-          ret = process_recv_message(client, msg) if msg != nil
-          break if ret == 100
+          begin
+            msg = client.gets
+            msg = JSON.parse(msg, symbolize_names: true) if msg != nil
+            # puts "here is msg#{}"
+            ret = process_recv_message(client, msg) if msg != nil
+            break if ret == 100
+          rescue => exception
+            break if exception.class == Errno::ECONNRESET
+          end
         end
       end
     }

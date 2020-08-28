@@ -212,23 +212,33 @@ class Gpctest < Minitest::Test
   end
 
   def start_listen_monitor()
-    monitor_A = spawn("ruby " + @path_to_gpc + " monitor #{@pubkey_A}")
-    monitor_B = spawn("ruby " + @path_to_gpc + " monitor #{@pubkey_B}")
-    listener_A = spawn("ruby " + @path_to_gpc + " listen #{@pubkey_A} #{@listen_port_A}")
-    listener_B = spawn("ruby " + @path_to_gpc + " listen #{@pubkey_B} #{@listen_port_B}")
-    sleep(3)
+    monitor_A, listener_A = start_listen_monitor_A()
+    monitor_B, listener_B = start_listen_monitor_B()
     return monitor_A, monitor_B, listener_A, listener_B
   end
 
+  def start_listen_monitor_A()
+    monitor_A = spawn("ruby " + @path_to_gpc + " monitor #{@pubkey_A}")
+    listener_A = spawn("ruby " + @path_to_gpc + " listen #{@pubkey_A} #{@listen_port_A}")
+    sleep(2)
+    return monitor_A, listener_A
+  end
+
+  def start_listen_monitor_B()
+    monitor_B = spawn("ruby " + @path_to_gpc + " monitor #{@pubkey_B}")
+    listener_B = spawn("ruby " + @path_to_gpc + " listen #{@pubkey_B} #{@listen_port_B}")
+    sleep(2)
+    return monitor_B, listener_B
+  end
+
   def close_all_thread(monitor_A, monitor_B, db)
-    begin
-      system("kill #{monitor_A}")
-      system("kill #{monitor_B}")
-      system("lsof -ti:1000 | xargs kill")
-      system("lsof -ti:2000 | xargs kill")
-      db.drop()
-    rescue => exception
-    end
+    system("kill #{monitor_A}") if monitor_A != 0
+    system("kill #{monitor_B}") if monitor_B != 0
+
+    system("lsof -ti:1000 | xargs kill")
+    system("lsof -ti:2000 | xargs kill")
+
+    db.drop()
   end
 
   def init_client()

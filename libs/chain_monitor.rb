@@ -18,7 +18,7 @@ class Minotor
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
-    
+
     @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
@@ -69,8 +69,9 @@ class Minotor
   def monitor_chain()
     while true
       current_height = @api.get_tip_block_number
+      # @logger.info("#{@key.privkey}")
+      # @logger.info("#{@coll_sessions.find({ id: 0 }).first == nil}")
       checked_height = @coll_sessions.find({ id: 0 }).first[:current_block_num]
-
       # check whether there are some related ctx or fund tx submitted to chain.
       for i in (checked_height + 1..current_height)
         block = @api.get_block_by_number(i)

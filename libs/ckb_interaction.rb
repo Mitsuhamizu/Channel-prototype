@@ -165,7 +165,7 @@ def get_total_amount(cells, type_script_hash, decoder)
   for cell in cells
     # check live.
     validation = @api.get_live_cell(cell.previous_output)
-    return nil if validation.status != "live"
+    return -1 if validation.status != "live"
 
     # add amount
     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
@@ -183,11 +183,16 @@ end
 def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
   amount_gathered = get_total_amount(cells, type_script_hash, decoder)
 
+  change_actual = change[:output].capacity
+  change_min = change[:output].calculate_min_capacity(change[:output_data])
+  stx_actual = stx_info[:outputs][0].capacity
+  stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
   # check the ckbyte is enough to support this output.
-  return false if change[:output].capacity < change[:output].calculate_min_capacity(change[:output_data])
-  return false if stx_info[:outputs][0].capacity < stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
+  return change_actual - change_min if change_actual < change_min
+  return stx_actual - stx_min if stx_actual < stx_min
   if type_script_hash != ""
     capacity_gathered = get_total_capacity(cells)
+    
     # cell live
     return false if !amount_gathered || !capacity_gathered
     # amount right
@@ -205,6 +210,6 @@ def check_cells(cells, amount_required, fee_required, change, stx_info, type_scr
     return false if amount_gathered != fee_required + change[:output].capacity + stx_info[:outputs][0].capacity
 
     # true
-    return true
+    return 0
   end
 end
