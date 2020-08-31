@@ -95,6 +95,66 @@ class Gpctest < Minitest::Test
     return [code_hash, tx_hash]
   end
 
+  def spend_cell(party, inputs, flag)
+    return false if inputs == nil
+    outputs = []
+    outputs_data = []
+    witnesses = []
+
+    tx = CKB::Types::Transaction.new(
+      version: 0,
+      cell_deps: [],
+      inputs: [],
+      outputs: nil,
+      outputs_data: nil,
+      witnesses: nil,
+    )
+
+    for input in inputs
+      previous_tx = @api.get_transaction(input.tx_hash).transaction
+      previous_output = previous_tx.outputs[input.index]
+
+      # construct output
+      output = CKB::Types::Output.new(
+        capacity: previous_output.capacity - 3000,
+        lock: previous_output.lock,
+        type: previous_output.type,
+      )
+      # add output, output_data and witness
+
+      outputs << output
+      outputs_data << previous_tx.outputs_data[input.index]
+      witnesses << CKB::Types::Witness.new
+
+      tx.inputs << CKB::Types::Input.new(
+        previous_output: input,
+        since: 0,
+      )
+    end
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
+    tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
+
+    if flag == "udt"
+      tx.cell_deps << load_type_dep()
+    end
+
+    tx.outputs = outputs
+    tx.outputs_data = outputs_data
+    tx.witnesses = witnesses
+
+    tx.hash = tx.compute_hash
+
+    # sign the tx
+    if party == "A"
+      signed_tx = tx.sign(@wallet_A.key)
+    elsif party == "B"
+      signed_tx = tx.sign(@wallet_B.key)
+    end
+
+    @api.send_transaction(signed_tx)
+    generate_blocks(@rpc, 5)
+  end
+
   # here I setup the environment for testing.
   # 1. deploy the gpc contract.
   # 2. deploy the udt contract.
@@ -260,6 +320,14 @@ class Gpctest < Minitest::Test
     type_script = CKB::Types::Script.from_h(type_script_h)
     type_script_hash = type_script.compute_hash
     return type_script_hash
+  end
+
+  def load_type_dep()
+    data_json = load_json_file(@path_to_file + "contract_info.json")
+    udt_tx_hash = data_json[:udt_tx_hash]
+    udt_dep = CKB::Types::CellDep.new(out_point: CKB::Types::OutPoint.new(tx_hash: udt_tx_hash, index: 0))
+    return udt_dep
+    return
   end
 
   def create_commands_file(commands)

@@ -51,7 +51,9 @@ You can find the detail of the setup work in [gpctest.rb](https://github.com/Zhi
 
 I will describe the test according to the lifecycle of the channel.
 
-## Establishment
+## Happy paths
+
+### Establishment
 When establishing a channel, the interaction between the client and the user is simply the amount invested and whether or not the establishment is accepted. The client is not yet able to interrupt the reconnection, so the answer to the connection request is YES, so we need to test only the amount of investment the user wants to make.
 
 [gather_input_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_ckb_test): Test various possibilities for the amount of money users put into the CKB channel.
@@ -59,7 +61,7 @@ When establishing a channel, the interaction between the client and the user is 
 
 [gather_input_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users put into the UDT channel.
 
-## Making payments
+### Making payments
 
 Similarly, here I have only discussed the various amounts that users make payments.
 
@@ -68,10 +70,15 @@ Similarly, here I have only discussed the various amounts that users make paymen
 
 [making_payment_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users pay in the UDT channel.
 
-## Closing channel
+### Closing channel
 
 [closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/closing_channel_test): Unilateral and bilateral closures are tested.
 
+## Sad paths
+
+### Establishment
+
+[closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/step1_ckb_test: Different error types for msg1. For example, the cells are dead, the amount is not consistent as adversary claimed.
 
 # Usage
 

@@ -5,7 +5,6 @@ require "json"
 
 @api = CKB::API.new
 
-# prikey = "0xd986d7bf901e50368cbe565f239c224934cd554805357338abcef177efadc08d"
 prikey = "0x82dede298f916ced53bf5aa87cea8a7e44e8898eaedcff96606579f7bf84d99d"
 @key = CKB::Key.new(prikey)
 @wallet = CKB::Wallet.from_hex(@api, @key.privkey)

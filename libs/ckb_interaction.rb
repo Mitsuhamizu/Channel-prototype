@@ -165,7 +165,7 @@ def get_total_amount(cells, type_script_hash, decoder)
   for cell in cells
     # check live.
     validation = @api.get_live_cell(cell.previous_output)
-    return -1 if validation.status != "live"
+    return nil if validation.status != "live"
 
     # add amount
     tx = @api.get_transaction(cell.previous_output.tx_hash).transaction
@@ -187,29 +187,35 @@ def check_cells(cells, amount_required, fee_required, change, stx_info, type_scr
   change_min = change[:output].calculate_min_capacity(change[:output_data])
   stx_actual = stx_info[:outputs][0].capacity
   stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
+
   # check the ckbyte is enough to support this output.
-  return change_actual - change_min if change_actual < change_min
-  return stx_actual - stx_min if stx_actual < stx_min
+  return "receiver_step1_error_change_container_insufficient", change_actual - change_min if change_actual < change_min
+  return "receiver_step1_error_settle_container_insufficient", stx_actual - stx_min if stx_actual < stx_min
+
   if type_script_hash != ""
     capacity_gathered = get_total_capacity(cells)
-    
+
     # cell live
-    return false if !amount_gathered || !capacity_gathered
+    return "receiver_step1_error_cell_dead", true if !amount_gathered || !capacity_gathered
     # amount right
-    return false if amount_gathered != decoder.call(stx_info[:outputs_data][0]) + decoder.call(change[:output_data])
+    refund_amount = decoder.call(stx_info[:outputs_data][0]) + decoder.call(change[:output_data])
+    return "receiver_step1_error_amount_claimed_inconsistent", amount_gathered - amount_required if amount_gathered != amount_required
+    return "receiver_step1_error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
 
     # capacity right
-    return false if capacity_gathered != fee_required + change[:output].capacity + stx_info[:outputs][0].capacity
+    refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
+    return "receiver_step1_error_capacity_inconsistent", capacity_gathered - (fee_required + refund_capacity) if capacity_gathered != fee_required + refund_capacity
     # true
-    return true
+    return "success", "0"
   else
     # cell live
-    return false if !amount_gathered
+    return "receiver_step1_error_cell_dead", true if !amount_gathered
 
     # capacity right.
-    return false if amount_gathered != fee_required + change[:output].capacity + stx_info[:outputs][0].capacity
+    refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
+    return "receiver_step1_error_capacity_inconsistent", amount_gathered - (fee_required + refund_capacity) if amount_gathered != fee_required + refund_capacity
 
     # true
-    return 0
+    return "success", "0"
   end
 end

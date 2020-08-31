@@ -235,21 +235,22 @@ class Communication
       remote_type_script_hash = remote_asset.keys.first.to_s
       remote_amount = remote_asset[remote_asset.keys.first]
 
-      record_result({ "sender_gather_funding_error_negtive": remote_amount }) if remote_amount < 0
+      record_result({ "sender_step1_error_amount_negtive": remote_amount }) if remote_amount < 0
 
-      record_result({ "sender_gather_fee_error_negtive": remote_fee }) if remote_fee_fund < 0
+      record_result({ "sender_step1_error_fee_negtive": remote_fee }) if remote_fee_fund < 0
 
       return false if remote_amount < 0 || remote_fee_fund < 0
 
       local_type = find_type(local_type_script_hash)
       remote_type = find_type(remote_type_script_hash)
 
-      remote_cell_check = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, remote_type_script_hash, remote_type[:decoder])
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, remote_type_script_hash, remote_type[:decoder])
 
       # check remote cells.
-      if !remote_cell_check
-        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not consistent with what you claimed."))
-        @logger.info(remote_cell_check)
+
+      if remote_cell_check_result != "success"
+        client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
+        record_result({ remote_cell_check_result => remote_cell_check_value })
         return false
       end
 
@@ -471,10 +472,11 @@ class Communication
       end
 
       # check the cells remote party providing is right.
-      remote_cell_check = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, type_script_hash, remote_type[:decoder])
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, type_script_hash, remote_type[:decoder])
 
-      if !remote_cell_check
-        client.puts(generate_text_msg(msg[:id], "sry, your capacity is not enough or your cells are not alive."))
+      if remote_cell_check_result != "success"
+        client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
+        record_result({ remote_cell_check_result => remote_cell_check_value })
         return false
       end
 

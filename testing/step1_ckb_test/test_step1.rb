@@ -24,8 +24,13 @@ class Making_payment_udt < Minitest::Test
       msg_1 = data_json[:A][:msg_1]
       remote_ip = data_json[:A][:remote_ip]
       remote_port = data_json[:A][:remote_port]
+      cells_spent_A = data_json[:A][:spent_cell] == nil ? nil : data_json[:A][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
+
       funding_B = data_json[:B][:amount]
       fee_B = data_json[:B][:fee]
+      cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
+
+      expect = data_json[:expect_info]
 
       tests = Gpctest.new("test")
       tests.setup()
@@ -36,10 +41,18 @@ class Making_payment_udt < Minitest::Test
       tests.init_client()
       @monitor_B, @listener_B = tests.start_listen_monitor_B()
 
+      # spend cells.
+      tests.spend_cell("A", cells_spent_A, "ckb")
+      tests.spend_cell("B", cells_spent_B, "ckb")
+
       # Since we test step 1, we needs to act as A.
       sender = Sender_bot.new(@private_key_A)
       sender.send_msg(remote_ip, remote_port, msg_1.to_json)
       sleep(2)
+      if expect != nil
+        result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+        assert_match(expect[1..-2], result_json, "#{expect}")
+      end
     rescue => exception
       puts exception
     ensure
@@ -49,5 +62,29 @@ class Making_payment_udt < Minitest::Test
 
   def test_success()
     establish_step1("test_step1_success.json")
+  end
+
+  def test_amount_negtive()
+    establish_step1("test_step1_amount_negtive.json")
+  end
+
+  def test_fee_negtive()
+    establish_step1("test_step1_fee_negtive.json")
+  end
+
+  def test_change_container_insufficient()
+    establish_step1("test_step1_change_container_insufficient.json")
+  end
+
+  def test_settle_continer_insufficient()
+    establish_step1("test_step1_settle_container_insufficient.json")
+  end
+
+  def test_cell_dead()
+    establish_step1("test_step1_cell_dead.json")
+  end
+
+  def test_capacity_inconsistent()
+    establish_step1("test_step1_capacity_inconsistent.json")
   end
 end
