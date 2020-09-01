@@ -291,6 +291,15 @@ class Gpctest < Minitest::Test
     return monitor_B, listener_B
   end
 
+  def send_establishment_request_A(funding_A, fee_A, since, flag)
+    type_script_hash = load_type()
+    if flag == "ckb"
+      system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
+    elsif flag == "udt"
+      system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
+    end
+  end
+
   def close_all_thread(monitor_A, monitor_B, db)
     system("kill #{monitor_A}") if monitor_A != 0
     system("kill #{monitor_B}") if monitor_B != 0
@@ -327,7 +336,6 @@ class Gpctest < Minitest::Test
     udt_tx_hash = data_json[:udt_tx_hash]
     udt_dep = CKB::Types::CellDep.new(out_point: CKB::Types::OutPoint.new(tx_hash: udt_tx_hash, index: 0))
     return udt_dep
-    return
   end
 
   def create_commands_file(commands)
@@ -408,12 +416,7 @@ class Gpctest < Minitest::Test
                    recv_fund_fee: fee_B, sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
-
-      if flag == "ckb"
-        system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
-      elsif flag == "udt"
-        system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-      end
+      send_establishment_request_A(funding_A, fee_A, since, flag)
 
       return @monitor_A, @monitor_B
     rescue Exception => e
@@ -453,8 +456,7 @@ class Gpctest < Minitest::Test
                    recv_fund_fee: fee_B_fund, recv_settle_fee: fee_receiver_settle, sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       create_commands_file(commands)
-
-      system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since} --type_script_hash #{type_script_hash}")
+      send_establishment_request_A(funding_A, fee_A_fund, since, "udt")
 
       # make the tx on chain.
       generate_blocks(@rpc, 10, 0.5)
@@ -508,9 +510,8 @@ class Gpctest < Minitest::Test
                    payment_reply: "yes", closing_reply: "yes" }
 
       create_commands_file(commands)
-
-      system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A_fund} --since #{since}")
-
+      send_establishment_request_A(funding_A, fee_A_fund, since, "ckb")
+      
       # make the tx on chain.
       generate_blocks(@rpc, 5, 0.5)
 

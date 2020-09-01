@@ -16,11 +16,11 @@
             "fee_fund": 2000,
             "timeout": "9223372036854775908",
             "asset": {
-                "": 2000000000
+                "": -10
             },
             "change": {
                 "output": {
-                    "capacity": "0x12ffbd300",
+                    "capacity": "0x736ec043f8b48a0",
                     "lock": {
                         "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
                         "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
@@ -31,14 +31,14 @@
                 "output_data": "0x"
             },
             "stx_info": "{\"outputs\":[{\"capacity\":\"0x1e2cc3100\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0x470dcdc5e44064909650113a274b3b36aecb6dc7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0x10000000100000001000000010000000\"]}"
-        }
+        },
+        "remote_ip": "127.0.0.1",
+        "remote_port": 2000
     },
     "B": {
         "amount": 10000,
-        "fee": 1000,
-        "ip": "127.0.0.1",
-        "port": 2000
+        "fee": 1000
     },
-    "expect_info": "{\"receiver_step1_error_change_container_insufficient\":-1000000000}",
-    "describe-line1": "A -> msg1 -> change -> output -> capacity == 0x12ffbd300 (5100000000)"
+    "expect_info": "{\"sender_step1_error_amount_negtive\":-10}",
+    "describe-line1": "A -> msg1 -> asset -> \"\" == -10"
 }

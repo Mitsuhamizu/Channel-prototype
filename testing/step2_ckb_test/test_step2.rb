@@ -9,46 +9,50 @@ require "bigdecimal"
 Mongo::Logger.logger.level = Logger::FATAL
 
 class Making_payment_udt < Minitest::Test
-  def establish_step1(file_name)
+  def establish_step2(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
       @path_to_file = __dir__ + "/../miscellaneous/files/"
-      @logger = Logger.new(@path_to_file + "gpc.log")
+      @path_to_logger = __dir__ + "/../miscellaneous/logger/"
+      # @logger = Logger.new(@path_to_file + "gpc.log")
+      # @logger = Logger.new(@path_to_logger + "gpc.log")
       @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
       @db = @client.database
+      @db.drop()
 
       data_raw = File.read(__dir__ + "/" + file_name)
       data_json = JSON.parse(data_raw, symbolize_names: true)
+      since = "9223372036854775908"
 
-      msg_1 = data_json[:A][:msg_1]
+      funding_A = data_json[:A][:amount_fund]
+      fee_A = data_json[:A][:fee_fund]
       cells_spent_A = data_json[:A][:spent_cell] == nil ? nil : data_json[:A][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
 
-      funding_B = data_json[:B][:amount]
-      fee_B = data_json[:B][:fee]
-      cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
+      msg_2 = data_json[:B][:msg_2]
       ip_B = data_json[:B][:ip]
       listen_port_B = data_json[:B][:port]
+      cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
 
       expect = data_json[:expect_info]
 
       tests = Gpctest.new("test")
       tests.setup()
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fund_fee: fee_B, sender_one_way_permission: "yes",
+      commands = { sender_reply: "yes", recv_reply: "yes", sender_one_way_permission: "yes",
                    payment_reply: "yes", closing_reply: "yes" }
       tests.create_commands_file(commands)
       tests.init_client()
-      @monitor_B, @listener_B = tests.start_listen_monitor_B()
 
       # spend cells.
       tests.spend_cell("A", cells_spent_A, "ckb")
       tests.spend_cell("B", cells_spent_B, "ckb")
 
-      # Since we test step 1, we needs to act as A.
-      sender = Sender_bot.new(@private_key_A)
-      sender.send_msg(ip_B, listen_port_B, [msg_1])
+      bot = Sender_bot.new(@private_key_B)
+      thread_listen = Thread.new { bot.listen(listen_port_B, [msg_2]) }
       sleep(2)
+
+      tests.send_establishment_request_A(funding_A, fee_A, since, "ckb")
+
       if expect != nil
         result_json = tests.load_json_file(@path_to_file + "result.json").to_json
         assert_match(expect[1..-2], result_json, "#{expect}")
@@ -56,35 +60,31 @@ class Making_payment_udt < Minitest::Test
     rescue => exception
       puts exception
     ensure
-      tests.close_all_thread(0, @monitor_B, @db)
+      tests.close_all_thread(0, 0, @db)
     end
   end
 
   def test_success()
-    establish_step1("test_step1_success.json")
+    establish_step2("test_step2_success.json")
   end
 
-  def test_amount_negtive()
-    establish_step1("test_step1_amount_negtive.json")
+  def test_gpc_output_modified()
+    establish_step2("test_step2_gpc_output_modified.json")
   end
 
-  def test_fee_negtive()
-    establish_step1("test_step1_fee_negtive.json")
+  def test_gpc_output_data_modified()
+    establish_step2("test_step2_gpc_output_data_modified.json")
   end
 
-  def test_change_container_insufficient()
-    establish_step1("test_step1_change_container_insufficient.json")
+  def test_change_output_modified()
+    establish_step2("test_step2_local_change_output_modified.json")
   end
 
-  def test_settle_continer_insufficient()
-    establish_step1("test_step1_settle_container_insufficient.json")
-  end
-
-  def test_cell_dead()
-    establish_step1("test_step1_cell_dead.json")
+  def test_change_output_data_modified()
+    establish_step2("test_step2_local_change_output_data_modified.json")
   end
 
   def test_capacity_inconsistent()
-    establish_step1("test_step1_capacity_inconsistent.json")
+    establish_step2("test_step2_capacity_inconsistent.json")
   end
 end

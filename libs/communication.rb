@@ -250,7 +250,7 @@ class Communication
 
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
-        record_result({ remote_cell_check_result => remote_cell_check_value })
+        record_result({ "receiver_step1_" + remote_cell_check_result => remote_cell_check_value })
         return false
       end
 
@@ -468,6 +468,7 @@ class Communication
       if !(local_change_check[:output].to_h == local_change[:output].to_h &&
            local_change_check[:output_data] == local_change[:output_data])
         client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
+        record_result({ "sender_step2_error_local_change_modified": true })
         return false
       end
 
@@ -476,7 +477,7 @@ class Communication
 
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
-        record_result({ remote_cell_check_result => remote_cell_check_value })
+        record_result({ "sender_step2_" + remote_cell_check_result => remote_cell_check_value })
         return false
       end
 
@@ -494,7 +495,8 @@ class Communication
       # @logger.info("gpc_output_data 2: #{gpc_output_data}")
       # @logger.info("result: #{(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)}")
       if !(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)
-        client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
+        client.puts(generate_text_msg(msg[:id], "sry, gpc output goes wrong."))
+        record_result({ "sender_step2_error_gpc_modified": true })
         return false
       end
       #-------------------------------------------------
@@ -1014,9 +1016,11 @@ class Communication
         while (1)
           begin
             msg = client.gets
-            msg = JSON.parse(msg, symbolize_names: true) if msg != nil
-            # puts "here is msg#{}"
-            ret = process_recv_message(client, msg) if msg != nil
+            if msg != nil
+              msg = JSON.parse(msg, symbolize_names: true)
+              ret = process_recv_message(client, msg)
+            end
+
             break if ret == 100
           rescue => exception
             break if exception.class == Errno::ECONNRESET
@@ -1085,9 +1089,12 @@ class Communication
 
     begin
       timeout(5) do
-        while (1)
-          msg = JSON.parse(s.gets, symbolize_names: true)
-          ret = process_recv_message(s, msg)
+        while (true)
+          msg = s.gets
+          if msg != nil
+            msg = JSON.parse(msg, symbolize_names: true)
+            ret = process_recv_message(s, msg)
+          end
           if ret == "done"
             s.close()
             break
@@ -1096,6 +1103,8 @@ class Communication
       end
     rescue Timeout::Error
       puts "Timed out!"
+    rescue Errno::ECONNRESET
+      puts "reset"
     end
   end
 
