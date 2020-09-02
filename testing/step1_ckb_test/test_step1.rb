@@ -8,7 +8,7 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Making_payment_udt < Minitest::Test
+class Step1 < Minitest::Test
   def establish_step1(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"

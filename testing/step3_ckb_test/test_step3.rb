@@ -8,7 +8,7 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Making_payment_udt < Minitest::Test
+class Step3 < Minitest::Test
   def establish_step3(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
@@ -68,8 +68,8 @@ class Making_payment_udt < Minitest::Test
     establish_step3("test_step3_gpc_arg_modified.json")
   end
 
-  def test_invalid_signature()
-    establish_step3("test_step3_invalid_signature.json")
+  def test_signature_invalid()
+    establish_step3("test_step3_signature_invalid.json")
   end
 
   # def test_amount_negtive()

@@ -8,8 +8,8 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Step2 < Minitest::Test
-  def establish_step2(file_name)
+class Step4 < Minitest::Test
+  def establish_step4(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
@@ -30,6 +30,7 @@ class Step2 < Minitest::Test
       cells_spent_A = data_json[:A][:spent_cell] == nil ? nil : data_json[:A][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
 
       msg_2 = data_json[:B][:msg_2]
+      msg_4 = data_json[:B][:msg_4]
       ip_B = data_json[:B][:ip]
       listen_port_B = data_json[:B][:port]
       cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
@@ -48,7 +49,7 @@ class Step2 < Minitest::Test
       tests.spend_cell("B", cells_spent_B, "ckb")
 
       bot = Sender_bot.new(@private_key_B)
-      thread_listen = Thread.new { bot.listen(listen_port_B, [msg_2]) }
+      thread_listen = Thread.new { bot.listen(listen_port_B, [msg_2, msg_4]) }
       sleep(2)
 
       tests.send_establishment_request_A(funding_A, fee_A, since, "ckb")
@@ -64,27 +65,19 @@ class Step2 < Minitest::Test
     end
   end
 
-  def test_success()
-    establish_step2("test_step2_success.json")
+  # def test_success()
+  #   establish_step4("test_step4_success.json")
+  # end
+
+  # def test_data_modified()
+  #   establish_step4("test_step4_local_data_modified.json")
+  # end
+
+  def test_signature_invalid()
+    establish_step4("test_step4_signature_invalid.json")
   end
 
-  def test_gpc_output_modified()
-    establish_step2("test_step2_gpc_output_modified.json")
-  end
-
-  def test_gpc_output_data_modified()
-    establish_step2("test_step2_gpc_output_data_modified.json")
-  end
-
-  def test_change_output_modified()
-    establish_step2("test_step2_local_change_output_modified.json")
-  end
-
-  def test_change_output_data_modified()
-    establish_step2("test_step2_local_change_output_data_modified.json")
-  end
-
-  def test_capacity_inconsistent()
-    establish_step2("test_step2_capacity_inconsistent.json")
-  end
+  # def test_signature_inconsistent()
+  #   establish_step4("test_step4_signature_inconsistent.json")
+  # end
 end

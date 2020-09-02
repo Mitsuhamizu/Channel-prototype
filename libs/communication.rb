@@ -497,6 +497,7 @@ class Communication
         record_result({ "sender_step2_error_gpc_modified": true })
         return false
       end
+
       #-------------------------------------------------
       # I think is is unnecessary to do in a prototype...
       # just verify the other part (version, deps, )
@@ -581,7 +582,7 @@ class Communication
       remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
       if !remote_ctx_result || !remote_stx_result
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
-        record_result({ "receiver_step3_error_invalid_signature": true })
+        record_result({ "receiver_step3_error_signature_invalid": true })
         return false
       end
 
@@ -629,9 +630,18 @@ class Communication
       local_ctx_result = verify_info_sig(remote_ctx_info, "closing", local_pubkey, sig_index)
       local_stx_result = verify_info_sig(remote_stx_info, "settlement", local_pubkey, sig_index)
 
-      if !local_ctx_result || !local_stx_result ||
-         local_ctx_sig != remote_ctx_sig ||
+      puts local_ctx_sig
+      # make sure my signatures are consistent.
+      if local_ctx_sig != remote_ctx_sig ||
          local_stx_sig != remote_stx_sig
+        client.puts(generate_text_msg(msg[:id], "Signature inconsistent."))
+        record_result({ "sender_step4_error_signature_inconsistent": true })
+        return false
+      end
+
+      # verify signature to make sure the data is not modified
+      if !local_ctx_result || !local_stx_result
+        record_result({ "sender_step4_error_local_data_modified": true })
         client.puts(generate_text_msg(msg[:id], "The data is modified."))
         return false
       end
@@ -641,6 +651,7 @@ class Communication
       remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
+        record_result({ "sender_step4_error_invalid_signature": true })
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
       end
