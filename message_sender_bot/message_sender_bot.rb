@@ -74,13 +74,12 @@ class Sender_bot
         while (true)
           msg = s.gets
           if msg != nil
-            msg = JSON.parse(s.gets, symbolize_names: true)
+            msg = JSON.parse(msg, symbolize_names: true)
             if msg[:type] + 1 == msg_array[msg_counter][:type]
-              client.puts(msg_array[msg_counter].to_json)
+              s.puts(msg_array[msg_counter].to_json)
               msg_counter += 1
             end
             if msg_counter >= msg_array.length()
-              puts "I close the session."
               s.close()
               break
             end

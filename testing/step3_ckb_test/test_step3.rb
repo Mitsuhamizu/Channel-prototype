@@ -9,7 +9,7 @@ require "bigdecimal"
 Mongo::Logger.logger.level = Logger::FATAL
 
 class Making_payment_udt < Minitest::Test
-  def establish_step1(file_name)
+  def establish_step3(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
@@ -22,13 +22,14 @@ class Making_payment_udt < Minitest::Test
       data_json = JSON.parse(data_raw, symbolize_names: true)
 
       msg_1 = data_json[:A][:msg_1]
-      remote_ip = data_json[:A][:remote_ip]
-      remote_port = data_json[:A][:remote_port]
+      msg_3 = data_json[:A][:msg_3]
       cells_spent_A = data_json[:A][:spent_cell] == nil ? nil : data_json[:A][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
 
       funding_B = data_json[:B][:amount]
       fee_B = data_json[:B][:fee]
       cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
+      ip_B = data_json[:B][:ip]
+      listen_port_B = data_json[:B][:port]
 
       expect = data_json[:expect_info]
 
@@ -44,10 +45,9 @@ class Making_payment_udt < Minitest::Test
       # spend cells.
       tests.spend_cell("A", cells_spent_A, "ckb")
       tests.spend_cell("B", cells_spent_B, "ckb")
-
       # Since we test step 1, we needs to act as A.
-      sender = Sender_bot.new(@private_key_A)
-      sender.send_msg(remote_ip, remote_port, msg_1.to_json)
+      bot = Sender_bot.new(@private_key_A)
+      bot.send_msg(ip_B, listen_port_B, [msg_1, msg_3])
       sleep(2)
       if expect != nil
         result_json = tests.load_json_file(@path_to_file + "result.json").to_json
@@ -60,9 +60,17 @@ class Making_payment_udt < Minitest::Test
     end
   end
 
-  # def test_success()
-  #   establish_step1("test_step1_success.json")
-  # end
+  def test_success()
+    establish_step3("test_step3_success.json")
+  end
+
+  def test_gpc_arg_modified()
+    establish_step3("test_step3_gpc_arg_modified.json")
+  end
+
+  def test_invalid_signature()
+    establish_step3("test_step3_invalid_signature.json")
+  end
 
   # def test_amount_negtive()
   #   establish_step1("test_step1_amount_negtive.json")
@@ -84,7 +92,7 @@ class Making_payment_udt < Minitest::Test
   #   establish_step1("test_step1_cell_dead.json")
   # end
 
-  def test_capacity_inconsistent()
-    establish_step1("test_step1_capacity_inconsistent.json")
-  end
+  # def test_capacity_inconsistent()
+  #   establish_step1("test_step1_capacity_inconsistent.json")
+  # end
 end

@@ -367,7 +367,6 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-
       local_type_script_hash == "" ?
         record_result({ receiver_status: 3, receiver_investment_total: get_total_capacity(local_cells) - change_capacity }) :
         record_result({ receiver_status: 3, receiver_investment_ckb: get_total_capacity(local_cells) - change_capacity,
@@ -375,7 +374,6 @@ class Communication
 
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
-
       # parse the msg.
       fund_tx = CKB::Types::Transaction.from_h(msg[:fund_tx])
       remote_amount = msg[:amount]
@@ -550,32 +548,20 @@ class Communication
                                                                         stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: local_updated_id } })
       return true
     when 3
-
       # load many info...
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-
       remote_ctx_info = json_to_info(msg[:ctx_info])
       remote_stx_info = json_to_info(msg[:stx_info])
-
-      # veirfy the remote signature is right.
-      # sig_index is the the signature index. 0 or 1.
-      # So I just load my local sig_index, 1-sig_index is the remote sig_index.
-      remote_ctx_result = verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
-      remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
-
-      if !remote_ctx_result || !remote_stx_result
-        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
-        return false
-      end
 
       # check the ctx_info and stx_info args are right.
       # just generate it by myself and compare.
       witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, 1)
       witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, 1)
+
       output = Marshal.load(Marshal.dump(fund_tx.outputs[0]))
       local_ctx_info = @tx_generator.generate_closing_info(msg[:id], output, fund_tx.outputs_data[0], witness_closing, sig_index)
       local_stx_info = @tx_generator.sign_settlement_info(msg[:id], local_stx_info, witness_settlement, sig_index)
@@ -584,6 +570,18 @@ class Communication
 
       if !verify_info_args(local_ctx_info, remote_ctx_info) || !verify_info_args(local_stx_info, remote_stx_info)
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        record_result({ "receiver_step3_error_gpc_args_modified": true })
+        return false
+      end
+
+      # veirfy the remote signature is right.
+      # sig_index is the the signature index. 0 or 1.
+      # So I just load my local sig_index, 1-sig_index is the remote sig_index.
+      remote_ctx_result = verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+      remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+      if !remote_ctx_result || !remote_stx_result
+        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
+        record_result({ "receiver_step3_error_invalid_signature": true })
         return false
       end
 
