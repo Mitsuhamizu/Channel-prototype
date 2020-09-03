@@ -14,9 +14,7 @@ class Step4 < Minitest::Test
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
       @path_to_file = __dir__ + "/../miscellaneous/files/"
-      @path_to_logger = __dir__ + "/../miscellaneous/logger/"
-      # @logger = Logger.new(@path_to_file + "gpc.log")
-      # @logger = Logger.new(@path_to_logger + "gpc.log")
+      @logger = Logger.new(@path_to_file + "gpc.log")
       @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
       @db = @client.database
       @db.drop()
@@ -35,7 +33,7 @@ class Step4 < Minitest::Test
       listen_port_B = data_json[:B][:port]
       cells_spent_B = data_json[:B][:spent_cell] == nil ? nil : data_json[:B][:spent_cell].map { |cell| CKB::Types::OutPoint.from_h(cell) }
 
-      expect = data_json[:expect_info]
+      expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
 
       tests = Gpctest.new("test")
       tests.setup()
@@ -55,8 +53,10 @@ class Step4 < Minitest::Test
       tests.send_establishment_request_A(funding_A, fee_A, since, "ckb")
 
       if expect != nil
-        result_json = tests.load_json_file(@path_to_file + "result.json").to_json
-        assert_match(expect[1..-2], result_json, "#{expect}")
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
       end
     rescue => exception
       puts exception

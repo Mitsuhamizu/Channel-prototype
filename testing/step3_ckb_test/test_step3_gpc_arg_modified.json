@@ -41,10 +41,10 @@
     },
     "B": {
         "amount": 10,
-        "fee": 1000,
+        "fee": 3000,
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"receiver_step3_error_gpc_args_modified\":true}",
+    "expect_info": "[{\"receiver_step3_error_gpc_args_modified\":true}]",
     "describe-line1": "A -> msg3 -> ctx_info -> args -> from 0xfaa37578980737deac6c168df23566690164000000000000800100000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7 to 0xfaa37578980737deac6c168df23566690163000000000000800100000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7"
 }

@@ -35,10 +35,10 @@
     },
     "B": {
         "amount": 10,
-        "fee": 1000,
+        "fee": 3000,
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"sender_step1_error_amount_negtive\":-10}",
+    "expect_info": "[{\"sender_step1_error_amount_negtive\":-10}]",
     "describe-line1": "A -> msg1 -> asset -> \"\" == -10"
 }

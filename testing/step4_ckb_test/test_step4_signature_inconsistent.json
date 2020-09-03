@@ -97,6 +97,6 @@
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"sender_step4_error_signature_inconsistent\":true}",
+    "expect_info": "[{\"sender_step4_error_signature_inconsistent\":true}]",
     "describe-line1": "A -> msg3 -> ctx_info -> witness -> end of signature_A from b282f85e37 to b282f85e36"
 }

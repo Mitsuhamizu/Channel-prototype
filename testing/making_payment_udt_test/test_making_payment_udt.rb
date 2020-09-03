@@ -25,7 +25,9 @@ class Making_payment_udt < Minitest::Test
     funding_amount_B = data_json[:funding_amount_B]
 
     closing_type = data_json[:closing_type]
-    expect = data_json[:expect_info]
+    
+    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
+
     payment_type = data_json[:payment_type]
     payments = data_json[:payments]
 
@@ -101,8 +103,10 @@ class Making_payment_udt < Minitest::Test
       end
 
       if expect != nil
-        result_json = tests.load_json_file(@path_to_file +"result.json").to_json
-        assert_match(expect[1..-2], result_json, "#{expect}")
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
       end
     rescue Exception => e
       raise e

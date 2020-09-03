@@ -97,6 +97,6 @@
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"sender_step4_error_invalid_signature\":true}",
+    "expect_info": "[{\"sender_step4_error_signature_invalid\":true}]",
     "describe-line1": "A -> msg3 -> ctx_info -> witness -> end signature_B -> from 301 to 302 "
 }

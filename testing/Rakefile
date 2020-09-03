@@ -16,5 +16,6 @@ Rake::TestTask.new do |task|
   # task.pattern = FileList["step1_ckb_test/test*.rb"]
   # task.pattern = FileList["step2_ckb_test/test*.rb"]
   # task.pattern = FileList["step3_ckb_test/test*.rb"]
-  task.pattern = FileList["step4_ckb_test/test*.rb"]
+  # task.pattern = FileList["step4_ckb_test/test*.rb"]
+  task.pattern = FileList["step5_ckb_test/test*.rb"]
 end

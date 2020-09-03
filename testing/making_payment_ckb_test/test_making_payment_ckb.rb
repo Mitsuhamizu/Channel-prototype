@@ -7,8 +7,8 @@ Mongo::Logger.logger.level = Logger::FATAL
 
 class Making_payment_ckb < Minitest::Test
   def make_payment(file_name)
-    @path_to_file= __dir__ + "/../miscellaneous/files/"
-@logger = Logger.new( @path_to_file+ "gpc.log")
+    @path_to_file = __dir__ + "/../miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
 
@@ -25,7 +25,7 @@ class Making_payment_ckb < Minitest::Test
     funding_amount_B = BigDecimal(data_json[:funding_amount_B]) / 10 ** 8
 
     closing_type = data_json[:closing_type]
-    expect = data_json[:expect_info]
+    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
     payment_type = data_json[:payment_type]
     payments = data_json[:payments]
 
@@ -59,11 +59,9 @@ class Making_payment_ckb < Minitest::Test
         success = payment[:success]
         if sender == "A" && receiver == "B" && payment_type == "ckb"
           tests.make_payment_ckb_A_B(channel_id, amount)
-          puts "A pays B happens."
           amount_A_B += amount if success
         elsif sender == "B" && receiver == "A" && payment_type == "ckb"
           tests.make_payment_ckb_B_A(channel_id, amount)
-          puts "B pays A happens."
           amount_B_A += amount if success
         elsif sender == "A" && receiver == "B" && payment_type == "udt"
           tests.make_payment_udt_B_A(channel_id, amount)
@@ -100,8 +98,10 @@ class Making_payment_ckb < Minitest::Test
       end
 
       if expect != nil
-        result_json = tests.load_json_file(@path_to_file +"result.json").to_json
-        assert_match(expect[1..-2], result_json, "#{expect}")
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
       end
     rescue Exception => e
       raise e

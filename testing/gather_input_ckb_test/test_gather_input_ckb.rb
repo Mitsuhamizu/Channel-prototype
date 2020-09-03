@@ -7,8 +7,8 @@ Mongo::Logger.logger.level = Logger::FATAL
 
 class Gather_input_ckb < Minitest::Test
   def gather_input(file_name)
-    @path_to_file= __dir__ + "/../miscellaneous/files/"
-@logger = Logger.new( @path_to_file+ "gpc.log")
+    @path_to_file = __dir__ + "/../miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     flag = "ckb"
@@ -32,11 +32,17 @@ class Gather_input_ckb < Minitest::Test
       investment_A = BigDecimal(funding_amount_A) / 10 ** 8
       investment_B = BigDecimal(funding_amount_B) / 10 ** 8
 
-      expect = data_json[:expect_info]
+      expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
       @monitor_A, @monitor_B = tests.check_investment_fee(investment_A, investment_B, funding_fee_A, funding_fee_B, expect, flag)
+      sleep(2)
+      tests.record_info_in_db()
 
-      result_json = tests.load_json_file(@path_to_file +"result.json").to_json
-      assert_match(expect[1..-2], result_json, "#{expect}")
+      if expect != nil
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
+      end
     rescue => exception
       raise exception
     ensure

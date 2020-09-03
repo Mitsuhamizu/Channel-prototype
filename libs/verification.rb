@@ -168,22 +168,26 @@ def verify_fund_tx_sig(tx, pubkey)
 end
 
 def verify_signature(data, sig, pubkey)
-  unrelated = MyECDSA.new
+  begin
+    unrelated = MyECDSA.new
 
-  signature_bin = CKB::Utils.hex_to_bin("0x" + sig[0..127])
-  recid = CKB::Utils.hex_to_bin("0x" + sig[128..129]).unpack("C*")[0]
+    signature_bin = CKB::Utils.hex_to_bin("0x" + sig[0..127])
+    recid = CKB::Utils.hex_to_bin("0x" + sig[128..129]).unpack("C*")[0]
 
-  sig_reverse = unrelated.ecdsa_recoverable_deserialize(signature_bin, recid)
-  pubkey_reverse = unrelated.ecdsa_recover(CKB::Utils.hex_to_bin(data), sig_reverse, raw: true)
-  pubser = Secp256k1::PublicKey.new(pubkey: pubkey_reverse).serialize
-  pubkey_reverse = CKB::Utils.bin_to_hex(pubser)
+    sig_reverse = unrelated.ecdsa_recoverable_deserialize(signature_bin, recid)
+    pubkey_reverse = unrelated.ecdsa_recover(CKB::Utils.hex_to_bin(data), sig_reverse, raw: true)
+    pubser = Secp256k1::PublicKey.new(pubkey: pubkey_reverse).serialize
+    pubkey_reverse = CKB::Utils.bin_to_hex(pubser)
 
-  pubkey_verify = CKB::Key.blake160(pubkey_reverse)
+    pubkey_verify = CKB::Key.blake160(pubkey_reverse)
 
-  pubkey_verify = pubkey_verify.sub("0x", "")
-  pubkey = pubkey.sub("0x", "")
+    pubkey_verify = pubkey_verify.sub("0x", "")
+    pubkey = pubkey.sub("0x", "")
 
-  return pubkey_verify == pubkey ? true : false
+    return pubkey_verify == pubkey ? true : false
+  rescue Exception => e
+    return false
+  end
 end
 
 def verify_change(tx, input_cells, input_capacity, fee, pubkey)

@@ -22,5 +22,5 @@
             "success": true
         }
     },
-    "expect_info": "{\"sender_make_payments_error_negtive\":-100000000}"
+    "expect_info": "[{\"sender_make_payments_error_negtive\":-100000000}]"
 }

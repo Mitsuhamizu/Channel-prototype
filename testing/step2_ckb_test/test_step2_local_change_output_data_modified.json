@@ -91,7 +91,7 @@
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"sender_step2_error_local_change_modified\":true}",
+    "expect_info": "[{\"sender_step2_error_local_change_modified\":true}]",
     "describe-line1": "B modifies A's change.",
     "describe-line2": "You can look at the B -> msg2 -> fund_tx -> output_data[1]",
     "describe-line3": "I change it from 0x to 0x1"

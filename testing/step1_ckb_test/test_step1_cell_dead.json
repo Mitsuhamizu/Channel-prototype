@@ -41,11 +41,11 @@
     },
     "B": {
         "amount": 10,
-        "fee": 1000,
+        "fee": 3000,
         "ip": "127.0.0.1",
         "port": 2000
     },
-    "expect_info": "{\"receiver_step1_error_cell_dead\":true}",
+    "expect_info": "[{\"receiver_step1_error_cell_dead\":true}]",
     "describe-line1": "A's input is dead",
     "describe-line2": "You can look at the A -> spent_cell"
 }

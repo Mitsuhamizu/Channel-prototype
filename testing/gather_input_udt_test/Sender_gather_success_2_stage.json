@@ -4,6 +4,6 @@
     "container_min": 26800000000,
     "funding_amount_A": 20,
     "funding_amount_B": 100,
-    "expect_info": "{\"sender_status\":2,\"sender_investment_ckb\":13400002000,\"sender_investment_funding\":20}",
+    "expect_info": "[{\"sender_status\":6}]",
     "describe-line1": "UDT::Sender::"
 }

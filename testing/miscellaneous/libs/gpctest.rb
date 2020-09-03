@@ -70,6 +70,41 @@ class Gpctest < Minitest::Test
     @logger = Logger.new(@path_to_file + "gpc.log")
   end
 
+  def record_result(result)
+    data_hash = {}
+    if File.file?(@path_to_file + "result.json")
+      data_raw = File.read(@path_to_file + "result.json")
+      data_hash = JSON.parse(data_raw, symbolize_names: true)
+    end
+    data_hash = data_hash.merge(result)
+    data_json = data_hash.to_json
+    file = File.new(@path_to_file + "result.json", "w")
+    file.syswrite(data_json)
+  end
+
+  def load_id()
+    data_hash = {}
+    if File.file?(@path_to_file + "result.json")
+      data_raw = File.read(@path_to_file + "result.json")
+      data_hash = JSON.parse(data_raw, symbolize_names: true)
+    end
+    return data_hash[:id]
+  end
+
+  def record_info_in_db()
+    id = load_id()
+    record_A = @coll_session_A.find({ id: id })
+    record_B = @coll_session_B.find({ id: id })
+
+    if record_A.first != nil
+      record_result({ sender_status: record_A.first[:status] })
+    end
+
+    if record_B.first != nil
+      record_result({ receiver_status: record_B.first[:status] })
+    end
+  end
+
   def generate_blocks(rpc, num, interval = 0)
     for i in 0..num
       rpc.generate_block
@@ -235,7 +270,7 @@ class Gpctest < Minitest::Test
     end
 
     system("rm #{@path_to_file}result.json")
-    system("rm #{@path_to_file}gpc.log")
+    # system("rm #{@path_to_file}gpc.log")
     # record these info to json. So the gpc client can read them.
     script_info = { gpc_code_hash: gpc_code_hash, gpc_tx_hash: gpc_tx_hash,
                     udt_code_hash: udt_code_hash, udt_tx_hash: udt_tx_hash,
@@ -511,7 +546,7 @@ class Gpctest < Minitest::Test
 
       create_commands_file(commands)
       send_establishment_request_A(funding_A, fee_A_fund, since, "ckb")
-      
+
       # make the tx on chain.
       generate_blocks(@rpc, 5, 0.5)
 

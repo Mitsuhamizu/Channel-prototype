@@ -4,7 +4,7 @@
     "container_min": 26800000000,
     "funding_amount_A": 100,
     "funding_amount_B": 200,
-    "expect_info": "{\"receiver_status\":3,\"receiver_investment_ckb\":13400003000,\"receiver_investment_funding\":200}",
+    "expect_info": "[{\"receiver_status\":6}]",
     "describe-line1": "UDT::Receiver::",
     "describe-line2": "funding_amount_B = total_capacity."
 }

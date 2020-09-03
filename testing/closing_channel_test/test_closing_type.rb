@@ -7,8 +7,8 @@ Mongo::Logger.logger.level = Logger::FATAL
 
 class Closing < Minitest::Test
   def closing(file_name)
-    @path_to_file= __dir__ + "/../miscellaneous/files/"
-@logger = Logger.new( @path_to_file+ "gpc.log")
+    @path_to_file = __dir__ + "/../miscellaneous/files/"
+    @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
 
@@ -27,7 +27,7 @@ class Closing < Minitest::Test
     funding_amount_B = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
 
     closing_type = data_json[:closing_type]
-    expect = data_json[:expect_info]
+    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil if data_json[:expect_info] != nil
     payment_type = data_json[:payment_type]
     payments = data_json[:payments]
 
@@ -80,8 +80,10 @@ class Closing < Minitest::Test
       end
 
       if expect != nil
-        result_json = tests.load_json_file(@path_to_file +"result.json").to_json
-        assert_match(expect[1..-2], result_json, "#{expect}")
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
       end
     rescue Exception => e
       raise e

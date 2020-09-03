@@ -31,7 +31,7 @@ class Step3 < Minitest::Test
       ip_B = data_json[:B][:ip]
       listen_port_B = data_json[:B][:port]
 
-      expect = data_json[:expect_info]
+      expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
 
       tests = Gpctest.new("test")
       tests.setup()
@@ -50,8 +50,10 @@ class Step3 < Minitest::Test
       bot.send_msg(ip_B, listen_port_B, [msg_1, msg_3])
       sleep(2)
       if expect != nil
-        result_json = tests.load_json_file(@path_to_file + "result.json").to_json
-        assert_match(expect[1..-2], result_json, "#{expect}")
+        for expect_iter in expect
+          result_json = tests.load_json_file(@path_to_file + "result.json").to_json
+          assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
+        end
       end
     rescue => exception
       puts exception

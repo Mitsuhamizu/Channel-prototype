@@ -199,7 +199,8 @@ def check_cells(cells, amount_required, fee_required, change, stx_info, type_scr
     return "error_cell_dead", true if !amount_gathered || !capacity_gathered
     # amount right
     refund_amount = decoder.call(stx_info[:outputs_data][0]) + decoder.call(change[:output_data])
-    return "error_amount_claimed_inconsistent", amount_gathered - amount_required if amount_gathered != amount_required
+
+    return "error_amount_claimed_inconsistent", amount_gathered - amount_required if amount_gathered != amount_required + decoder.call(change[:output_data])
     return "error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
 
     # capacity right

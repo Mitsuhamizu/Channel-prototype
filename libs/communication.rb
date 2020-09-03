@@ -174,6 +174,7 @@ class Communication
     file.syswrite(data_json)
 
     # if there is no record and the msg is not the first step.
+
     if view.count_documents() == 0 && type != 1
       msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database!")
       client.puts (msg_reply)
@@ -182,7 +183,7 @@ class Communication
     elsif view.count_documents() == 1 && (![-2, -1, 0].include? type)
       view.each do |doc|
         if doc["status"] != type
-          msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database!")
+          msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database! I expect #{doc["status"]}")
           client.puts (msg_reply)
           return false
         end
@@ -216,7 +217,7 @@ class Communication
       puts msg[:text]
       return true
     when 1
-
+      @logger.info("#{@key.pubkey} receive msg 1.")
       # parse the msg
       remote_pubkey = msg[:pubkey]
       remote_cells = msg[:cells].map { |cell| CKB::Types::Input.from_h(cell) }
@@ -367,13 +368,12 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      local_type_script_hash == "" ?
-        record_result({ receiver_status: 3, receiver_investment_total: get_total_capacity(local_cells) - change_capacity }) :
-        record_result({ receiver_status: 3, receiver_investment_ckb: get_total_capacity(local_cells) - change_capacity,
-                        receiver_investment_funding: get_total_amount(local_cells, local_type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
-
+      record_result({ "id": channel_id })
+      @logger.info("#{@key.pubkey} finish check msg 1 and send msg 2, the hash of fund tx is #{fund_tx.hash}")
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
+      @logger.info("#{@key.pubkey} receive msg 2.")
+
       # parse the msg.
       fund_tx = CKB::Types::Transaction.from_h(msg[:fund_tx])
       remote_amount = msg[:amount]
@@ -473,6 +473,7 @@ class Communication
       # check the cells remote party providing is right.
       remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, type_script_hash, remote_type[:decoder])
 
+      puts remote_amount
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
         record_result({ "sender_step2_" + remote_cell_check_result => remote_cell_check_value })
@@ -497,7 +498,6 @@ class Communication
         record_result({ "sender_step2_error_gpc_modified": true })
         return false
       end
-
       #-------------------------------------------------
       # I think is is unnecessary to do in a prototype...
       # just verify the other part (version, deps, )
@@ -531,7 +531,6 @@ class Communication
       witness_settlement = @tx_generator.generate_empty_witness(local_updated_id, 0, 1)
       # merge the stx_info.
       stx_info = merge_stx_info(local_stx_info, remote_stx_info)
-
       # generate and sign ctx and stx.
       ctx_info = @tx_generator.generate_closing_info(local_updated_id, gpc_output, gpc_output_data, witness_closing, sig_index)
       stx_info = @tx_generator.sign_settlement_info(local_updated_id, stx_info, witness_settlement, sig_index)
@@ -549,6 +548,7 @@ class Communication
                                                                         stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: local_updated_id } })
       return true
     when 3
+      @logger.info("#{@key.pubkey} receive msg 3.")
       # load many info...
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
       local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
@@ -604,6 +604,7 @@ class Communication
 
       return true
     when 4
+      @logger.info("#{@key.pubkey} receive msg 4.")
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       local_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:local_pubkey]
       local_inputs = @coll_sessions.find({ id: msg[:id] }).first[:local_cells]
@@ -665,13 +666,13 @@ class Communication
 
       msg_reply = { id: msg[:id], type: 5, fund_tx: fund_tx }.to_json
       client.puts(msg_reply)
-
       # update the database
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: msg[:ctx_info], stx_info: msg[:stx_info],
                                                                         status: 6, msg_cache: msg_reply } })
-      client.close
+      client.close()
       return "done"
     when 5
+      @logger.info("#{@key.pubkey} receive msg 5.")
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       local_inputs = @coll_sessions.find({ id: msg[:id] }).first[:local_cells]
       local_inputs = local_inputs.map { |cell| CKB::Types::Input.from_h(cell) }
@@ -684,6 +685,7 @@ class Communication
       # check signature.
       fund_tx_check_result = verify_fund_tx_sig(fund_tx_remote, remote_pubkey)
       if !fund_tx_check_result
+        record_result({ "receiver_step5_error_signature_invalid": true })
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
       end
@@ -692,6 +694,7 @@ class Communication
       fund_tx_remote_hash = fund_tx_remote.compute_hash
 
       if fund_tx_local_hash != fund_tx_remote_hash
+        record_result({ "receiver_step5_error_fund_tx_modified": true })
         client.puts(generate_text_msg(msg[:id], "fund tx is not consistent."))
         return false
       end
@@ -705,7 +708,9 @@ class Communication
         @api.send_transaction(fund_tx)
       end
       # update the database
+
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
+
       return "done"
     when 6
       id = msg[:id]
@@ -1091,10 +1096,10 @@ class Communication
             stx_pend: 0, ctx_pend: 0, type_hash: type_script_hash }
     return false if !insert_with_check(@coll_sessions, doc)
 
-    type_script_hash == "" ?
-      record_result({ sender_status: 2, sender_investment_total: get_total_capacity(local_cells) - change_capacity }) :
-      record_result({ sender_status: 2, sender_investment_ckb: get_total_capacity(local_cells) - change_capacity,
-                      sender_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
+    # type_script_hash == "" ?
+    #   record_result({ sender_status: 2, sender_investment_total: get_total_capacity(local_cells) - change_capacity }) :
+    #   record_result({ sender_status: 2, sender_investment_ckb: get_total_capacity(local_cells) - change_capacity,
+    #                   sender_investment_funding: get_total_amount(local_cells, type_script_hash, local_type[:decoder]) - local_type[:decoder].call(local_change[:output_data]) })
 
     begin
       timeout(5) do
