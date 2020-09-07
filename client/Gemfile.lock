@@ -1,11 +1,11 @@
 GIT
-  remote: git://github.com/nervosnetwork/ckb-sdk-ruby.git
-  revision: 09a616e84d0004957ba5b4a7017752284cdd46f3
+  remote: https://github.com/nervosnetwork/ckb-sdk-ruby.git
+  revision: 6defddc4e88cd523597668ac6f4a492fe84a6402
   specs:
-    ckb-sdk-ruby (0.32.0)
+    ckb-sdk-ruby (0.35.0)
       bitcoin-secp256k1 (~> 0.5.2)
-      net-http-persistent (~> 3.0.0)
-      rbnacl (~> 6.0, >= 6.0.1)
+      net-http-persistent (~> 3.1.0)
+      rbnacl (~> 7.1.1)
 
 GEM
   specs:
@@ -16,9 +16,9 @@ GEM
     ffi (1.12.2)
     mongo (2.12.1)
       bson (>= 4.8.2, < 5.0.0)
-    net-http-persistent (3.0.1)
+    net-http-persistent (3.1.0)
       connection_pool (~> 2.2)
-    rbnacl (6.0.1)
+    rbnacl (7.1.1)
       ffi
     thor (1.0.1)
 
@@ -31,4 +31,4 @@ DEPENDENCIES
   thor
 
 BUNDLED WITH
-   2.0.1
+   2.1.4

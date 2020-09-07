@@ -9,7 +9,8 @@
     "closing_type": "bilateral",
     "payment_type": "ckb",
     "payments": {
-        "payment1": {
+        "": {
+            "name": "payment1",
             "sender": "A",
             "receiver": "B",
             "amount": 10,

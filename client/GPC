@@ -39,26 +39,27 @@ class GPCCLI < Thor
 
   # --------------establishment
   desc "send_establishment_request --pubkey <public key> --ip <ip> \
-        --port <port> --amount <amount> --fee <fee in shannon> --since <since> \
-        --type_script_hash <type_script_hash>",
+        --port <port> --fee <fee in shannon> --since <since> \
+        --funding <fundings>",
        "Send the chanenl establishment request."
   option :pubkey, :required => true
   option :ip, :required => true
   option :port, :required => true
-  option :amount, :required => true
   option :fee, :required => true
   option :since, :required => true
-  option :type_script_hash
+  option :funding, :required => true, :type => :hash
 
   def send_establishment_request()
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
-    amount = options[:type_script_hash] == nil ? CKB::Utils.byte_to_shannon(BigDecimal(options[:amount])) : BigDecimal(options[:amount])
-    amount = amount.to_i
+    fundings = options[:funding]
+    for asset_type in fundings.keys()
+      fundings[asset_type] = asset_type == "ckb" ? CKB::Utils.byte_to_shannon(BigDecimal(fundings[asset_type])) : BigDecimal(fundings[asset_type])
+      fundings[asset_type] = fundings[asset_type].to_i
+    end
 
-    type_script_hash = options[:type_script_hash] == nil ? "" : options[:type_script_hash]
-    communicator.send_establish_channel(options[:ip], options[:port], amount,
-                                        options[:fee].to_i, options[:since], type_script_hash)
+    communicator.send_establish_channel(options[:ip], options[:port], fundings, options[:fee].to_i,
+                                        options[:since])
   end
 
   # --------------make payments
@@ -122,6 +123,14 @@ class GPCCLI < Thor
     communicator = Communication.new(private_key)
     communicator.send_closing_request(options[:ip], options[:port], options[:id], options[:fee].to_i) if options[:fee]
     communicator.send_closing_request(options[:ip], options[:port], options[:id]) if !options[:fee]
+  end
+
+  desc "testhaha --test <hash>", "For test."
+
+  option :test, :required => true, :type => :hash
+
+  def testhaha()
+    puts options[:test]
   end
 end
 

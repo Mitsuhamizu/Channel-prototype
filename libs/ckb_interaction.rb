@@ -1,3 +1,5 @@
+require_relative "type_script_info.rb"
+
 def insert_with_check(coll, doc)
   view = coll.find({ id: doc[:id] })
   if view.count_documents() != 0
@@ -102,45 +104,42 @@ def get_minimal_capacity(lock, type, output_data)
   return output.calculate_min_capacity(output_data)
 end
 
-def gather_inputs(amount, fee, lock_hashes, change_lock_script, refund_lock_script, local_type, coll_cells, from_block_number = 0)
-  # If type_script == nil, it means the asset is ckbyte.
-  type_script_hash = local_type[:type_script] == nil ? "" : local_type[:type_script].compute_hash
-
-  # gather fund inputs.
-  fund_inputs = gather_fund_input(lock_hashes, amount, type_script_hash, local_type[:decoder], coll_cells, from_block_number)
-  return fund_inputs if fund_inputs.is_a? Numeric
-
-  fund_inputs_capacity = get_total_capacity(fund_inputs)
-
-  # generate an output_data
-  # I need it to calculate the minimal capacity of change output and refund output.
-  output_data = local_type[:encoder] == nil ? "0x" : local_type[:encoder].call(0)
-
+def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_script, refund_lock_script, coll_cells, from_block_number = 0)
+  input_cells = []
   change_minimal_capacity = 0
   refund_minimal_capacity = 0
+  for asset_type_hash in funding_type_script_version.keys()
+    current_type = find_type(asset_type_hash)
 
+    # gather fund inputs.
+    fund_inputs = gather_fund_input(lock_hashes, funding_type_script_version[asset_type_hash], asset_type_hash, current_type[:decoder], coll_cells, from_block_number)
+    return fund_inputs if fund_inputs.is_a? Numeric
+    input_cells += fund_inputs
+    output_data = current_type[:encoder] == nil ? "0x" : current_type[:encoder].call(0)
+    current_change_minimal_capacity = get_minimal_capacity(change_lock_script, current_type[:type_script], output_data)
+    current_refund_minimal_capacity = get_minimal_capacity(refund_lock_script, current_type[:type_script], output_data)
+    change_minimal_capacity = [change_minimal_capacity, current_change_minimal_capacity].max
+    refund_minimal_capacity = [refund_minimal_capacity, current_refund_minimal_capacity].max
+  end
+
+  fund_inputs_capacity = get_total_capacity(input_cells)
+
+  @logger.info("gather_input: refund_minimal_capacity: #{refund_minimal_capacity}, change_minimal_capacity: #{change_minimal_capacity}")
   # change capacity
-  change_minimal_capacity = get_minimal_capacity(change_lock_script, local_type[:type_script], output_data)
-
-  # refund capacity
-  refund_minimal_capacity = get_minimal_capacity(refund_lock_script, local_type[:type_script], output_data)
-
-  required_capacity = type_script_hash == "" ?
-    refund_minimal_capacity + change_minimal_capacity + fee + amount :
-    refund_minimal_capacity + change_minimal_capacity + fee
-
+  required_capacity = funding_type_script_version.length() == 1 ?
+    refund_minimal_capacity + change_minimal_capacity + fee :
+    refund_minimal_capacity + change_minimal_capacity + fee + funding_type_script_version.values()[0]
   # check whether the fund cells' capacity is enought.
   # If yes, it is unnecessary to gather fee cells.
 
   diff_capacity = required_capacity - fund_inputs_capacity
-  puts "here is the diff: #{diff_capacity}"
-  return fund_inputs if diff_capacity <= 0
+  return input_cells if diff_capacity <= 0
 
   # gather fee cells.
   fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, coll_cells, from_block_number)
   return fee_inputs if fee_inputs.is_a? Numeric
-
-  return fund_inputs + fee_inputs
+  input_cells += fee_inputs
+  return input_cells
 end
 
 def get_total_capacity(cells)
@@ -180,17 +179,26 @@ def get_total_amount(cells, type_script_hash, decoder)
   return amount_gathered
 end
 
-def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
-  amount_gathered = get_total_amount(cells, type_script_hash, decoder)
+# def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
+def check_cells(cells, remote_asset, fee_required, remote_change, remote_stx_info)
+  type_script_hash = remote_asset.values[0]
+  type = find_type(type_script_hash)
 
+  amount_gathered = get_total_amount(cells, type_script_hash, type[:decoder])
+  # if it is ckb
+
+  # if it is udt
+
+  # check the ckbyte is enough to support this output.
   change_actual = change[:output].capacity
   change_min = change[:output].calculate_min_capacity(change[:output_data])
   stx_actual = stx_info[:outputs][0].capacity
   stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
 
-  # check the ckbyte is enough to support this output.
   return "error_change_container_insufficient", change_actual - change_min if change_actual < change_min
   return "error_settle_container_insufficient", stx_actual - stx_min if stx_actual < stx_min
+
+    
 
   if type_script_hash != ""
     capacity_gathered = get_total_capacity(cells)

@@ -301,15 +301,20 @@ class Tx_generator
     return result
   end
 
-  def generate_empty_settlement_info(amount, lock, type, encoder)
+  # def generate_empty_settlement_info(amount, lock, type, encoder)
+  # I assume the first funding is the max
+  def generate_empty_settlement_info(funding_type_script_version, refund_lock_script)
+    type = find_type(funding_type_script_version.keys[0])
+    type_script = type[:type_script]
     output = CKB::Types::Output.new(
       capacity: 0,
-      lock: lock,
-      type: type,
+      lock: refund_lock_script,
+      type: type_script,
     )
-    output_data = type == nil ? "0x" : encoder.call(amount)
+
+    output_data = type_script == nil ? "0x" : type[:encoder].call(funding_type_script_version.values[0])
     output.capacity = output.calculate_min_capacity(output_data)
-    output.capacity += amount if type == nil
+    output.capacity += funding_type_script_version.values[0] if type_script == nil
     witness = CKB::Types::Witness.new
     outputs = [output]
     outputs_data = [output_data]
@@ -439,18 +444,20 @@ class Tx_generator
     return CKB::Utils.bin_to_hex([data].pack("Q<"))
   end
 
-  def construct_change_output(input_cells, amount, fee, refund_capacity, change_lock_script, type_script = nil, encoder = nil, decoder = nil)
+  def construct_change_output(input_cells, funding_type_script_version, fee, refund_capacity, change_lock_script)
+    type = find_type(funding_type_script_version.keys[0])
+    type_script = type[:type_script]
     total_capacity = get_total_capacity(input_cells)
 
+    # calculate output_data
     if type_script == nil
-      change_capacity = total_capacity - fee - refund_capacity
       output_data = "0x"
     else
-      total_amount = get_total_amount(input_cells, type_script.compute_hash, decoder)
-      refund_amount = total_amount - amount
-      change_capacity = total_capacity - fee - refund_capacity
-      output_data = encoder.call(refund_amount)
+      total_amount = get_total_amount(input_cells, type_script.compute_hash, type[:decoder])
+      output_data = type[:encoder].call(total_amount - funding_type_script_version.values[0])
     end
+
+    change_capacity = total_capacity - fee - refund_capacity
 
     # construct asset change output.
     change_output = CKB::Types::Output.new(

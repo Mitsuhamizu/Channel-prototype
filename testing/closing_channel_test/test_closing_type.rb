@@ -99,4 +99,5 @@ class Closing < Minitest::Test
   def test_bilateral()
     closing("closing_bilateral.json")
   end
+
 end
