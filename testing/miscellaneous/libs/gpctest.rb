@@ -503,11 +503,11 @@ class Gpctest < Minitest::Test
       # make the tx on chain.
       generate_blocks(@rpc, 10, 0.5)
 
-      udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
-      ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
+      udt_A_begin, udt_B_begin = get_account_balance_udt()
+      ckb_A_begin, ckb_B_begin = get_account_balance_ckb()
 
-      ckb_A_after_funding, ckb_B_after_funding = tests.get_account_balance_ckb()
-      udt_A_after_funding, udt_B_after_funding = tests.get_account_balance_udt()
+      ckb_A_after_funding, ckb_B_after_funding = get_account_balance_ckb()
+      udt_A_after_funding, udt_B_after_funding = get_account_balance_udt()
 
       @logger.info("gpctest.rb: A'udt after funding in udt channel: #{udt_A_after_funding}")
       @logger.info("gpctest.rb: B'udt after funding in udt channel: #{udt_B_after_funding}")

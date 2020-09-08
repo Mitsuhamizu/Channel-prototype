@@ -39,6 +39,20 @@ class Communication
     return { type: 0, id: id, text: text }.to_json
   end
 
+  def convert_text_to_hash(funding)
+    udt_type_script_hash = load_type()
+    funding_type_script_version = {}
+    for key in funding.keys()
+      if key == :ckb
+        type_script = ""
+      elsif key == :udt
+        type_script = udt_type_script_hash
+      end
+      funding_type_script_version[type_script] = funding[key]
+    end
+    return funding_type_script_version
+  end
+
   # These two functions are used to parse and construct ctx_info and stx_info.
   # Info structure. outputs:[], outputs_data:[], witnesses:[].
   def info_to_json(info)
@@ -208,23 +222,32 @@ class Communication
       refund_lock_script = @lock
       change_lock_script = refund_lock_script
 
+      @logger.info("#{@key.pubkey} check msg_1: msg parse finished.")
+
+      remote_asset = remote_asset.map() { |key, value| [key.to_s, value] }.to_h
+
       remote_investment = ""
       for asset_type in remote_asset.keys()
         remote_investment += "#{asset_type}: #{remote_asset[asset_type]} "
       end
 
+      @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input begin.")
+
       for amount in remote_asset.values()
-        record_result({ "sender_step1_error_amount_negtive": amount }) if amount < 0
-        return false
+        if amount < 0
+          record_result({ "sender_step1_error_amount_negtive": amount })
+          return false
+        end
       end
 
       record_result({ "sender_step1_error_fee_negtive": remote_fee_fund }) if remote_fee_fund < 0
       return false if remote_fee_fund < 0
 
+      @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input finished.")
+
       remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
 
       # check remote cells.
-
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
         record_result({ "receiver_step1_" + remote_cell_check_result => remote_cell_check_value })
@@ -232,12 +255,13 @@ class Communication
       end
 
       # Ask whether willing to accept the request, the capacity is same as negotiations.
-      amount_print = local_type_script_hash == "" ? remote_amount / (10 ** 8) : remote_amount
       puts "#{remote_pubkey} wants to establish channel with you #{remote_investment}"
       puts "The fund fee is #{remote_fee_fund}."
       puts "Tell me whether you are willing to accept this request."
 
       commands = load_command()
+
+      @logger.info("#{@key.pubkey} check msg_1: finished.")
 
       # read data from json file.
 
@@ -260,21 +284,38 @@ class Communication
       # Get the capacity and fee. These code need to be more robust.
       while true
         puts "Please input the amount and fee you want to use for funding"
-        local_amount = BigDecimal(commands[:recv_fund])
+        local_funding = commands[:recv_fund]
+
+        for asset_type in local_funding.keys()
+          local_funding[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(local_funding[asset_type])) : BigDecimal(local_funding[asset_type])
+          local_funding[asset_type] = local_funding[asset_type].to_i
+        end
         local_fee_fund = commands[:recv_fund_fee].to_i
-        # CKB to shannon.
-        local_amount = local_type_script_hash == "" ? local_amount * 10 ** 8 : local_amount
-        local_amount = local_amount.to_i
         break
       end
+      local_asset = convert_text_to_hash(local_funding)
 
-      record_result({ "receiver_gather_funding_error_negtive": local_amount }) if local_amount < 0
-      record_result({ "receiver_gather_fee_error_negtive": local_fee_fund }) if local_fee_fund < 0
-      return false if local_amount < 0 || local_fee_fund < 0
+      @logger.info("#{@key.pubkey} send msg_2: input finished.")
 
+      # check all amount are positive.
+      for funding_amount in local_asset.values()
+        if funding_amount < 0
+          record_result({ "receiver_gather_funding_error_negtive": funding_amount }) if funding_amount < 0
+          return false
+        end
+      end
+
+      if local_fee_fund < 0
+        record_result({ "receiver_gather_fee_error_negtive": local_fee_fund })
+        return false
+      end
+
+      @logger.info("#{@key.pubkey} send msg_2: gather input begin.")
       # gather local fund inputs.
-      local_cells = gather_inputs(local_amount, local_fee_fund, lock_hashes, change_lock_script,
-                                  refund_lock_script, local_type, @coll_cells)
+      local_cells = gather_inputs(local_asset, local_fee_fund, lock_hashes, change_lock_script,
+                                  refund_lock_script, @coll_cells)
+
+      @logger.info("#{@key.pubkey} send msg_2: gather input finished.")
 
       if local_cells.is_a? Numeric
         record_result({ "receiver_gather_funding_error_insufficient": local_cells })
@@ -286,19 +327,22 @@ class Communication
       msg_digest = ((remote_cells + local_cells).map(&:to_h)).to_json
       channel_id = Digest::MD5.hexdigest(msg_digest)
 
-      # generate the settlement infomation.
+      @logger.info("#{@key.pubkey} send msg_2: generate settlement info and change: begin")
 
-      local_empty_stx = @tx_generator.generate_empty_settlement_info(local_amount, refund_lock_script, local_type[:type_script], local_type[:encoder])
+      # generate the settlement infomation.
+      local_empty_stx = @tx_generator.generate_empty_settlement_info(local_asset, refund_lock_script)
       stx_info = merge_stx_info(remote_stx_info, local_empty_stx)
       refund_capacity = local_empty_stx[:outputs][0].capacity
       stx_info_json = info_to_json(stx_info)
       local_empty_stx_json = info_to_json(local_empty_stx)
 
       # calculate change.
-      local_change = @tx_generator.construct_change_output(local_cells, local_amount, local_fee_fund, refund_capacity, change_lock_script,
-                                                           local_type[:type_script], local_type[:encoder], local_type[:decoder])
+      local_change = @tx_generator.construct_change_output(local_cells, local_asset, local_fee_fund, refund_capacity, change_lock_script)
       change_capacity = local_change[:output].capacity
       gpc_capacity = get_total_capacity(local_cells + remote_cells)
+
+      @logger.info("#{@key.pubkey} send msg_2: generate settlement info and change: finished.")
+      @logger.info("#{@key.pubkey} send msg_2: generate fund tx: begin.")
 
       outputs = Array.new()
       outputs_data = Array.new()
@@ -313,12 +357,19 @@ class Communication
 
       # generate the info of gpc output
       gpc_capacity -= (remote_fee_fund + local_fee_fund)
-      gpc_type_script = local_type[:type_script]
 
-      gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, local_amount + remote_amount,
-                                                    channel_id, timeout, remote_pubkey[2..-1], local_pubkey[2..-1],
-                                                    gpc_type_script, local_type[:encoder])
+      udt_type_script_hash = load_type()
+      total_asset = {}
 
+      total_asset[""] = [local_asset, remote_asset].map { |h| h[""] }.sum
+      total_asset[udt_type_script_hash] = [local_asset, remote_asset].map { |h| h[udt_type_script_hash] }.sum
+
+      gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, total_asset,
+                                                    channel_id, timeout, remote_pubkey[2..-1], local_pubkey[2..-1])
+
+      puts "11"
+
+      @logger.info("#{@key.pubkey} send msg_2: gpc output generation: finished.")
       outputs.insert(0, gpc_cell[:output])
       outputs_data.insert(0, gpc_cell[:output_data])
 
@@ -329,11 +380,18 @@ class Communication
         fund_witnesses << CKB::Types::Witness.new
       end
 
+      type_dep = []
+      for asset_type in total_asset.keys()
+        current_type = find_type(asset_type)
+        type_dep.append(current_type[:type_dep]) if current_type[:type_dep] != nil
+      end
+
       # Let us create the fund tx!
-      fund_tx = @tx_generator.generate_fund_tx(fund_cells, outputs, outputs_data, fund_witnesses, local_type[:type_dep])
+      fund_tx = @tx_generator.generate_fund_tx(fund_cells, outputs, outputs_data, fund_witnesses, type_dep)
       local_cells_h = local_cells.map(&:to_h)
+      @logger.info("#{@key.pubkey} send msg_2: generate fund tx: finished.")
       # send it
-      msg_reply = { id: msg[:id], updated_id: channel_id, type: 2, amount: local_amount,
+      msg_reply = { id: msg[:id], updated_id: channel_id, type: 2, asset: local_asset,
                     fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx_json,
                     pubkey: local_pubkey }.to_json
       client.puts(msg_reply)
@@ -342,7 +400,7 @@ class Communication
       doc = { id: channel_id, local_pubkey: local_pubkey, remote_pubkey: remote_pubkey,
               status: 3, nounce: 0, ctx_info: 0, stx_info: stx_info_json,
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
-              timeout: timeout.to_s, local_amount: local_amount, stage: 0, settlement_time: 0,
+              timeout: timeout.to_s, local_asset: local_asset, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
       record_result({ "id": channel_id })
       @logger.info("#{@key.pubkey} finish check msg 1 and send msg 2, the hash of fund tx is #{fund_tx.hash}")
@@ -1045,7 +1103,6 @@ class Communication
     change_lock_script = refund_lock_script
     local_pubkey = CKB::Key.blake160(@key.pubkey)
     lock_hashes = [@lock_hash]
-    udt_type_script_hash = load_type()
 
     # check all amount are positive.
     for funding_amount in funding.values()
@@ -1062,15 +1119,7 @@ class Communication
     end
 
     # change all asset type to hashes.
-    funding_type_script_version = {}
-    for key in funding.keys()
-      if key == "ckb"
-        type_script = ""
-      elsif key == "udt"
-        type_script = udt_type_script_hash
-      end
-      funding_type_script_version[type_script] = funding[key]
-    end
+    funding_type_script_version = convert_text_to_hash(funding)
 
     # prepare the msg components.
     local_cells = gather_inputs(funding_type_script_version, fee_fund, lock_hashes, change_lock_script,

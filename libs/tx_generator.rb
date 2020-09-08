@@ -285,7 +285,7 @@ class Tx_generator
 
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-    tx.cell_deps << type_dep if type_dep != nil
+    tx.cell_deps += type_dep
     tx.hash = tx.compute_hash
     return tx
   end
@@ -314,7 +314,9 @@ class Tx_generator
 
     output_data = type_script == nil ? "0x" : type[:encoder].call(funding_type_script_version.values[0])
     output.capacity = output.calculate_min_capacity(output_data)
-    output.capacity += funding_type_script_version.values[0] if type_script == nil
+    for current_type_script_hash in funding_type_script_version.keys
+      output.capacity += funding_type_script_version[current_type_script_hash] if current_type_script_hash == ""
+    end
     witness = CKB::Types::Witness.new
     outputs = [output]
     outputs_data = [output_data]
@@ -468,14 +470,19 @@ class Tx_generator
     return { output: change_output, output_data: output_data }
   end
 
-  def construct_gpc_output(gpc_capacity, amount, id, timeout, pubkey1, pubkey2, type_script, encoder)
+  def construct_gpc_output(gpc_capacity, total_asset, id, timeout, pubkey1, pubkey2)
     init_args = generate_lock_args(id, 0, timeout, 0, pubkey1, pubkey2)
+
+    type_set = total_asset.keys()
+    type_hash_except_ckb = (type_set - [""])[0]
+    type_except_ckb = find_type(type_hash_except_ckb)
+    gpc_output_data = type_except_ckb[:encoder] == nil ? "0x" : type_except_ckb[:encoder].call(total_asset[type_hash_except_ckb])
     gpc_output = CKB::Types::Output.new(
       capacity: gpc_capacity,
       lock: CKB::Types::Script.new(code_hash: @gpc_code_hash, args: init_args, hash_type: CKB::ScriptHashType::DATA),
-      type: type_script,
+      type: type_except_ckb[:type_script],
     )
-    gpc_output_data = encoder == nil ? "0x" : encoder(amount)
+
     return { output: gpc_output, output_data: gpc_output_data }
   end
 end

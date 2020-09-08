@@ -22,8 +22,8 @@ class Step6 < Minitest::Test
     container_min = data_json[:container_min].to_i
 
     # may have multiple amount, one for udt, one for ckb.
-    funding_amount_A = data_json[:A][:funding_amount].map { |key, value| key == "ckb" ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
-    funding_amount_B = data_json[:B][:funding_amount].map { |key, value| key == "ckb" ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+    funding_amount_A = data_json[:A][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+    funding_amount_B = data_json[:B][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
 
     expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
     settle_fee_unilateral = data_json[:settle_fee_unilateral].to_i
@@ -108,6 +108,7 @@ class Step6 < Minitest::Test
         end
       end
     rescue Exception => e
+      puts e
       raise e
     ensure
       tests.close_all_thread(@monitor_A, @monitor_B, @db)

@@ -11,6 +11,7 @@ def encoder(data)
 end
 
 def find_type(type_script_hash)
+  @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
   type_script = nil
   decoder = nil
   encoder = nil

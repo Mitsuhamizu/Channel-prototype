@@ -179,52 +179,55 @@ def get_total_amount(cells, type_script_hash, decoder)
   return amount_gathered
 end
 
+def get_investment(output, output_data, decoder)
+  return decoder == nil ? output.capacity : decoder.call(output_data)
+end
+
+def check_output(amount, output, output_data, decoder)
+  if decoder == nil
+    @logger.info("check_output: ckb, expect: #{amount}, actual: #{output.capacity - output.calculate_min_capacity(output_data)}")
+    return amount - (output.capacity - output.calculate_min_capacity(output_data))
+  else
+    @logger.info("check_output: udt, expect: #{amount}, actual: #{decoder.call(output_data)}")
+    return amount - decoder.call(output_data)
+  end
+end
+
 # def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
-def check_cells(cells, remote_asset, fee_required, remote_change, remote_stx_info)
-  type_script_hash = remote_asset.values[0]
-  type = find_type(type_script_hash)
+def check_cells(cells, remote_asset, fee_required, change, stx_info)
+  @logger.info("#{@key.pubkey} check cells: amount begin.")
 
-  amount_gathered = get_total_amount(cells, type_script_hash, type[:decoder])
-  # if it is ckb
+  # check stx is enough.
+  for current_type_script_hash in remote_asset.keys()
+    current_type = find_type(current_type_script_hash)
+    current_decoder = current_type[:decoder]
+    check_output_result = check_output(remote_asset[current_type_script_hash], stx_info[:outputs][0], stx_info[:outputs_data][0], current_decoder)
+    return "error_amount_claimed_inconsistent", check_output_result if check_output_result != 0
 
-  # if it is udt
+    # check amount
+    if current_type_script_hash != ""
+      amount_required = remote_asset[current_type_script_hash]
+      amount_gathered = get_total_amount(cells, current_type_script_hash, current_decoder)
+      refund_amount = current_decoder.call(stx_info[:outputs_data][0]) + current_decoder.call(change[:output_data])
+      return "error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
+    end
+  end
 
+  @logger.info("#{@key.pubkey} check cells: amount end.")
   # check the ckbyte is enough to support this output.
   change_actual = change[:output].capacity
   change_min = change[:output].calculate_min_capacity(change[:output_data])
   stx_actual = stx_info[:outputs][0].capacity
   stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
+  capacity_gathered = get_total_capacity(cells)
+  @logger.info("#{@key.pubkey} check cells: capacity end.")
 
-  return "error_change_container_insufficient", change_actual - change_min if change_actual < change_min
-  return "error_settle_container_insufficient", stx_actual - stx_min if stx_actual < stx_min
+  refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
 
-    
+  return "error_capacity_inconsistent", capacity_gathered - (fee_required + refund_capacity) if capacity_gathered != fee_required + refund_capacity
+  return "error_cell_dead", true if !capacity_gathered
 
-  if type_script_hash != ""
-    capacity_gathered = get_total_capacity(cells)
+  @logger.info("#{@key.pubkey} check cells: capacity end.")
 
-    # cell live
-    return "error_cell_dead", true if !amount_gathered || !capacity_gathered
-    # amount right
-    refund_amount = decoder.call(stx_info[:outputs_data][0]) + decoder.call(change[:output_data])
-
-    return "error_amount_claimed_inconsistent", amount_gathered - amount_required if amount_gathered != amount_required + decoder.call(change[:output_data])
-    return "error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
-
-    # capacity right
-    refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
-    return "error_capacity_inconsistent", capacity_gathered - (fee_required + refund_capacity) if capacity_gathered != fee_required + refund_capacity
-    # true
-    return "success", "0"
-  else
-    # cell live
-    return "error_cell_dead", true if !amount_gathered
-
-    # capacity right.
-    refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
-    return "error_capacity_inconsistent", amount_gathered - (fee_required + refund_capacity) if amount_gathered != fee_required + refund_capacity
-
-    # true
-    return "success", "0"
-  end
+  return "success", "0"
 end

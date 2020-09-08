@@ -53,8 +53,11 @@ class GPCCLI < Thor
     private_key = pubkey_to_privkey(options[:pubkey])
     communicator = Communication.new(private_key)
     fundings = options[:funding]
+
+    fundings = fundings.map() { |key, value| [key.to_sym, value] }.to_h
+
     for asset_type in fundings.keys()
-      fundings[asset_type] = asset_type == "ckb" ? CKB::Utils.byte_to_shannon(BigDecimal(fundings[asset_type])) : BigDecimal(fundings[asset_type])
+      fundings[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(fundings[asset_type])) : BigDecimal(fundings[asset_type])
       fundings[asset_type] = fundings[asset_type].to_i
     end
 
