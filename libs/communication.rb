@@ -53,6 +53,22 @@ class Communication
     return funding_type_script_version
   end
 
+  # def generate_investment_info(asset)
+  def convert_hash_to_text(asset)
+    udt_type_script_hash = load_type()
+    remote_investment = ""
+
+    for asset_type_hash in asset.keys()
+      if asset_type_hash == ""
+        asset_type = "ckb"
+      elsif asset_type_hash == udt_type_script_hash
+        asset_type = "udt"
+      end
+      remote_investment += "#{asset_type}: #{asset_type_hash == "" ? asset[asset_type_hash] / 10 ** 8 : asset[asset_type_hash]} "
+    end
+    return remote_investment
+  end
+
   # These two functions are used to parse and construct ctx_info and stx_info.
   # Info structure. outputs:[], outputs_data:[], witnesses:[].
   def info_to_json(info)
@@ -165,7 +181,7 @@ class Communication
     file.syswrite(data_json)
 
     # if there is no record and the msg is not the first step.
-
+    @logger.info("#{@key.pubkey} msg#{type} comes, the number of record in the db is #{view.count_documents()}, id: #{msg[:id]}")
     if view.count_documents() == 0 && type != 1
       msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database!")
       client.puts (msg_reply)
@@ -226,10 +242,7 @@ class Communication
 
       remote_asset = remote_asset.map() { |key, value| [key.to_s, value] }.to_h
 
-      remote_investment = ""
-      for asset_type in remote_asset.keys()
-        remote_investment += "#{asset_type}: #{remote_asset[asset_type]} "
-      end
+      remote_investment = convert_hash_to_text(remote_asset)
 
       @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input begin.")
 
@@ -367,8 +380,6 @@ class Communication
       gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, total_asset,
                                                     channel_id, timeout, remote_pubkey[2..-1], local_pubkey[2..-1])
 
-      puts "11"
-
       @logger.info("#{@key.pubkey} send msg_2: gpc output generation: finished.")
       outputs.insert(0, gpc_cell[:output])
       outputs_data.insert(0, gpc_cell[:output_data])
@@ -401,16 +412,16 @@ class Communication
               status: 3, nounce: 0, ctx_info: 0, stx_info: stx_info_json,
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_asset: local_asset, stage: 0, settlement_time: 0,
-              sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0, type_hash: remote_type_script_hash }
-      record_result({ "id": channel_id })
-      @logger.info("#{@key.pubkey} finish check msg 1 and send msg 2, the hash of fund tx is #{fund_tx.hash}")
+              sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0 }
+      @logger.info("#{@key.pubkey} send msg_2: insert record #{channel_id}")
+
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
       @logger.info("#{@key.pubkey} receive msg 2.")
 
       # parse the msg.
       fund_tx = CKB::Types::Transaction.from_h(msg[:fund_tx])
-      remote_amount = msg[:amount]
+      remote_asset = msg[:asset].map() { |key, value| [key.to_s, value] }.to_h
       remote_pubkey = msg[:pubkey]
       remote_fee_fund = msg[:fee_fund]
       timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
@@ -427,12 +438,8 @@ class Communication
       local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
 
-      # get type.
-      type_script_hash = local_asset.keys.first
-      local_amount = local_asset[type_script_hash]
-
-      remote_type = find_type(type_script_hash)
-      local_type = find_type(type_script_hash)
+      # generate investment info
+      remote_investment = convert_hash_to_text(remote_asset)
 
       # get remote cells.
       remote_cells = fund_tx.inputs.map(&:to_h) - local_cells
@@ -442,6 +449,15 @@ class Communication
       # load gpc output.
       gpc_output = fund_tx.outputs[0]
       gpc_output_data = fund_tx.outputs_data[0]
+
+      # construct total asset.
+      udt_type_script_hash = load_type()
+
+      total_asset = {}
+      total_asset[""] = [local_asset, remote_asset].map { |h| h[""] }.sum
+      total_asset[udt_type_script_hash] = [local_asset, remote_asset].map { |h| h[udt_type_script_hash] }.sum
+
+      @logger.info("#{@key.pubkey} check msg_2: msg parsed.")
 
       # check updated_id.
 
@@ -469,7 +485,8 @@ class Communication
 
       commands = load_command()
       # About the one way channel.
-      if remote_amount == 0
+
+      if remote_asset.values().sum == 0
         puts "It is a one-way channel, tell me whether you want to accept it."
         while true
           # response = STDIN.gets.chomp
@@ -477,7 +494,7 @@ class Communication
           if response == "yes"
             break
           elsif response == "no"
-            msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request, since it is one-way channel.")
+            msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request since it is one-way channel.")
             client.puts(msg_reply)
             return false
           else
@@ -505,22 +522,23 @@ class Communication
       end
 
       # check the cells remote party providing is right.
-      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_amount, remote_fee_fund, remote_change, remote_stx_info, type_script_hash, remote_type[:decoder])
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
 
-      puts remote_amount
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
         record_result({ "sender_step2_" + remote_cell_check_result => remote_cell_check_value })
         return false
       end
 
+      @logger.info("#{@key.pubkey} check msg_2: remote cells have been checked.")
+
       # gpc outptu checked.
       gpc_capacity = local_stx_info[:outputs][0].capacity + remote_stx_info[:outputs][0].capacity
 
       # regenerate the cell by myself, and check remote one is same as it.
-      gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, local_amount + remote_amount,
-                                                    local_updated_id, timeout, local_pubkey[2..-1], remote_pubkey[2..-1],
-                                                    local_type[:type_script], local_type[:encoder])
+
+      gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, total_asset,
+                                                    local_updated_id, timeout, local_pubkey[2..-1], remote_pubkey[2..-1])
 
       # @logger.info("gpc_output 1: #{gpc_cell[:output].to_h}")
       # @logger.info("gpc_output 2: #{gpc_output.to_h}")
@@ -532,6 +550,8 @@ class Communication
         record_result({ "sender_step2_error_gpc_modified": true })
         return false
       end
+
+      @logger.info("#{@key.pubkey} check msg_2: gpc output has been checked.")
       #-------------------------------------------------
       # I think is is unnecessary to do in a prototype...
       # just verify the other part (version, deps, )
@@ -541,8 +561,8 @@ class Communication
       #   return -1
       # end
       # check the remote capcity is satisfactory.
-      amount_print = local_type_script_hash == "" ? remote_amount / (10 ** 8) : remote_amount
-      puts "#{remote_pubkey} reply you with: The remote fund amount: #{amount_print}. The type script hash #{remote_type_script_hash}."
+
+      puts "#{remote_pubkey} reply you with: The remote fund amount: #{remote_investment}."
       puts "The fund fee is #{remote_fee_fund}."
       puts "Tell me whether you are willing to accept this request"
       while true
@@ -557,6 +577,8 @@ class Communication
           puts "your input is invalid"
         end
       end
+
+      @logger.info("#{@key.pubkey} check msg_2: read input finished.")
 
       # generate empty witnesses.
       # the two magic number is flag of witness and the nounce.
@@ -573,9 +595,13 @@ class Communication
       stx_info_json = info_to_json(stx_info)
       ctx_info_json = info_to_json(ctx_info)
 
+      @logger.info("#{@key.pubkey} send msg_3: stx and ctx construction finished.")
+
       # send the info
       msg_reply = { id: local_updated_id, type: 3, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
       client.puts(msg_reply)
+
+      @logger.info("#{@key.pubkey} send msg_3: msg sent.")
 
       # update the database.
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
@@ -665,7 +691,6 @@ class Communication
       local_ctx_result = verify_info_sig(remote_ctx_info, "closing", local_pubkey, sig_index)
       local_stx_result = verify_info_sig(remote_stx_info, "settlement", local_pubkey, sig_index)
 
-      puts local_ctx_sig
       # make sure my signatures are consistent.
       if local_ctx_sig != remote_ctx_sig ||
          local_stx_sig != remote_stx_sig
@@ -766,19 +791,22 @@ class Communication
         local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
         sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
-        payment_type_hash = msg[:payment_type]
-        payment_type = find_type(payment_type_hash)
-        amount = msg[:amount]
+        payment = msg[:payment].map() { |key, value| [key.to_s, value] }.to_h
+        remote_investment = convert_hash_to_text(payment)
 
         # recv the new signed stx and unsigned ctx.
         remote_ctx_info = json_to_info(msg[:ctx_info])
         remote_stx_info = json_to_info(msg[:stx_info])
 
+        @logger.info("#{@key.pubkey} check msg 6 payment: msg parsed.")
+
         local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
         local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx_info])
 
-        local_update_stx_info = @tx_generator.update_stx(amount, local_stx_info, remote_pubkey, local_pubkey, payment_type)
-        local_update_ctx_info = @tx_generator.update_ctx(amount, local_ctx_info)
+        local_update_stx_info = @tx_generator.update_stx(payment, local_stx_info, remote_pubkey, local_pubkey)
+        local_update_ctx_info = @tx_generator.update_ctx(local_ctx_info)
+
+        @logger.info("#{@key.pubkey} check msg 6 payment: construct local stx and ctx.")
 
         if local_update_stx_info.is_a? Numeric
           record_result({ "receiver_make_payments_error_insufficient": local_update_stx_info })
@@ -792,11 +820,12 @@ class Communication
 
         return false if !ctx_result || !stx_result
 
+        @logger.info("#{@key.pubkey} check msg 6 payment: check stx and ctx are consistent.")
+
         commands = load_command()
 
         # ask users whether the payments are right.
-        amount_print = payment_type_hash == "" ? amount / (10 ** 8) : amount
-        puts "The remote node wants to pay you #{amount_print} with type hash #{payment_type_hash} in channel #{id}."
+        puts "The remote node wants to pay you #{remote_investment} in channel #{id}."
         puts "Tell me whether you are willing to accept this payment."
         while true
           response = commands[:payment_reply]
@@ -837,7 +866,7 @@ class Communication
 
         msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
         client.puts(msg)
-
+        @logger.info("#{@key.pubkey} send msg_7: msg sent.")
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
                                                                     stx_pend: stx_info_json,
@@ -1178,7 +1207,7 @@ class Communication
     end
   end
 
-  def send_payments(remote_ip, remote_port, id, amount, type_script_hash = "")
+  def send_payments(remote_ip, remote_port, id, payment)
     s = TCPSocket.open(remote_ip, remote_port)
 
     remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
@@ -1187,10 +1216,10 @@ class Communication
     stage = @coll_sessions.find({ id: id }).first[:stage]
     stx = @coll_sessions.find({ id: id }).first[:stx_info]
     ctx = @coll_sessions.find({ id: id }).first[:ctx_info]
-    type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
-    type_info = find_type(type_hash)
 
-    @logger.info("#{local_pubkey} prepare to send payment with amount #{amount}")
+    funding_type_script_version = convert_text_to_hash(payment)
+
+    @logger.info("#{local_pubkey} prepare to send payment: #{payment}")
 
     stx_info = json_to_info(stx)
     ctx_info = json_to_info(ctx)
@@ -1200,17 +1229,20 @@ class Communication
       return false
     end
 
-    if amount < 0
-      record_result({ "sender_make_payments_error_negtive": amount })
-      return false
+    for payment_amount in payment.values()
+      if payment_amount < 0
+        record_result({ "sender_gather_funding_error_negtive": payment_amount })
+        return false
+      end
     end
 
+    payment = convert_text_to_hash(payment)
+
     # just read and update the latest stx, the new
-    stx_info = @tx_generator.update_stx(amount, stx_info, local_pubkey, remote_pubkey, type_info)
-    ctx_info = @tx_generator.update_ctx(amount, ctx_info)
+    stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)
+    ctx_info = @tx_generator.update_ctx(ctx_info)
 
     if stx_info.is_a? Numeric
-      @logger.info("The payment with amount #{amount} lack #{stx_info}.")
       record_result({ "sender_make_payments_error_insufficient": stx_info })
       return false
     end
@@ -1230,13 +1262,13 @@ class Communication
 
     # send the msg.
     msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json,
-            amount: amount, msg_type: "payment", payment_type: type_hash }.to_json
+            payment: payment, msg_type: "payment" }.to_json
     s.puts(msg)
 
     # update the local database.
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json, ctx_pend: ctx_info_json,
                                                                 status: 7, msg_cache: msg } })
-    @logger.info("#{local_pubkey} send payment with amount #{amount}")
+    @logger.info("#{local_pubkey} sent payment")
 
     begin
       timeout(5) do
@@ -1267,6 +1299,7 @@ class Communication
     fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
     return false if fee_cell == nil
 
+    puts fee_cell
     fee_cell_capacity = get_total_capacity(fee_cell)
     local_change_output.capacity = fee_cell_capacity - fee
     fee_cell_h = fee_cell.map(&:to_h)

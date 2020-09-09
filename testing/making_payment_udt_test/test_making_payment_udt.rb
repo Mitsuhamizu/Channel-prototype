@@ -15,92 +15,102 @@ class Making_payment_udt < Minitest::Test
     data_raw = File.read(__dir__ + "/" + file_name)
     data_json = JSON.parse(data_raw, symbolize_names: true)
 
+    funding_fee_A = data_json[:A][:funding_fee].to_i
+    funding_fee_B = data_json[:B][:funding_fee].to_i
+    settle_fee_A = data_json[:A][:settle_fee].to_i
+    settle_fee_B = data_json[:B][:settle_fee].to_i
     container_min = data_json[:container_min].to_i
-    funding_fee_A = data_json[:funding_fee_A].to_i
-    funding_fee_B = data_json[:funding_fee_B].to_i
-    settle_fee_A = data_json[:settle_fee_A].to_i
-    settle_fee_B = data_json[:settle_fee_B].to_i
 
-    funding_amount_A = data_json[:funding_amount_A]
-    funding_amount_B = data_json[:funding_amount_B]
+    # may have multiple amount, one for udt, one for ckb.
+    funding_amount_A = data_json[:A][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+    funding_amount_B = data_json[:B][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
 
-    closing_type = data_json[:closing_type]
-    
     expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
-
-    payment_type = data_json[:payment_type]
+    settle_fee_unilateral = data_json[:settle_fee_unilateral].to_i
+    closing_fee_unilateral = data_json[:closing_fee_unilateral].to_i
+    channel_type = data_json[:channel_type]
+    closing_type = data_json[:closing_type]
     payments = data_json[:payments]
 
     # simple testing in ckb.
     tests = Gpctest.new("test")
     tests.setup()
 
-    if payment_type == "ckb"
-      balance_A_begin, balance_B_begin = tests.get_account_balance_ckb()
-    elsif payment_type == "udt"
-      balance_A_begin, balance_B_begin = tests.get_account_balance_udt()
-      capacity_A_begin, capacity_B_begin = tests.get_account_balance_ckb()
-    end
+    udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
+    ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
 
     begin
-      if payment_type == "ckb"
-        channel_id, @monitor_A, @monitor_B = tests.create_ckb_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
-      elsif payment_type == "udt"
-        channel_id, @monitor_A, @monitor_B = tests.create_udt_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
-      end
+      # create channel.
+      channel_id, @monitor_A, @monitor_B = tests.create_channel(funding_amount_A, funding_amount_B, channel_type, container_min, funding_fee_A, funding_fee_B)
 
+      @logger.info("making_payment_udt: channel established.")
       # make payments.
-      amount_A_B = 0
-      amount_B_A = 0
+      ckb_transfer_A_to_B = 0
+      ckb_transfer_B_to_A = 0
+      udt_transfer_A_to_B = 0
+      udt_transfer_B_to_A = 0
 
       for payment in payments
-        payment = payment[1]
         sender = payment[:sender]
         receiver = payment[:receiver]
         amount = payment[:amount]
         success = payment[:success]
-        if sender == "A" && receiver == "B" && payment_type == "ckb"
-          tests.make_payment_ckb_A_B(channel_id, amount)
-          amount_A_B += amount if success
-        elsif sender == "B" && receiver == "A" && payment_type == "ckb"
-          tests.make_payment_ckb_B_A(channel_id, amount)
-          amount_B_A += amount if success
-        elsif sender == "A" && receiver == "B" && payment_type == "udt"
-          tests.make_payment_udt_A_B(channel_id, amount)
-          amount_A_B += amount if success
-        elsif sender == "B" && receiver == "A" && payment_type == "udt"
-          tests.make_payment_udt_B_A(channel_id, amount)
-          amount_B_A += amount if success
+        payment_type = payment[:payment_type]
+
+        # send payment.
+        if sender == "A" && receiver == "B"
+          tests.make_payment_A_B(channel_id, payment_type, amount)
+          if success
+            if payment_type == "ckb"
+              ckb_transfer_A_to_B += amount
+            elsif payment_type == "udt"
+              udt_transfer_A_to_B += amount
+            end
+          end
+        elsif sender == "B" && receiver == "A"
+          tests.make_payment_B_A(channel_id, payment_type, amount)
+          if success
+            if payment_type == "ckb"
+              ckb_transfer_B_to_A += amount
+            elsif payment_type == "udt"
+              udt_transfer_B_to_A += amount
+            end
+          end
         else
           return false
         end
       end
 
-      @logger.info("amount_B_A: #{amount_B_A}")
-      @logger.info("amount_A_B: #{amount_A_B}")
+      @logger.info("making_payment_udt: payments all sent.")
 
-      amount_diff = amount_B_A - amount_A_B
+      ckb_diff = ckb_transfer_A_to_B - ckb_transfer_B_to_A
+      udt_diff = udt_transfer_A_to_B - udt_transfer_B_to_A
 
       # B send the close request to A.
       tests.closing_B_A(channel_id, settle_fee_B, closing_type)
 
-      if payment_type == "ckb"
-        balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_ckb()
-      elsif payment_type == "udt"
-        balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_udt()
-        capacity_A_after_payment, capacity_B_after_payment = tests.get_account_balance_ckb()
-      end
+      udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
+      ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
 
-      if payment_type == "ckb"
-        assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-        assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
-      elsif payment_type == "udt"
-        assert_equal(-amount_diff, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-        assert_equal(amount_diff, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
+      ckb_A_after_closing, ckb_B_after_closing = tests.get_account_balance_ckb()
+      udt_A_after_closing, udt_B_after_closing = tests.get_account_balance_udt()
 
-        assert_equal(funding_fee_A + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
-        assert_equal(funding_fee_B + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
-      end
+      # assert ckb
+      assert_equal(-ckb_diff * 10 ** 8 + funding_fee_A + settle_fee_A, ckb_A_begin - ckb_A_after_closing, "A'balance after payment is wrong.")
+      assert_equal(ckb_diff * 10 ** 8 + funding_fee_B + settle_fee_B, ckb_B_begin - ckb_B_after_closing, "A'balance after payment is wrong.")
+
+      # assert udt
+
+      assert_equal(-udt_diff, udt_A_begin - udt_A_after_closing, "A'balance after payment is wrong.")
+      assert_equal(udt_diff, udt_B_begin - udt_B_after_closing, "B'balance after payment is wrong.")
+
+      # assert ckb is right.
+      # assert udt is right.
+      assert_equal(-amount_diff, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
+      assert_equal(amount_diff, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
+
+      assert_equal(amount_diff + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
+      assert_equal(amount_diff + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
 
       if expect != nil
         for expect_iter in expect
@@ -109,6 +119,7 @@ class Making_payment_udt < Minitest::Test
         end
       end
     rescue Exception => e
+      puts e
       raise e
     ensure
       tests.close_all_thread(@monitor_A, @monitor_B, @db)
@@ -117,13 +128,5 @@ class Making_payment_udt < Minitest::Test
 
   def test_success()
     make_payment("making_payment_success.json")
-  end
-
-  def test_negtive()
-    make_payment("making_payment_negtive.json")
-  end
-
-  def test_insufficient()
-    make_payment("making_payment_insufficient.json")
   end
 end

@@ -333,11 +333,6 @@ class Gpctest < Minitest::Test
       command_input += "#{asset_type}:#{funding_A[asset_type]} "
     end
     system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --fee #{fee_A} --since #{since} --funding #{command_input}")
-    # if flag == "ckb"
-    #   system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since}")
-    # elsif flag == "udt"
-    #   system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{funding_A} --fee #{fee_A} --since #{since} --type_script_hash #{type_script_hash}")
-    # end
   end
 
   def close_all_thread(monitor_A, monitor_B, db)
@@ -480,11 +475,8 @@ class Gpctest < Minitest::Test
       lock_hashes_B = [@default_lock_B.compute_hash]
 
       # balance.
-      udt_A_begin = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      udt_B_begin = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
-
-      ckb_A_begin = get_balance(lock_hashes_A)
-      ckb_B_begin = get_balance(lock_hashes_B)
+      udt_A_begin, udt_B_begin = get_account_balance_udt()
+      ckb_A_begin, ckb_B_begin = get_account_balance_ckb()
 
       @logger.info("gpctest.rb: A'udt before funding in udt channel: #{udt_A_begin}")
       @logger.info("gpctest.rb: B'udt before funding in udt channel: #{udt_B_begin}")
@@ -503,9 +495,6 @@ class Gpctest < Minitest::Test
       # make the tx on chain.
       generate_blocks(@rpc, 10, 0.5)
 
-      udt_A_begin, udt_B_begin = get_account_balance_udt()
-      ckb_A_begin, ckb_B_begin = get_account_balance_ckb()
-
       ckb_A_after_funding, ckb_B_after_funding = get_account_balance_ckb()
       udt_A_after_funding, udt_B_after_funding = get_account_balance_udt()
 
@@ -514,12 +503,15 @@ class Gpctest < Minitest::Test
       @logger.info("gpctest.rb: A'ckb after funding in udt channel: #{ckb_A_after_funding}")
       @logger.info("gpctest.rb: B'ckb after funding in udt channel: #{ckb_B_after_funding}")
 
-      # assert the balance after funding on chain.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "A'balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "B'balance after funding is wrong.")
+      for asset_type_iter in asset_type
+      end
 
-      assert_equal(container_min + fee_A_fund, capacity_begin_A - capacity_after_funding_A, "A'capacity after funding is wrong.")
-      assert_equal(container_min + fee_B_fund, capacity_begin_B - capacity_after_funding_B, "B'capacity after funding is wrong.")
+      # assert the balance after funding on chain.
+      assert_equal(funding_A[:udt], udt_A_begin - udt_A_after_funding, "A'udt after funding is wrong.")
+      assert_equal(funding_B[:udt], udt_B_begin - udt_B_after_funding, "B'udt after funding is wrong.")
+
+      assert_equal(container_min + fee_A_fund + funding_A[:ckb] * 10 ** 8, ckb_A_begin - ckb_A_after_funding, "A'ckb after funding is wrong.")
+      assert_equal(container_min + fee_B_fund + funding_B[:ckb] * 10 ** 8, ckb_B_begin - ckb_B_after_funding, "B'ckb after funding is wrong.")
 
       channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
 
@@ -644,21 +636,21 @@ class Gpctest < Minitest::Test
     end
   end
 
-  def make_payment_udt_A_B(channel_id, amount)
-    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
+  def make_payment_A_B(channel_id, payment_type, amount)
+    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --payment #{payment_type}:#{amount}")
   end
 
-  def make_payment_udt_B_A(channel_id, amount)
-    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id} --type_script_hash #{@type_script_hash}")
+  def make_payment_B_A(channel_id, payment_type, amount)
+    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --payment #{payment_type}:#{amount}")
   end
 
-  def make_payment_ckb_A_B(channel_id, amount)
-    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id}")
-  end
+  # def make_payment_ckb_A_B(channel_id, amount)
+  #   system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --amount #{amount} --id #{channel_id}")
+  # end
 
-  def make_payment_ckb_B_A(channel_id, amount)
-    system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
-  end
+  # def make_payment_ckb_B_A(channel_id, amount)
+  #   system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
+  # end
 
   def closing_A_B(channel_id, fee, closing_type)
     if closing_type == "bilateral"

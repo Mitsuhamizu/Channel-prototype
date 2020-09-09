@@ -66,15 +66,13 @@ class GPCCLI < Thor
   end
 
   # --------------make payments
-  # desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount> --type_script_hash <type_script_hash>", "Make payments"
-  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --amount <amount>", "Make payments"
+  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --payment <payment>", "Make payments"
 
   option :pubkey, :required => true
   option :ip, :required => true
   option :port, :required => true
   option :id, :required => true
-  option :amount, :required => true
-  option :type_script_hash
+  option :payment, :required => true, :type => :hash
 
   def make_payment()
     @path_to_file = __dir__ + "/../testing/miscellaneous/files/"
@@ -82,12 +80,17 @@ class GPCCLI < Thor
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[options[:pubkey] + "_session_pool"]
-    type_hash = @coll_sessions.find({ id: options[:id] }).first[:type_hash]
+
+    payment = options[:payment]
+    payment = payment.map() { |key, value| [key.to_sym, value] }.to_h
+
+    for asset_type in payment.keys()
+      payment[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(payment[asset_type])) : BigDecimal(payment[asset_type])
+      payment[asset_type] = payment[asset_type].to_i
+    end
 
     communicator = Communication.new(private_key)
-    amount = type_hash == "" ? (CKB::Utils.byte_to_shannon(options[:amount].to_f).to_i) : options[:amount].to_i
-    @logger.info("#{options[:pubkey]} tries to pay #{options[:ip]} with amount #{amount}")
-    communicator.send_payments(options[:ip], options[:port], options[:id], amount, options[:type_script_hash])
+    communicator.send_payments(options[:ip], options[:port], options[:id], payment)
   end
 
   # --------------monitor

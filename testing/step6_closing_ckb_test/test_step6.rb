@@ -72,8 +72,11 @@ class Step6 < Minitest::Test
         end
       end
 
+      @logger.info("making payment: B: #{ckb_B_begin}")
+
       ckb_diff = ckb_transfer_A_to_B - ckb_transfer_B_to_A
       udt_diff = udt_transfer_A_to_B - udt_transfer_B_to_A
+
 
       # B send the close request to A.
       tests.closing_B_A(channel_id, settle_fee_B, closing_type)

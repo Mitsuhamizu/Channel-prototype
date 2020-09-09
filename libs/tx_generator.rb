@@ -367,21 +367,23 @@ class Tx_generator
     return tx
   end
 
-  def update_stx(amount, stx_info, pubkey_payer, pubkey_payee, type_info)
-    for index in (0..stx_info[:outputs].length - 1)
-      output = stx_info[:outputs][index]
-      output_data = stx_info[:outputs_data][index]
-
-      if type_info[:type_script] == nil
-        @logger.info("#{pubkey_payer} current balance:  #{output.capacity - output.calculate_min_capacity(output_data)}") if output.lock.args == pubkey_payer
-        @logger.info("#{pubkey_payee} current balance:  #{output.capacity - output.calculate_min_capacity(output_data)}") if output.lock.args == pubkey_payee
-        return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
-        output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
-        output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
-      else
-        return type_info[:decoder].call(output_data) - amount if type_info[:decoder].call(output_data) - amount < 0
-        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
-        stx_info[:outputs_data][index] = type_info[:encoder].call(type_info[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
+  # can only accept one payment.
+  def update_stx(payments, stx_info, pubkey_payer, pubkey_payee)
+    for payment_type_hash in payments.keys()
+      for index in (0..stx_info[:outputs].length - 1)
+        output = stx_info[:outputs][index]
+        output_data = stx_info[:outputs_data][index]
+        type = find_type(payment_type_hash)
+        if payment_type_hash == ""
+          amount = payments[payment_type_hash]
+          return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
+          output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
+          output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
+        else
+          return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
+          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
+          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
+        end
       end
     end
 
@@ -397,7 +399,7 @@ class Tx_generator
     return stx_info
   end
 
-  def update_ctx(amount, ctx_info)
+  def update_ctx(ctx_info)
     for output in ctx_info[:outputs]
       lock = parse_lock_args(output.lock.args)
       output.lock.args = generate_lock_args(lock[:id], lock[:status],
