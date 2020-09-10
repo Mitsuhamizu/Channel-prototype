@@ -83,35 +83,22 @@ class Making_payment_udt < Minitest::Test
 
       @logger.info("making_payment_udt: payments all sent.")
 
-      ckb_diff = ckb_transfer_A_to_B - ckb_transfer_B_to_A
-      udt_diff = udt_transfer_A_to_B - udt_transfer_B_to_A
+      ckb_A_B = ckb_transfer_A_to_B - ckb_transfer_B_to_A
+      udt_A_B = udt_transfer_A_to_B - udt_transfer_B_to_A
 
       # B send the close request to A.
-      tests.closing_B_A(channel_id, settle_fee_B, closing_type)
-
-      udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
-      ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
+      tests.closing_B_A(channel_id, settle_fee_B, settle_fee_A, closing_fee_unilateral, settle_fee_unilateral, closing_type)
 
       ckb_A_after_closing, ckb_B_after_closing = tests.get_account_balance_ckb()
       udt_A_after_closing, udt_B_after_closing = tests.get_account_balance_udt()
 
-      # assert ckb
-      assert_equal(-ckb_diff * 10 ** 8 + funding_fee_A + settle_fee_A, ckb_A_begin - ckb_A_after_closing, "A'balance after payment is wrong.")
-      assert_equal(ckb_diff * 10 ** 8 + funding_fee_B + settle_fee_B, ckb_B_begin - ckb_B_after_closing, "A'balance after payment is wrong.")
-
       # assert udt
+      assert_equal(udt_A_B, udt_A_begin - udt_A_after_closing, "A'udt after payment is wrong.")
+      assert_equal(-udt_A_B, udt_B_begin - udt_B_after_closing, "B'udt after payment is wrong.")
 
-      assert_equal(-udt_diff, udt_A_begin - udt_A_after_closing, "A'balance after payment is wrong.")
-      assert_equal(udt_diff, udt_B_begin - udt_B_after_closing, "B'balance after payment is wrong.")
-
-      # assert ckb is right.
-      # assert udt is right.
-      assert_equal(-amount_diff, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-      assert_equal(amount_diff, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
-
-      assert_equal(amount_diff + settle_fee_A, capacity_A_begin - capacity_A_after_payment, "A'capacity after payment is wrong.")
-      assert_equal(amount_diff + settle_fee_B, capacity_B_begin - capacity_B_after_payment, "B'capacity after payment is wrong.")
-
+      # assert ckb
+      assert_equal(ckb_A_B * 10 ** 8 + funding_fee_A + settle_fee_A, ckb_A_begin - ckb_A_after_closing, "A'ckb after payment is wrong.")
+      assert_equal(-ckb_A_B * 10 ** 8 + funding_fee_B + settle_fee_B, ckb_B_begin - ckb_B_after_closing, "B'ckb after payment is wrong.")
       if expect != nil
         for expect_iter in expect
           result_json = tests.load_json_file(@path_to_file + "result.json").to_json

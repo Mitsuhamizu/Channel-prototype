@@ -233,7 +233,7 @@ class Minotor
     gpc_input = type == "closing" ? doc[:ctx_input] : doc[:stx_input]
     type_hash = doc[:type_hash]
     gpc_input = json_to_input(gpc_input)
-    type_info = find_type(type_hash)
+
     input = [gpc_input]
     commands = load_command()
 
@@ -259,6 +259,7 @@ class Minotor
 
     # require the change ckbyte is greater than the min capacity.
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
+    
     fee_cell = gather_fee_cell([@lock_hash], fee_total, @coll_cells, 0)
     return false if fee_cell == nil
 
@@ -273,7 +274,19 @@ class Minotor
     end
 
     # generate the tx.
-    tx = @tx_generator.generate_no_input_tx(input, tx_info, type_info[:type_dep])
+    type_dep = []
+
+    for output in tx_info[:outputs]
+      if output.type != nil
+        current_type = find_type(output.type.compute_hash)
+        type_dep.append(current_type[:type_dep]) if current_type[:type_dep] != nil
+      end
+    end
+    type_dep = type_dep.map(&:to_h)
+    type_dep = type_dep.to_set.to_a
+    type_dep = type_dep.map { |dep| CKB::Types::CellDep.from_h(dep) }
+
+    tx = @tx_generator.generate_no_input_tx(input, tx_info, type_dep)
     tx = @tx_generator.sign_tx(tx, tx.inputs[1..])
 
     if !tx
@@ -288,6 +301,7 @@ class Minotor
       tx_hash = @api.send_transaction(tx) if exist == nil
       @logger.info("#{@key.pubkey} send tx with type #{type} fee #{fee}.")
     rescue Exception => e
+      puts e
     end
 
     return tx_hash

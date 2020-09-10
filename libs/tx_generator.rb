@@ -286,6 +286,7 @@ class Tx_generator
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
     tx.cell_deps += type_dep
+
     tx.hash = tx.compute_hash
     return tx
   end
@@ -360,7 +361,7 @@ class Tx_generator
       index: 0,
     )
     tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
-    tx.cell_deps << type_dep if type_dep != nil
+    tx.cell_deps += type_dep
 
     tx.hash = tx.compute_hash
 
@@ -374,15 +375,15 @@ class Tx_generator
         output = stx_info[:outputs][index]
         output_data = stx_info[:outputs_data][index]
         type = find_type(payment_type_hash)
+        amount = payments[payment_type_hash]
         if payment_type_hash == ""
-          amount = payments[payment_type_hash]
           return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
-          output.capacity = output.capacity - amount if output.lock.args == pubkey_payer
-          output.capacity = output.capacity + amount if output.lock.args == pubkey_payee
+          stx_info[:outputs][index].capacity = output.capacity - amount if output.lock.args == pubkey_payer
+          stx_info[:outputs][index].capacity = output.capacity + amount if output.lock.args == pubkey_payee
         else
           return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
-          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
+          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         end
       end
     end
@@ -435,7 +436,7 @@ class Tx_generator
     tx.cell_deps << CKB::Types::CellDep.new(out_point: out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-    tx.cell_deps << type_dep if type_dep != nil
+    tx.cell_deps += type_dep
 
     tx.hash = tx.compute_hash
     empty_witness = generate_empty_witness(id, 0, nounce, witness[0].input_type, witness[0].output_type)
@@ -449,27 +450,50 @@ class Tx_generator
   end
 
   def construct_change_output(input_cells, funding_type_script_version, fee, refund_capacity, change_lock_script)
-    type = find_type(funding_type_script_version.keys[0])
-    type_script = type[:type_script]
+    type_info = find_type(funding_type_script_version.keys[0])
+    type_script = type_info[:type_script]
     total_capacity = get_total_capacity(input_cells)
 
-    # calculate output_data
     if type_script == nil
-      output_data = "0x"
+      asset_output_data = "0x"
     else
-      total_amount = get_total_amount(input_cells, type_script.compute_hash, type[:decoder])
-      output_data = type[:encoder].call(total_amount - funding_type_script_version.values[0])
+      total_amount = get_total_amount(input_cells, type_script.compute_hash, type_info[:decoder])
+      asset_output_data = type_info[:encoder].call(total_amount - funding_type_script_version.values[0])
     end
 
     change_capacity = total_capacity - fee - refund_capacity
 
     # construct asset change output.
-    change_output = CKB::Types::Output.new(
-      capacity: change_capacity,
+    asset_change_output = CKB::Types::Output.new(
+      capacity: 0,
       lock: change_lock_script,
       type: type_script,
     )
-    return { output: change_output, output_data: output_data }
+
+    # calculate the residual ckb.
+    asset_change_output.capacity = asset_change_output.calculate_min_capacity(asset_output_data)
+    change_capacity_residual = change_capacity - asset_change_output.capacity
+
+    # construct the ckb refund.
+    ckb_change_output = CKB::Types::Output.new(
+      capacity: 0,
+      lock: change_lock_script,
+      type: nil,
+    )
+
+    if change_capacity_residual < 0
+      @logger.ino("there is a problem in construct_change_output.")
+      return change_capacity_residual
+    end
+
+    # construct the ckb refund.
+    if change_capacity_residual < ckb_change_output.calculate_min_capacity("0x")
+      asset_change_output.capacity += change_capacity_residual
+      return [{ output: asset_change_output, output_data: asset_output_data }]
+    else
+      ckb_change_output.capacity = change_capacity_residual
+      return [{ output: asset_change_output, output_data: asset_output_data }, { output: ckb_change_output, output_data: "0x" }]
+    end
   end
 
   def construct_gpc_output(gpc_capacity, total_asset, id, timeout, pubkey1, pubkey2)

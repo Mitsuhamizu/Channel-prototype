@@ -96,16 +96,22 @@ class Communication
 
   # two method to convert hash to cell and cell to hash.
   # cell structure. output:[], outputs_data[].
-  def hash_to_cell(cell_h)
-    cell = cell_h
-    cell[:output] = CKB::Types::Output.from_h(cell[:output])
-    return cell
+  def hash_to_cell(cells_h)
+    cells = []
+    for cell_h in cells_h
+      cell_h[:output] = CKB::Types::Output.from_h(cell_h[:output])
+      cells << cell_h
+    end
+    return cells
   end
 
-  def cell_to_hash(cell)
-    cell_h = cell
-    cell_h[:output] = cell_h[:output].to_h
-    return cell_h
+  def cell_to_hash(cells)
+    cells_h = []
+    for cell in cells
+      cell[:output] = cell[:output].to_h
+      cells_h << cell
+    end
+    return cells_h
   end
 
   # merge local and remote info.
@@ -153,6 +159,45 @@ class Communication
     data_json = data_hash.to_json
     file = File.new(@path_to_file + "result.json", "w")
     file.syswrite(data_json)
+  end
+
+  def assemble_change(changes)
+    @logger.info("#{@key.pubkey} assemble_change: begin.")
+    output_assembled = CKB::Types::Output.new(
+      capacity: 0,
+      lock: nil,
+      type: nil,
+    )
+
+    output_assembled.capacity = changes.map { |h| h[:output].capacity }.sum
+    @logger.info("#{@key.pubkey} assemble_change: capacity assembled.")
+
+    if changes.length == 1
+      @logger.info("#{@key.pubkey} assemble_change: branch 1.")
+      output_assembled.lock = changes[0][:output].lock
+      output_assembled.type = changes[0][:output].type
+      output_data_assembled = changes[0][:output_data]
+    elsif changes.length == 2
+      @logger.info("#{@key.pubkey} assemble_change: branch 2.")
+      if changes[0][:output].type != nil
+        asset_change_index = 0
+      elsif changes[1][:output].type
+        asset_change_index = 1
+      else
+        asset_change_index = -1
+      end
+
+      return "lock_inconsistent" if changes[0][:output].lock.to_h != changes[1][:output].lock.to_h
+      return "type_collision" if changes[0][:output].type != nil && changes[1][:output].type != nil
+
+      output_assembled.lock = changes[asset_change_index][:output].lock
+      output_assembled.type = changes[asset_change_index][:output].type
+      output_data_assembled = changes[asset_change_index][:output_data]
+    else
+      return "length_unknow"
+    end
+
+    return { output: output_assembled, output_data: output_data_assembled }
   end
 
   def get_balance_in_channel(stx_info, type_info, pubkey)
@@ -257,8 +302,9 @@ class Communication
       return false if remote_fee_fund < 0
 
       @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input finished.")
-
-      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
+      remote_change_assembled = assemble_change(remote_change)
+      @logger.info("#{@key.pubkey} check msg_1: change assembled.")
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change_assembled, remote_stx_info)
 
       # check remote cells.
       if remote_cell_check_result != "success"
@@ -351,7 +397,7 @@ class Communication
 
       # calculate change.
       local_change = @tx_generator.construct_change_output(local_cells, local_asset, local_fee_fund, refund_capacity, change_lock_script)
-      change_capacity = local_change[:output].capacity
+
       gpc_capacity = get_total_capacity(local_cells + remote_cells)
 
       @logger.info("#{@key.pubkey} send msg_2: generate settlement info and change: finished.")
@@ -359,7 +405,7 @@ class Communication
 
       outputs = Array.new()
       outputs_data = Array.new()
-      for cell in [remote_change] + [local_change]
+      for cell in remote_change + local_change
         outputs << cell[:output]
         outputs_data << cell[:output_data]
       end
@@ -468,12 +514,6 @@ class Communication
         return false
       end
 
-      # require the outputs number.
-      if fund_tx.outputs.length != 3
-        client.puts(generate_text_msg(msg[:id], "sry, the number of outputs in fund tx is illegal."))
-        return false
-      end
-
       # require there is no my cells in remote cells.
       # otherwise, if remote party uses my cell as his funding.
       # My signature is misused.
@@ -509,20 +549,36 @@ class Communication
         return false if local_cell_lock_lib.include? output.lock.compute_hash
       end
 
-      # the local change
-      local_change_check = { output: fund_tx.outputs[1], output_data: fund_tx.outputs_data[1] }
-      remote_change = { output: fund_tx.outputs[2], output_data: fund_tx.outputs_data[2] }
+      change_outputs_all = fund_tx.outputs[1..-1]
+      change_outputs_data_all = fund_tx.outputs_data[1..-1]
+      change_all = []
 
-      # local change checked.
-      if !(local_change_check[:output].to_h == local_change[:output].to_h &&
-           local_change_check[:output_data] == local_change[:output_data])
-        client.puts(generate_text_msg(msg[:id], "sry, my change goes wrong."))
-        record_result({ "sender_step2_error_local_change_modified": true })
+      for index in (0..(change_outputs_all.length() - 1))
+        change_all << { output: change_outputs_all[index], output_data: change_outputs_data_all[index] }
+      end
+
+      # the local change.
+      change_all_h = cell_to_hash(change_all)
+      local_change_h = cell_to_hash(local_change)
+      change_all_set = change_all_h.to_set()
+      local_change_set = local_change_h.to_set()
+
+      if !local_change_set.subset?(change_all_set)
+        # record the error
         return false
       end
 
+      remote_change_h = (change_all_set - local_change_set).to_a
+      remote_change = hash_to_cell(remote_change_h)
+
+      @logger.info("#{@key.pubkey} check msg_2: separte remote change.")
+
+      # assemble remote change
+      remote_change_assembled = assemble_change(remote_change)
+
+      @logger.info("#{@key.pubkey} check msg_2: start to check remote cells.")
       # check the cells remote party providing is right.
-      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change_assembled, remote_stx_info)
 
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))
@@ -841,8 +897,6 @@ class Communication
         end
 
         # generate the signed message.
-        # In closing, it is the first output, output_data and witness.
-        # In settlement, it is the first two outputs, outputs_data and first witness.
         msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
 
         # sign ctx and stx and send them.
@@ -881,7 +935,8 @@ class Communication
         nounce = @coll_sessions.find({ id: id }).first[:nounce]
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         current_height = @api.get_tip_block_number
-        type_info = find_type(type_hash)
+
+        @logger.info("#{@key.pubkey} check msg 6 closing: msg parsed.")
 
         # check cell is live.
         for cell in remote_fee_cells
@@ -914,11 +969,15 @@ class Communication
           local_fee = commands[:recv_settle_fee].to_i
           break
         end
+
+        @logger.info("#{@key.pubkey} check msg 6 closing: fee get.")
+
         local_change_output = CKB::Types::Output.new(
           capacity: 0,
           lock: @lock,
           type: nil,
         )
+
         get_total_capacity = local_change_output.calculate_min_capacity("0x") + local_fee
         local_fee_cell = gather_fee_cell([@lock_hash], get_total_capacity, @coll_cells, 0)
         fee_cell_capacity = get_total_capacity(local_fee_cell)
@@ -944,8 +1003,24 @@ class Communication
             @tx_generator.parse_witness(witness)
           end
         end
-        terminal_tx = @tx_generator.generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witnesses, sig_index, type_info[:type_dep])
+
+        type_dep = []
+
+        for output in local_stx_info[:outputs]
+          if output.type != nil
+            current_type = find_type(output.type.compute_hash)
+            type_dep.append(current_type[:type_dep]) if current_type[:type_dep] != nil
+          end
+        end
+        type_dep = type_dep.map(&:to_h)
+        type_dep = type_dep.to_set.to_a
+        type_dep = type_dep.map { |dep| CKB::Types::CellDep.from_h(dep) }
+
+        terminal_tx = @tx_generator.generate_terminal_tx(id, nounce, inputs, outputs, outputs_data, witnesses, sig_index, type_dep)
         terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell).to_h
+
+        @logger.info("#{@key.pubkey} check msg 6 closing: terminal_tx .")
+
         msg_reply = { id: msg[:id], type: 9, terminal_tx: terminal_tx }.to_json
         client.puts(msg_reply)
         @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2, closing_time: current_height + 20 } })
@@ -1071,9 +1146,10 @@ class Communication
         end
       end
 
-      puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
+      puts "#{remote_pubkey} reply your closign request about id #{id}. Remote fee is #{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
       commands = load_command()
+
       while true
         response = commands[:closing_reply]
         # response = STDIN.gets.chomp
@@ -1237,6 +1313,10 @@ class Communication
     end
 
     payment = convert_text_to_hash(payment)
+
+    @logger.info("#{local_pubkey} is payer.")
+    @logger.info("#{remote_pubkey} is payee.")
+
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)

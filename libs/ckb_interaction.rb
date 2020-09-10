@@ -203,7 +203,6 @@ def check_cells(cells, remote_asset, fee_required, change, stx_info)
     current_decoder = current_type[:decoder]
     check_output_result = check_output(remote_asset[current_type_script_hash], stx_info[:outputs][0], stx_info[:outputs_data][0], current_decoder)
     return "error_amount_claimed_inconsistent", check_output_result if check_output_result != 0
-
     # check amount
     if current_type_script_hash != ""
       amount_required = remote_asset[current_type_script_hash]
@@ -212,7 +211,7 @@ def check_cells(cells, remote_asset, fee_required, change, stx_info)
       return "error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
     end
   end
-
+  
   @logger.info("#{@key.pubkey} check cells: amount end.")
   # check the ckbyte is enough to support this output.
   change_actual = change[:output].capacity

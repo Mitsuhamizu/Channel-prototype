@@ -652,14 +652,16 @@ class Gpctest < Minitest::Test
   #   system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --amount #{amount} --id #{channel_id}")
   # end
 
-  def closing_A_B(channel_id, fee, closing_type)
+  def closing_A_B(channel_id, fee_sender, fee_receiver, closing_type)
     if closing_type == "bilateral"
       update_command(:closing_reply, "yes")
     elsif closing_type == "unilateral"
       update_command(:closing_reply, "no")
     end
 
-    system("ruby " + @path_to_gpc + " send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --fee #{fee}")
+    update_command(:recv_settle_fee, fee_receiver)
+
+    system("ruby " + @path_to_gpc + " send_closing_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --fee #{fee_sender}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
@@ -668,7 +670,7 @@ class Gpctest < Minitest::Test
     generate_blocks(@rpc, 5, 1)
   end
 
-  def closing_B_A(channel_id, fee, closing_type)
+  def closing_B_A(channel_id, fee_sender, fee_receiver, fee_uni_closing, fee_uni_settle, closing_type)
     if closing_type == "bilateral"
       update_command(:closing_reply, "yes")
     elsif closing_type == "unilateral"
@@ -676,8 +678,11 @@ class Gpctest < Minitest::Test
     else
       return false
     end
+    update_command(:recv_settle_fee, fee_receiver)
+    update_command(:closing_fee_unilateral, fee_uni_closing)
+    update_command(:settle_fee_unilateral, fee_uni_settle)
 
-    system("ruby " + @path_to_gpc + " send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --fee #{fee}")
+    system("ruby " + @path_to_gpc + " send_closing_request --pubkey #{@pubkey_B} --ip #{@ip_A} --port #{@listen_port_A} --id #{channel_id} --fee #{fee_sender}")
     # give time for closing tx.
     generate_blocks(@rpc, 30)
     generate_blocks(@rpc, 5, 1)
