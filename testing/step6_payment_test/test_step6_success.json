@@ -9,7 +9,7 @@
     },
     "B": {
         "funding_amount": {
-            "udt": 201,
+            "udt": 20,
             "ckb": 1000000000
         },
         "funding_fee": 3000,
@@ -18,7 +18,10 @@
     "closing_fee_unilateral": 3000,
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
-    "channel_establishment": false,
+    "channel_type": [
+        "ckb",
+        "udt"
+    ],
     "payments": [
         {
             "name": "payment1",
@@ -27,18 +30,7 @@
             "receiver": "A",
             "amount": 10,
             "success": true
-        },
-        {
-            "name": "payment2",
-            "payment_type": "udt",
-            "sender": "B",
-            "receiver": "A",
-            "amount": 10,
-            "success": true
         }
     ],
-    "closing_type": "bilateral",
-    "expect_info": "[{\"receiver_gather_funding_error_insufficient\":-1}]",
-    "describe-line1": "B::funding_amount::udt = 201.",
-    "describe-line2": "B's total UDT is 200, so the value of expect_info is 200 - 201 = -1."
+    "closing_type": "bilateral"
 }

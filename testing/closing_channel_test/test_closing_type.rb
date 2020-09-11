@@ -5,8 +5,8 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Closing < Minitest::Test
-  def closing(file_name)
+class Test < Minitest::Test
+  def simulation(file_name)
     @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
@@ -15,89 +15,121 @@ class Closing < Minitest::Test
     data_raw = File.read(__dir__ + "/" + file_name)
     data_json = JSON.parse(data_raw, symbolize_names: true)
 
+    # load data
+    funding_fee_A = data_json[:A][:funding_fee].to_i
+    funding_fee_B = data_json[:B][:funding_fee].to_i
+    settle_fee_A = data_json[:A][:settle_fee].to_i
+    settle_fee_B = data_json[:B][:settle_fee].to_i
     container_min = data_json[:container_min].to_i
-    funding_fee_A = data_json[:funding_fee_A].to_i
-    funding_fee_B = data_json[:funding_fee_B].to_i
-    settle_fee_A = data_json[:settle_fee_A].to_i
-    settle_fee_B = data_json[:settle_fee_B].to_i
+
+    funding_amount_A = data_json[:A][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+    funding_amount_B = data_json[:B][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+
+    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
     settle_fee_unilateral = data_json[:settle_fee_unilateral].to_i
     closing_fee_unilateral = data_json[:closing_fee_unilateral].to_i
-
-    funding_amount_A = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
-    funding_amount_B = BigDecimal(data_json[:funding_amount_A]) / 10 ** 8
-
     closing_type = data_json[:closing_type]
-    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil if data_json[:expect_info] != nil
-    payment_type = data_json[:payment_type]
     payments = data_json[:payments]
+    channel_establishment = data_json[:channel_establishment]
 
-    # simple testing in ckb.
+    # init the ckb environment.
     tests = Gpctest.new("test")
     tests.setup()
 
-    balance_A_begin, balance_B_begin = tests.get_account_balance_ckb()
+    # get the asset information at the beginning.
+    udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
+    ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
 
     begin
-      channel_id, @monitor_A, @monitor_B = tests.create_ckb_channel(funding_amount_A, funding_amount_B, funding_fee_A, funding_fee_B, settle_fee_A)
+      # create channel.
+      channel_id, @monitor_A, @monitor_B = tests.create_channel(funding_amount_A, funding_amount_B, container_min, funding_fee_A, funding_fee_B)
 
-      # make payments.
-      amount_A_B = 0
-      amount_B_A = 0
+      # If the channel establishment fails, we need not try to make payment and assert the balance.
+      if channel_establishment
 
-      for payment in payments
-        payment = payment[1]
-        sender = payment[:sender]
-        receiver = payment[:receiver]
-        amount = payment[:amount]
-        success = payment[:success]
-        if sender == "A" && receiver == "B" && payment_type == "ckb"
-          tests.make_payment_ckb_A_B(channel_id, amount)
-          amount_A_B += amount if success
-        elsif sender == "B" && receiver == "A" && payment_type == "ckb"
-          tests.make_payment_ckb_B_A(channel_id, amount)
-          amount_B_A += amount if success
-        else
-          return false
+        # make payments.
+        ckb_transfer_A_to_B = 0
+        ckb_transfer_B_to_A = 0
+        udt_transfer_A_to_B = 0
+        udt_transfer_B_to_A = 0
+
+        # send payment.
+        for payment in payments
+          sender = payment[:sender]
+          receiver = payment[:receiver]
+          amount = payment[:amount]
+          success = payment[:success]
+          payment_type = payment[:payment_type]
+
+          if sender == "A" && receiver == "B"
+            tests.make_payment_A_B(channel_id, payment_type, amount)
+            if success
+              if payment_type == "ckb"
+                ckb_transfer_A_to_B += amount
+              elsif payment_type == "udt"
+                udt_transfer_A_to_B += amount
+              end
+            end
+          elsif sender == "B" && receiver == "A"
+            tests.make_payment_B_A(channel_id, payment_type, amount)
+            if success
+              if payment_type == "ckb"
+                ckb_transfer_B_to_A += amount
+              elsif payment_type == "udt"
+                udt_transfer_B_to_A += amount
+              end
+            end
+          else
+            return false
+          end
+        end
+
+        # calculate the expected balance.
+        ckb_A_B = ckb_transfer_A_to_B - ckb_transfer_B_to_A
+        udt_A_B = udt_transfer_A_to_B - udt_transfer_B_to_A
+
+        # B send the close request to A.
+        tests.closing_B_A(channel_id, settle_fee_B, settle_fee_A, closing_fee_unilateral, settle_fee_unilateral, closing_type)
+
+        ckb_A_after_closing, ckb_B_after_closing = tests.get_account_balance_ckb()
+        udt_A_after_closing, udt_B_after_closing = tests.get_account_balance_udt()
+
+        # assert udt
+        assert_equal(udt_A_B, udt_A_begin - udt_A_after_closing, "A'udt after payment is wrong.")
+        assert_equal(-udt_A_B, udt_B_begin - udt_B_after_closing, "B'udt after payment is wrong.")
+
+        # assert ckb
+
+        if closing_type == "bilateral"
+          assert_equal(ckb_A_B * 10 ** 8 + funding_fee_A + settle_fee_A, ckb_A_begin - ckb_A_after_closing, "A'ckb after payment is wrong.")
+          assert_equal(-ckb_A_B * 10 ** 8 + funding_fee_B + settle_fee_B, ckb_B_begin - ckb_B_after_closing, "B'ckb after payment is wrong.")
+        elsif closing_type == "unilateral"
+          # case1: B closing, A settle.
+          # case2: B closing, B settle.
+          assert(((ckb_A_B * 10 ** 8 + funding_fee_A + settle_fee_unilateral == ckb_A_begin - ckb_A_after_closing) &&
+                  (-ckb_A_B * 10 ** 8 + funding_fee_B + closing_fee_unilateral == ckb_B_begin - ckb_B_after_closing)) ||
+                 ((ckb_A_B * 10 ** 8 + funding_fee_A == ckb_A_begin - ckb_A_after_closing) &&
+                  (-ckb_A_B * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == ckb_B_begin - ckb_B_after_closing)), "balance after payments wrong.")
         end
       end
-
-      amount_diff = amount_B_A - amount_A_B
-
-      # update settlement and closing fee.
-      tests.update_command(:closing_fee_unilateral, closing_fee_unilateral)
-      tests.update_command(:settle_fee_unilateral, settle_fee_unilateral)
-
-      # B send the close request to A.
-      tests.closing_B_A(channel_id, settle_fee_B, closing_type)
-
-      balance_A_after_payment, balance_B_after_payment = tests.get_account_balance_ckb()
-
-      if closing_type == "bilateral"
-        assert_equal(-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_A, balance_A_begin - balance_A_after_payment, "A'balance after payment is wrong.")
-        assert_equal(amount_diff * 10 ** 8 + funding_fee_B + settle_fee_B, balance_B_begin - balance_B_after_payment, "B'balance after payment is wrong.")
-      elsif closing_type == "unilateral"
-        assert(((-amount_diff * 10 ** 8 + funding_fee_A + settle_fee_unilateral == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral == balance_B_begin - balance_B_after_payment)) || ((-amount_diff * 10 ** 8 + funding_fee_A == balance_A_begin - balance_A_after_payment) && (amount_diff * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == balance_B_begin - balance_B_after_payment)), "balance after payments wrong.")
-      end
-
+    rescue Exception => e
+      puts e
+    ensure
       if expect != nil
         for expect_iter in expect
           result_json = tests.load_json_file(@path_to_file + "result.json").to_json
           assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
         end
       end
-    rescue Exception => e
-      raise e
-    ensure
       tests.close_all_thread(@monitor_A, @monitor_B, @db)
     end
   end
 
   def test_unilateral()
-    closing("closing_unilateral.json")
+    simulation("closing_unilateral.json")
   end
 
   def test_bilateral()
-    closing("closing_bilateral.json")
+    simulation("closing_bilateral.json")
   end
-
 end

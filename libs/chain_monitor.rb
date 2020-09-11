@@ -301,7 +301,7 @@ class Minotor
       tx_hash = @api.send_transaction(tx) if exist == nil
       @logger.info("#{@key.pubkey} send tx with type #{type} fee #{fee}.")
     rescue Exception => e
-      puts e
+      # puts e
     end
 
     return tx_hash

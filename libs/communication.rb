@@ -1229,7 +1229,6 @@ class Communication
     # prepare the msg components.
     local_cells = gather_inputs(funding_type_script_version, fee_fund, lock_hashes, change_lock_script,
                                 refund_lock_script, @coll_cells)
-
     if local_cells.is_a? Numeric
       record_result({ "sender_gather_funding_error_insufficient": local_cells })
       return false
@@ -1316,7 +1315,6 @@ class Communication
 
     @logger.info("#{local_pubkey} is payer.")
     @logger.info("#{remote_pubkey} is payee.")
-
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)

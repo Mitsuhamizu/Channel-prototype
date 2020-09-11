@@ -9,8 +9,8 @@ Rake::TestTask.new do |task|
   #                         "making_payment_ckb_test/test*.rb",
   #                         "closing_channel_test/test*.rb"]
   # task.pattern = FileList["gather_input_udt_test/test*.rb"]
-  # task.pattern = FileList["gather_input_ckb_test/test*.rb"]
-  task.pattern = FileList["making_payment_udt_test/test*.rb"]
+  task.pattern = FileList["gather_input_ckb_test/test*.rb"]
+  # task.pattern = FileList["making_payment_udt_test/test*.rb"]
   # task.pattern = FileList["making_payment_ckb_test/test*.rb"]
   # task.pattern = FileList["closing_channel_test/test*.rb"]
   # task.pattern = FileList["step1_ckb_test/test*.rb"]

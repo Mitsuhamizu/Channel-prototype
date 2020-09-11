@@ -460,7 +460,7 @@ class Gpctest < Minitest::Test
     end
   end
 
-  def create_channel(funding_A, funding_B, asset_type, container_min, fee_A_fund, fee_B_fund)
+  def create_channel(funding_A, funding_B, container_min, fee_A_fund, fee_B_fund, success)
     begin
       init_client()
 
@@ -491,150 +491,148 @@ class Gpctest < Minitest::Test
 
       create_commands_file(commands)
       send_establishment_request_A(funding_A, fee_A_fund, since)
+      if success
+        # make the tx on chain.
+        generate_blocks(@rpc, 10, 0.5)
 
-      # make the tx on chain.
-      generate_blocks(@rpc, 10, 0.5)
+        ckb_A_after_funding, ckb_B_after_funding = get_account_balance_ckb()
+        udt_A_after_funding, udt_B_after_funding = get_account_balance_udt()
 
-      ckb_A_after_funding, ckb_B_after_funding = get_account_balance_ckb()
-      udt_A_after_funding, udt_B_after_funding = get_account_balance_udt()
+        @logger.info("gpctest.rb: A'udt after funding in udt channel: #{udt_A_after_funding}")
+        @logger.info("gpctest.rb: B'udt after funding in udt channel: #{udt_B_after_funding}")
+        @logger.info("gpctest.rb: A'ckb after funding in udt channel: #{ckb_A_after_funding}")
+        @logger.info("gpctest.rb: B'ckb after funding in udt channel: #{ckb_B_after_funding}")
 
-      @logger.info("gpctest.rb: A'udt after funding in udt channel: #{udt_A_after_funding}")
-      @logger.info("gpctest.rb: B'udt after funding in udt channel: #{udt_B_after_funding}")
-      @logger.info("gpctest.rb: A'ckb after funding in udt channel: #{ckb_A_after_funding}")
-      @logger.info("gpctest.rb: B'ckb after funding in udt channel: #{ckb_B_after_funding}")
+        # assert the balance after funding on chain.
+        assert_equal(funding_A[:udt], udt_A_begin - udt_A_after_funding, "A'udt after funding is wrong.")
+        assert_equal(funding_B[:udt], udt_B_begin - udt_B_after_funding, "B'udt after funding is wrong.")
 
-      for asset_type_iter in asset_type
+        assert_equal(container_min + fee_A_fund + funding_A[:ckb] * 10 ** 8, ckb_A_begin - ckb_A_after_funding, "A'ckb after funding is wrong.")
+        assert_equal(container_min + fee_B_fund + funding_B[:ckb] * 10 ** 8, ckb_B_begin - ckb_B_after_funding, "B'ckb after funding is wrong.")
+
+        channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
+
+        # assert the nounce and the stage?
+        assert_db_filed_A(channel_id, :nounce, 1)
+        assert_db_filed_A(channel_id, :stage, 1)
+        assert_db_filed_B(channel_id, :nounce, 1)
+        assert_db_filed_B(channel_id, :stage, 1)
       end
-
-      # assert the balance after funding on chain.
-      assert_equal(funding_A[:udt], udt_A_begin - udt_A_after_funding, "A'udt after funding is wrong.")
-      assert_equal(funding_B[:udt], udt_B_begin - udt_B_after_funding, "B'udt after funding is wrong.")
-
-      assert_equal(container_min + fee_A_fund + funding_A[:ckb] * 10 ** 8, ckb_A_begin - ckb_A_after_funding, "A'ckb after funding is wrong.")
-      assert_equal(container_min + fee_B_fund + funding_B[:ckb] * 10 ** 8, ckb_B_begin - ckb_B_after_funding, "B'ckb after funding is wrong.")
-
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
-
-      # assert the nounce and the stage?
-      assert_db_filed_A(channel_id, :nounce, 1)
-      assert_db_filed_A(channel_id, :stage, 1)
-      assert_db_filed_B(channel_id, :nounce, 1)
-      assert_db_filed_B(channel_id, :stage, 1)
       return channel_id, @monitor_A, @monitor_B
     rescue Exception => e
       raise e
     end
   end
 
-  # A and B invest 20 UDT respectively.
-  def create_udt_channel(funding_A, funding_B, asset_type)
-    begin
-      init_client()
-      container_min = 134 * 10 ** 8
-      @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
-      # load the asset...
-      type_script_hash = load_type()
-      type_info = find_type(type_script_hash)
+  # # A and B invest 20 UDT respectively.
+  # def create_udt_channel(funding_A, funding_B, asset_type)
+  #   begin
+  #     init_client()
+  #     container_min = 134 * 10 ** 8
+  #     @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
+  #     # load the asset...
+  #     type_script_hash = load_type()
+  #     type_info = find_type(type_script_hash)
 
-      # locks
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
+  #     # locks
+  #     lock_hashes_A = [@default_lock_A.compute_hash]
+  #     lock_hashes_B = [@default_lock_B.compute_hash]
 
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
+  #     # balance.
+  #     balance_begin_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
+  #     balance_begin_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
-      capacity_begin_A = get_balance(lock_hashes_A)
-      capacity_begin_B = get_balance(lock_hashes_B)
+  #     capacity_begin_A = get_balance(lock_hashes_A)
+  #     capacity_begin_B = get_balance(lock_hashes_B)
 
-      @logger.info("A'balance before funding in udt channel: #{balance_begin_A}")
-      @logger.info("B'balance before funding in udt channel: #{balance_begin_B}")
+  #     @logger.info("A'balance before funding in udt channel: #{balance_begin_A}")
+  #     @logger.info("B'balance before funding in udt channel: #{balance_begin_B}")
 
-      # prepare the funding info.
-      since = "9223372036854775908"
+  #     # prepare the funding info.
+  #     since = "9223372036854775908"
 
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fund_fee: fee_B_fund, recv_settle_fee: fee_receiver_settle, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "yes" }
-      create_commands_file(commands)
-      send_establishment_request_A(funding_A, fee_A_fund, since, "udt")
+  #     commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
+  #                  recv_fund_fee: fee_B_fund, recv_settle_fee: fee_receiver_settle, sender_one_way_permission: "yes",
+  #                  payment_reply: "yes", closing_reply: "yes" }
+  #     create_commands_file(commands)
+  #     send_establishment_request_A(funding_A, fee_A_fund, since, "udt")
 
-      # make the tx on chain.
-      generate_blocks(@rpc, 10, 0.5)
+  #     # make the tx on chain.
+  #     generate_blocks(@rpc, 10, 0.5)
 
-      balance_after_funding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
-      balance_after_funding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
+  #     balance_after_funding_A = get_balance(lock_hashes_A, type_script_hash, type_info[:decoder])
+  #     balance_after_funding_B = get_balance(lock_hashes_B, type_script_hash, type_info[:decoder])
 
-      capacity_after_funding_A = get_balance(lock_hashes_A)
-      capacity_after_funding_B = get_balance(lock_hashes_B)
+  #     capacity_after_funding_A = get_balance(lock_hashes_A)
+  #     capacity_after_funding_B = get_balance(lock_hashes_B)
 
-      @logger.info("A'balance after_funding in udt channel: #{balance_after_funding_A}")
-      @logger.info("B'balance after_funding in udt channel: #{balance_after_funding_B}")
-      # assert the balance after funding on chain.
-      assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "A'balance after funding is wrong.")
-      assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "B'balance after funding is wrong.")
+  #     @logger.info("A'balance after_funding in udt channel: #{balance_after_funding_A}")
+  #     @logger.info("B'balance after_funding in udt channel: #{balance_after_funding_B}")
+  #     # assert the balance after funding on chain.
+  #     assert_equal(funding_A, balance_begin_A - balance_after_funding_A, "A'balance after funding is wrong.")
+  #     assert_equal(funding_B, balance_begin_B - balance_after_funding_B, "B'balance after funding is wrong.")
 
-      assert_equal(container_min + fee_A_fund, capacity_begin_A - capacity_after_funding_A, "A'capacity after funding is wrong.")
-      assert_equal(container_min + fee_B_fund, capacity_begin_B - capacity_after_funding_B, "B'capacity after funding is wrong.")
+  #     assert_equal(container_min + fee_A_fund, capacity_begin_A - capacity_after_funding_A, "A'capacity after funding is wrong.")
+  #     assert_equal(container_min + fee_B_fund, capacity_begin_B - capacity_after_funding_B, "B'capacity after funding is wrong.")
 
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
+  #     channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
 
-      # assert the nounce and the stage?
-      assert_db_filed_A(channel_id, :nounce, 1)
-      assert_db_filed_A(channel_id, :stage, 1)
-      assert_db_filed_B(channel_id, :nounce, 1)
-      assert_db_filed_B(channel_id, :stage, 1)
-      return channel_id, @monitor_A, @monitor_B
-    rescue Exception => e
-      raise e
-    end
-  end
+  #     # assert the nounce and the stage?
+  #     assert_db_filed_A(channel_id, :nounce, 1)
+  #     assert_db_filed_A(channel_id, :stage, 1)
+  #     assert_db_filed_B(channel_id, :nounce, 1)
+  #     assert_db_filed_B(channel_id, :stage, 1)
+  #     return channel_id, @monitor_A, @monitor_B
+  #   rescue Exception => e
+  #     raise e
+  #   end
+  # end
 
-  def create_ckb_channel(funding_A, funding_B, fee_A_fund = 4000, fee_B_fund = 2000, fee_receiver_settle = 1000)
-    begin
-      init_client()
-      @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
-      container_min = 61 * 10 ** 8
-      # lock
-      lock_hashes_A = [@default_lock_A.compute_hash]
-      lock_hashes_B = [@default_lock_B.compute_hash]
+  # def create_ckb_channel(funding_A, funding_B, fee_A_fund = 4000, fee_B_fund = 2000, fee_receiver_settle = 1000)
+  #   begin
+  #     init_client()
+  #     @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
+  #     container_min = 61 * 10 ** 8
+  #     # lock
+  #     lock_hashes_A = [@default_lock_A.compute_hash]
+  #     lock_hashes_B = [@default_lock_B.compute_hash]
 
-      # balance.
-      balance_begin_A = get_balance(lock_hashes_A)
-      balance_begin_B = get_balance(lock_hashes_B)
+  #     # balance.
+  #     balance_begin_A = get_balance(lock_hashes_A)
+  #     balance_begin_B = get_balance(lock_hashes_B)
 
-      # prepare the funding info.
-      since = "9223372036854775908"
+  #     # prepare the funding info.
+  #     since = "9223372036854775908"
 
-      commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
-                   recv_fund_fee: fee_B_fund, recv_settle_fee: fee_receiver_settle, sender_one_way_permission: "yes",
-                   payment_reply: "yes", closing_reply: "yes" }
+  #     commands = { sender_reply: "yes", recv_reply: "yes", recv_fund: funding_B,
+  #                  recv_fund_fee: fee_B_fund, recv_settle_fee: fee_receiver_settle, sender_one_way_permission: "yes",
+  #                  payment_reply: "yes", closing_reply: "yes" }
 
-      create_commands_file(commands)
-      send_establishment_request_A(funding_A, fee_A_fund, since, "ckb")
+  #     create_commands_file(commands)
+  #     send_establishment_request_A(funding_A, fee_A_fund, since, "ckb")
 
-      # make the tx on chain.
-      generate_blocks(@rpc, 5, 0.5)
+  #     # make the tx on chain.
+  #     generate_blocks(@rpc, 5, 0.5)
 
-      balance_after_funding_A = get_balance(lock_hashes_A)
-      balance_after_funding_B = get_balance(lock_hashes_B)
+  #     balance_after_funding_A = get_balance(lock_hashes_A)
+  #     balance_after_funding_B = get_balance(lock_hashes_B)
 
-      # assert the balance after funding are right.
-      assert_equal(funding_A * 10 ** 8 + container_min + fee_A_fund, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
-      assert_equal(funding_B * 10 ** 8 + container_min + fee_B_fund, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
+  #     # assert the balance after funding are right.
+  #     assert_equal(funding_A * 10 ** 8 + container_min + fee_A_fund, balance_begin_A - balance_after_funding_A, "balance after funding is wrong.")
+  #     assert_equal(funding_B * 10 ** 8 + container_min + fee_B_fund, balance_begin_B - balance_after_funding_B, "balance after funding is wrong.")
 
-      channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
+  #     channel_id = @coll_session_A.find({ remote_pubkey: @secp_args_B }).first[:id]
 
-      # assert the nounce and the stage?
-      assert_db_filed_A(channel_id, :nounce, 1)
-      assert_db_filed_A(channel_id, :stage, 1)
-      assert_db_filed_B(channel_id, :nounce, 1)
-      assert_db_filed_B(channel_id, :stage, 1)
-      return channel_id, @monitor_A, @monitor_B
-    rescue Exception => e
-      raise e
-    end
-  end
+  #     # assert the nounce and the stage?
+  #     assert_db_filed_A(channel_id, :nounce, 1)
+  #     assert_db_filed_A(channel_id, :stage, 1)
+  #     assert_db_filed_B(channel_id, :nounce, 1)
+  #     assert_db_filed_B(channel_id, :stage, 1)
+  #     return channel_id, @monitor_A, @monitor_B
+  #   rescue Exception => e
+  #     raise e
+  #   end
+  # end
 
   def make_payment_A_B(channel_id, payment_type, amount)
     system("ruby " + @path_to_gpc + " make_payment --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --id #{channel_id} --payment #{payment_type}:#{amount}")

@@ -1,11 +1,43 @@
 {
-    "funding_fee_A": 2000,
-    "funding_fee_B": 2000,
-    "container_min": 12200000000,
-    "funding_amount_A": 10000,
-    "funding_amount_B": -1,
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500
+    },
+    "B": {
+        "funding_amount": {
+            "udt": -1,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": false,
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "ckb",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        },
+        {
+            "name": "payment2",
+            "payment_type": "udt",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        }
+    ],
+    "closing_type": "bilateral",
     "expect_info": "[{\"receiver_gather_funding_error_negtive\":-1}]",
-    "describe-line1": "CKB::Receiver::",
-    "describe-line2": "funding_amount_B < 0.",
-    "describe-line3": "The value of expect_info is the value of a negative number detected."
+    "describe-line1": "B::funding_amount::udt = -1."
 }

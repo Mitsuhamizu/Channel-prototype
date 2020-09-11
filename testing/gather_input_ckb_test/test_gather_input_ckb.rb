@@ -5,83 +5,150 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Gather_input_ckb < Minitest::Test
-  def gather_input(file_name)
+class Test < Minitest::Test
+  def simulation(file_name)
     @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
-    flag = "ckb"
+
+    data_raw = File.read(__dir__ + "/" + file_name)
+    data_json = JSON.parse(data_raw, symbolize_names: true)
+
+    # load data
+    funding_fee_A = data_json[:A][:funding_fee].to_i
+    funding_fee_B = data_json[:B][:funding_fee].to_i
+    settle_fee_A = data_json[:A][:settle_fee].to_i
+    settle_fee_B = data_json[:B][:settle_fee].to_i
+    container_min = data_json[:container_min].to_i
+
+    funding_amount_A = data_json[:A][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+    funding_amount_B = data_json[:B][:funding_amount].map { |key, value| key == :ckb ? [key, BigDecimal(value.to_i) / 10 ** 8] : [key, value.to_i] }.to_h
+
+    expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
+    settle_fee_unilateral = data_json[:settle_fee_unilateral].to_i
+    closing_fee_unilateral = data_json[:closing_fee_unilateral].to_i
+    closing_type = data_json[:closing_type]
+    payments = data_json[:payments]
+    channel_establishment = data_json[:channel_establishment]
+
+    # init the ckb environment.
+    tests = Gpctest.new("test")
+    tests.setup()
+
+    # get the asset information at the beginning.
+    udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
+    ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
+
     begin
-      data_raw = File.read(__dir__ + "/" + file_name)
-      data_json = JSON.parse(data_raw, symbolize_names: true)
+      # create channel.
+      channel_id, @monitor_A, @monitor_B = tests.create_channel(funding_amount_A, funding_amount_B, container_min, funding_fee_A, funding_fee_B, channel_establishment)
 
-      container_min = data_json[:container_min].to_i
-      funding_fee_A = data_json[:funding_fee_A].to_i
-      funding_fee_B = data_json[:funding_fee_B].to_i
-      funding_amount_A = data_json[:funding_amount_A].to_i
-      funding_amount_B = data_json[:funding_amount_B].to_i
+      # If the channel establishment fails, we need not try to make payment and assert the balance.
+      if channel_establishment
 
-      # # prepare the test
-      tests = Gpctest.new("test")
-      tests.setup()
+        # make payments.
+        ckb_transfer_A_to_B = 0
+        ckb_transfer_B_to_A = 0
+        udt_transfer_A_to_B = 0
+        udt_transfer_B_to_A = 0
 
-      investment_A = funding_amount_A
-      investment_B = funding_amount_B
+        # send payment.
+        for payment in payments
+          sender = payment[:sender]
+          receiver = payment[:receiver]
+          amount = payment[:amount]
+          success = payment[:success]
+          payment_type = payment[:payment_type]
 
-      investment_A = BigDecimal(funding_amount_A) / 10 ** 8
-      investment_B = BigDecimal(funding_amount_B) / 10 ** 8
+          if sender == "A" && receiver == "B"
+            tests.make_payment_A_B(channel_id, payment_type, amount)
+            if success
+              if payment_type == "ckb"
+                ckb_transfer_A_to_B += amount
+              elsif payment_type == "udt"
+                udt_transfer_A_to_B += amount
+              end
+            end
+          elsif sender == "B" && receiver == "A"
+            tests.make_payment_B_A(channel_id, payment_type, amount)
+            if success
+              if payment_type == "ckb"
+                ckb_transfer_B_to_A += amount
+              elsif payment_type == "udt"
+                udt_transfer_B_to_A += amount
+              end
+            end
+          else
+            return false
+          end
+        end
 
-      expect = JSON.parse(data_json[:expect_info], symbolize_names: true) if data_json[:expect_info] != nil
-      @monitor_A, @monitor_B = tests.check_investment_fee(investment_A, investment_B, funding_fee_A, funding_fee_B, expect, flag)
-      sleep(2)
-      tests.record_info_in_db()
+        # calculate the expected balance.
+        ckb_A_B = ckb_transfer_A_to_B - ckb_transfer_B_to_A
+        udt_A_B = udt_transfer_A_to_B - udt_transfer_B_to_A
 
+        # B send the close request to A.
+        tests.closing_B_A(channel_id, settle_fee_B, settle_fee_A, closing_fee_unilateral, settle_fee_unilateral, closing_type)
+
+        ckb_A_after_closing, ckb_B_after_closing = tests.get_account_balance_ckb()
+        udt_A_after_closing, udt_B_after_closing = tests.get_account_balance_udt()
+
+        # assert udt
+        assert_equal(udt_A_B, udt_A_begin - udt_A_after_closing, "A'udt after payment is wrong.")
+        assert_equal(-udt_A_B, udt_B_begin - udt_B_after_closing, "B'udt after payment is wrong.")
+
+        # assert ckb
+
+        if closing_type == "bilateral"
+          assert_equal(ckb_A_B * 10 ** 8 + funding_fee_A + settle_fee_A, ckb_A_begin - ckb_A_after_closing, "A'ckb after payment is wrong.")
+          assert_equal(-ckb_A_B * 10 ** 8 + funding_fee_B + settle_fee_B, ckb_B_begin - ckb_B_after_closing, "B'ckb after payment is wrong.")
+        elsif closing_type == "unilateral"
+          # case1: B closing, A settle.
+          # case2: B closing, B settle.
+          assert(((ckb_A_B * 10 ** 8 + funding_fee_A + settle_fee_unilateral == ckb_A_begin - ckb_A_after_closing) &&
+                  (-ckb_A_B * 10 ** 8 + funding_fee_B + closing_fee_unilateral == ckb_B_begin - ckb_B_after_closing)) ||
+                 ((ckb_A_B * 10 ** 8 + funding_fee_A == ckb_A_begin - ckb_A_after_closing) &&
+                  (-ckb_A_B * 10 ** 8 + funding_fee_B + closing_fee_unilateral + settle_fee_unilateral == ckb_B_begin - ckb_B_after_closing)), "balance after payments wrong.")
+        end
+      end
+    rescue Exception => e
+      puts e
+    ensure
+      tests.close_all_thread(@monitor_A, @monitor_B, @db)
       if expect != nil
         for expect_iter in expect
           result_json = tests.load_json_file(@path_to_file + "result.json").to_json
           assert_match(expect_iter.to_json[1..-2], result_json, "#{expect_iter[1..-2]}")
         end
       end
-    rescue => exception
-      raise exception
-    ensure
-      tests.close_all_thread(@monitor_A, @monitor_B, @db)
     end
   end
 
   # receiver
 
-  def test_receiver_fee_negtive()
-    gather_input("Receiver_fee_negtive.json")
-  end
+  # def test_receiver_fee_negtive()
+  #   simulation("Receiver_fee_negtive.json")
+  # end
 
-  def test_receiver_funding_negtive()
-    gather_input("Receiver_funding_negtive.json")
-  end
+  # def test_receiver_funding_negtive()
+  #   simulation("Receiver_funding_negtive.json")
+  # end
 
-  def test_receiver_gather_insufficient()
-    gather_input("Receiver_gather_insufficient.json")
-  end
+  # def test_receiver_gather_insufficient()
+  #   simulation("Receiver_gather_insufficient.json")
+  # end
 
-  def test_receiver_gather_success()
-    gather_input("Receiver_gather_success.json")
-  end
+  # # sender
+  # def test_sender_fee_negtive()
+  #   simulation("Sender_fee_negtive.json")
+  # end
 
-  # sender
-  def test_sender_fee_negtive()
-    gather_input("Sender_fee_negtive.json")
-  end
-
-  def test_sender_funding_negtive()
-    gather_input("Sender_funding_negtive.json")
-  end
+  # def test_sender_funding_negtive()
+  #   simulation("Sender_funding_negtive.json")
+  # end
 
   def test_sender_gather_insufficient()
-    gather_input("Sender_gather_insufficient.json")
-  end
-
-  def test_sender_gather_success()
-    gather_input("Sender_gather_success.json")
+    simulation("Sender_gather_insufficient.json")
   end
 end
