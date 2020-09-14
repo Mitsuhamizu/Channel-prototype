@@ -22,14 +22,6 @@
     "payments": [
         {
             "name": "payment1",
-            "payment_type": "ckb",
-            "sender": "B",
-            "receiver": "A",
-            "amount": 10,
-            "success": true
-        },
-        {
-            "name": "payment2",
             "payment_type": "udt",
             "sender": "B",
             "receiver": "A",
@@ -37,5 +29,5 @@
             "success": true
         }
     ],
-    "closing_type": "unilateral",
+    "closing_type": "bilateral"
 }

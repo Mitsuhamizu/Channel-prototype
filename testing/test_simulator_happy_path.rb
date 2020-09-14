@@ -1,4 +1,4 @@
-require_relative "../miscellaneous/libs/gpctest.rb"
+require_relative "./miscellaneous/libs/gpctest.rb"
 require "minitest/autorun"
 require "mongo"
 require "bigdecimal"
@@ -7,7 +7,7 @@ Mongo::Logger.logger.level = Logger::FATAL
 
 class Test < Minitest::Test
   def simulation(file_name)
-    @path_to_file = __dir__ + "/../miscellaneous/files/"
+    @path_to_file = __dir__ + "/miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
@@ -125,30 +125,51 @@ class Test < Minitest::Test
     end
   end
 
-  # receiver
+  ## happy path
 
-  # def test_receiver_fee_negtive()
-  #   simulation("Receiver_fee_negtive.json")
-  # end
-
-  # def test_receiver_funding_negtive()
-  #   simulation("Receiver_funding_negtive.json")
-  # end
-
-  # def test_receiver_gather_insufficient()
-  #   simulation("Receiver_gather_insufficient.json")
-  # end
-
-  # # sender
-  # def test_sender_fee_negtive()
-  #   simulation("Sender_fee_negtive.json")
-  # end
-
-  # def test_sender_funding_negtive()
-  #   simulation("Sender_funding_negtive.json")
-  # end
-
-  def test_sender_gather_insufficient()
-    simulation("Sender_gather_insufficient.json")
+  # closing_channel_test
+  def test_closing_channel()
+    path_to_closing_channel_test = "./closing_channel_test/"
+    # simulation(path_to_closing_channel_test + "closing_unilateral.json")
+    simulation(path_to_closing_channel_test + "closing_bilateral.json")
   end
+
+  # # gather_input_ckb
+  # def test_gather_input_ckb()
+  #   path_to_gather_input_ckb = "./gather_input_ckb_test/"
+  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "test/Receiver_funding_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "test/Receiver_gather_insufficient.json")
+  #   simulation(path_to_gather_input_ckb + "test/Sender_fee_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "test/Sender_funding_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "test/Sender_gather_insufficient.json")
+  # end
+
+  # # gather_input_udt
+  # # reconsider it.
+  # def test_gather_input_udt()
+  #   path_to_gather_input_udt = "./gather_input_udt_test/"
+  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient_1_stage.json")
+  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient_2_stage.json")
+  #   simulation(path_to_gather_input_udt + "Receiver_gather_success_1_stage.json")
+  #   simulation(path_to_gather_input_udt + "Receiver_gather_success_2_stage.json")
+  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient_1_stage.json")
+  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient_2_stage.json")
+  #   simulation(path_to_gather_input_udt + "Sender_gather_success_1_stage.json")
+  #   simulation(path_to_gather_input_udt + "Sender_gather_success_2_stage.json")
+  # end
+
+  # # making_payment_ckb
+  # def test_makeing_payment_ckb()
+  #   path_to_making_payment_ckb = "./making_payment_ckb_test/"
+  #   simulation(path_to_making_payment_ckb + "making_payment_success.json")
+  #   simulation(path_to_making_payment_ckb + "making_payment_negtive.json")
+  #   simulation(path_to_making_payment_ckb + "making_payment_insufficient.json")
+  # end
+
+  # # making_payment_udt
+  # def test_makeing_payment_udt()
+  #   path_to_making_payment_udt = "./making_payment_udt_test/"
+  #   simulation(path_to_making_payment_udt + "making_payment_success.json")
+  # end
 end
