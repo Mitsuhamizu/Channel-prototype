@@ -208,6 +208,8 @@ def verify_info_args(info1, info2)
   witness_array1 = info1[:witnesses]
   witness_array2 = info2[:witnesses]
 
+
+  # clear the witness to check the args are right.
   witness_array = Array.new()
   for witness1 in witness_array1
     witness1 = case witness1

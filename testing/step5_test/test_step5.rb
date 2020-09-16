@@ -77,27 +77,4 @@ class Step5 < Minitest::Test
     establish_step5("test_step5_signature_invalid.json")
   end
 
-  # def test_amount_negtive()
-  #   establish_step1("test_step1_amount_negtive.json")
-  # end
-
-  # def test_fee_negtive()
-  #   establish_step1("test_step1_fee_negtive.json")
-  # end
-
-  # def test_change_container_insufficient()
-  #   establish_step1("test_step1_change_container_insufficient.json")
-  # end
-
-  # def test_settle_continer_insufficient()
-  #   establish_step1("test_step1_settle_container_insufficient.json")
-  # end
-
-  # def test_cell_dead()
-  #   establish_step1("test_step1_cell_dead.json")
-  # end
-
-  # def test_capacity_inconsistent()
-  #   establish_step1("test_step1_capacity_inconsistent.json")
-  # end
 end

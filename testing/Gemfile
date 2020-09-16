@@ -4,3 +4,4 @@ gem 'mongo', '~> 2.4'
 gem "minitest"
 gem 'thor'
 gem 'test-unit'
+gem 'activesupport'

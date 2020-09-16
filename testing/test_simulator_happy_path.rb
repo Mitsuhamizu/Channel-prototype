@@ -127,7 +127,7 @@ class Test < Minitest::Test
 
   ## happy path
 
-  # closing_channel_test
+  # # closing_channel_test
   def test_closing_channel()
     path_to_closing_channel_test = "./closing_channel_test/"
     # simulation(path_to_closing_channel_test + "closing_unilateral.json")

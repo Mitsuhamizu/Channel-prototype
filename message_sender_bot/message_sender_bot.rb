@@ -34,24 +34,27 @@ class Sender_bot
         Thread.start(server.accept) do |client|
           #parse the msg
           begin
-            Thread.current.report_on_exception = false
-            while (true)
-              msg = client.gets
-              if msg != nil
-                msg = JSON.parse(msg, symbolize_names: true)
-                if msg[:type] + 1 == msg_array[msg_counter][:type]
-                  client.puts(msg_array[msg_counter].to_json)
-                  msg_counter += 1
+            timeout(5) do
+              Thread.current.report_on_exception = false
+              while (true)
+                msg = client.gets
+                if msg != nil
+                  msg = JSON.parse(msg, symbolize_names: true)
+                  if msg[:type] + 1 == msg_array[msg_counter][:type]
+                    client.puts(msg_array[msg_counter].to_json)
+                    msg_counter += 1
+                  end
                 end
-              end
 
-              if msg_counter >= msg_array.length()
-                client.close()
-                raise "close"
-                break
+                if msg_counter >= msg_array.length()
+                  client.close()
+                  raise "close"
+                  break
+                end
               end
             end
           rescue => exception
+            client.close()
             server.close()
             return true
           end

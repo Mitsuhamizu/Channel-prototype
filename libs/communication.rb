@@ -449,7 +449,7 @@ class Communication
       @logger.info("#{@key.pubkey} send msg_2: generate fund tx: finished.")
       # send it
       msg_reply = { id: msg[:id], updated_id: channel_id, type: 2, asset: local_asset,
-                    fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx_json,
+                    fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx,
                     pubkey: local_pubkey }.to_json
       client.puts(msg_reply)
 

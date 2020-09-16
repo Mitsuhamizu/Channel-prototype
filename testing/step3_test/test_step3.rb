@@ -43,8 +43,8 @@ class Step3 < Minitest::Test
       @monitor_B, @listener_B = tests.start_listen_monitor_B()
 
       # spend cells.
-      tests.spend_cell("A", cells_spent_A, "ckb")
-      tests.spend_cell("B", cells_spent_B, "ckb")
+      tests.spend_cell("A", cells_spent_A)
+      tests.spend_cell("B", cells_spent_B)
       # Since we test step 1, we needs to act as A.
       bot = Sender_bot.new(@private_key_A)
       bot.send_msg(ip_B, listen_port_B, [msg_1, msg_3])

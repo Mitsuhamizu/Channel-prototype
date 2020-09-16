@@ -130,7 +130,7 @@ class Gpctest < Minitest::Test
     return [code_hash, tx_hash]
   end
 
-  def spend_cell(party, inputs, flag)
+  def spend_cell(party, inputs)
     return false if inputs == nil
     outputs = []
     outputs_data = []
@@ -168,10 +168,7 @@ class Gpctest < Minitest::Test
     end
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_code_out_point, dep_type: "code")
     tx.cell_deps << CKB::Types::CellDep.new(out_point: @api.secp_data_out_point, dep_type: "code")
-
-    if flag == "udt"
-      tx.cell_deps << load_type_dep()
-    end
+    tx.cell_deps << load_type_dep()
 
     tx.outputs = outputs
     tx.outputs_data = outputs_data
@@ -326,7 +323,7 @@ class Gpctest < Minitest::Test
     return monitor_B, listener_B
   end
 
-  def send_establishment_request_A(funding_A, fee_A, since)
+  def send_establishment_request_A(funding_A, fee_A, since = "9223372036854775908")
     type_script_hash = load_type()
     command_input = ""
     for asset_type in funding_A.keys()
@@ -341,7 +338,7 @@ class Gpctest < Minitest::Test
 
     system("lsof -ti:1000 | xargs kill")
     system("lsof -ti:2000 | xargs kill")
-
+    
     db.drop()
   end
 
