@@ -8,7 +8,7 @@ require "bigdecimal"
 # A is sender and B is listener
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Test < Minitest::Test
+class Test_sad < Minitest::Test
   def simulation(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
@@ -131,7 +131,7 @@ class Test < Minitest::Test
       elsif robot == "B"
         tests.close_all_thread(0, 0, @db)
       end
-      puts "all closed."
+      
       if expect != nil
         for expect_iter in expect
           result_json = tests.load_json_file(@path_to_file + "result.json").to_json
@@ -164,11 +164,11 @@ class Test < Minitest::Test
   # end
 
   ## step3
-  def test_step3()
-    path_to_step3 = "./step3_test/"
+  # def test_step3()
+    # path_to_step3 = "./step3_test/"
     # simulation(path_to_step3 + "test_step3_gpc_arg_modified.json")
     # simulation(path_to_step3 + "test_step3_signature_invalid.json")
-  end
+  # end
 
   ## step4
   # def test_step4()

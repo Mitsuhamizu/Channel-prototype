@@ -71,10 +71,10 @@ class Communication
 
   # These two functions are used to parse and construct ctx_info and stx_info.
   # Info structure. outputs:[], outputs_data:[], witnesses:[].
-  def info_to_json(info)
-    info_json = info
-    info_json[:outputs] = info_json[:outputs].map(&:to_h)
-    info_json[:witnesses] = info_json[:witnesses].map do |witness|
+  def info_to_hash(info)
+    info_h = info
+    info_h[:outputs] = info_h[:outputs].map(&:to_h)
+    info_h[:witnesses] = info_h[:witnesses].map do |witness|
       case witness
       when CKB::Types::Witness
         CKB::Serializers::WitnessArgsSerializer.from(witness).serialize
@@ -83,13 +83,10 @@ class Communication
       end
     end
 
-    info_json = info_json.to_json
-
-    return info.to_json
+    return info_h
   end
 
-  def json_to_info(json)
-    info_h = JSON.parse(json, symbolize_names: true)
+  def hash_to_info(info_h)
     info_h[:outputs] = info_h[:outputs].map { |output| CKB::Types::Output.from_h(output) }
     return info_h
   end
@@ -276,7 +273,7 @@ class Communication
       remote_fee_fund = msg[:fee_fund]
       remote_change = hash_to_cell(msg[:change])
       remote_asset = msg[:asset]
-      remote_stx_info = json_to_info(msg[:stx_info])
+      remote_stx_info = hash_to_info(msg[:stx_info])
       timeout = msg[:timeout].to_i
       local_pubkey = CKB::Key.blake160(@key.pubkey)
       lock_hashes = [@lock_hash]
@@ -323,8 +320,6 @@ class Communication
       @logger.info("#{@key.pubkey} check msg_1: finished.")
 
       # read data from json file.
-
-      # It should be more robust.
       while true
         # testing
         response = commands[:recv_reply]
@@ -391,9 +386,9 @@ class Communication
       # generate the settlement infomation.
       local_empty_stx = @tx_generator.generate_empty_settlement_info(local_asset, refund_lock_script)
       stx_info = merge_stx_info(remote_stx_info, local_empty_stx)
+      stx_info_h = info_to_hash(Marshal.load(Marshal.dump(stx_info)))
       refund_capacity = local_empty_stx[:outputs][0].capacity
-      stx_info_json = info_to_json(stx_info)
-      local_empty_stx_json = info_to_json(local_empty_stx)
+      local_empty_stx_h = info_to_hash(Marshal.load(Marshal.dump(local_empty_stx)))
 
       # calculate change.
       local_change = @tx_generator.construct_change_output(local_cells, local_asset, local_fee_fund, refund_capacity, change_lock_script)
@@ -449,13 +444,13 @@ class Communication
       @logger.info("#{@key.pubkey} send msg_2: generate fund tx: finished.")
       # send it
       msg_reply = { id: msg[:id], updated_id: channel_id, type: 2, asset: local_asset,
-                    fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx,
+                    fee_fund: local_fee_fund, fund_tx: fund_tx.to_h, stx_info: local_empty_stx_h,
                     pubkey: local_pubkey }.to_json
       client.puts(msg_reply)
 
       # update database.
       doc = { id: channel_id, local_pubkey: local_pubkey, remote_pubkey: remote_pubkey,
-              status: 3, nounce: 0, ctx_info: 0, stx_info: stx_info_json,
+              status: 3, nounce: 0, ctx_info: 0, stx_info: stx_info_h.to_json,
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_asset: local_asset, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0 }
@@ -471,7 +466,8 @@ class Communication
       remote_pubkey = msg[:pubkey]
       remote_fee_fund = msg[:fee_fund]
       timeout = @coll_sessions.find({ id: msg[:id] }).first[:timeout].to_i
-      remote_stx_info = json_to_info(msg[:stx_info])
+      remote_stx_info_h = msg[:stx_info]
+      remote_stx_info = hash_to_info(Marshal.load(Marshal.dump(remote_stx_info_h)))
       remote_updated_id = msg[:updated_id]
 
       # load local info.
@@ -481,7 +477,7 @@ class Communication
       local_asset = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:local_asset])
       local_fee_fund = @coll_sessions.find({ id: msg[:id] }).first[:fee_fund]
       local_change = hash_to_cell(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:local_change], symbolize_names: true))
-      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_info], symbolize_names: true))
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
 
       # generate investment info
@@ -589,6 +585,8 @@ class Communication
       @logger.info("#{@key.pubkey} check msg_2: remote cells have been checked.")
 
       # gpc outptu checked.
+
+      puts "markmark"
       gpc_capacity = local_stx_info[:outputs][0].capacity + remote_stx_info[:outputs][0].capacity
 
       # regenerate the cell by myself, and check remote one is same as it.
@@ -648,31 +646,31 @@ class Communication
       stx_info = @tx_generator.sign_settlement_info(local_updated_id, stx_info, witness_settlement, sig_index)
 
       # convert the info into json to store and send.
-      stx_info_json = info_to_json(stx_info)
-      ctx_info_json = info_to_json(ctx_info)
+      ctx_info_h = info_to_hash(Marshal.load(Marshal.dump(ctx_info)))
+      stx_info_h = info_to_hash(Marshal.load(Marshal.dump(stx_info)))
 
       @logger.info("#{@key.pubkey} send msg_3: stx and ctx construction finished.")
 
       # send the info
-      msg_reply = { id: local_updated_id, type: 3, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+      msg_reply = { id: local_updated_id, type: 3, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
       client.puts(msg_reply)
 
       @logger.info("#{@key.pubkey} send msg_3: msg sent.")
 
       # update the database.
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_json,
-                                                                        stx_info: stx_info_json, status: 4, msg_cache: msg_reply, nounce: 1, id: local_updated_id } })
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { remote_pubkey: remote_pubkey, fund_tx: msg[:fund_tx], ctx_info: ctx_info_h.to_json,
+                                                                        stx_info: stx_info_h.to_json, status: 4, msg_cache: msg_reply, nounce: 1, id: local_updated_id } })
       return true
     when 3
       @logger.info("#{@key.pubkey} receive msg 3.")
       # load many info...
       fund_tx = @coll_sessions.find({ id: msg[:id] }).first[:fund_tx]
-      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_info], symbolize_names: true))
       remote_pubkey = @coll_sessions.find({ id: msg[:id] }).first[:remote_pubkey]
       sig_index = @coll_sessions.find({ id: msg[:id] }).first[:sig_index]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-      remote_ctx_info = json_to_info(msg[:ctx_info])
-      remote_stx_info = json_to_info(msg[:stx_info])
+      remote_ctx_info = hash_to_info(msg[:ctx_info])
+      remote_stx_info = hash_to_info(msg[:stx_info])
 
       # check the ctx_info and stx_info args are right.
       # just generate it by myself and compare.
@@ -708,14 +706,17 @@ class Communication
       ctx_info = @tx_generator.generate_closing_info(msg[:id], output, fund_tx.outputs_data[0], remote_ctx_info[:witnesses][0], sig_index)
       stx_info = @tx_generator.sign_settlement_info(msg[:id], local_stx_info, remote_stx_info[:witnesses][0], sig_index)
 
-      ctx_info_json = info_to_json(ctx_info)
-      stx_info_json = info_to_json(stx_info)
+      ctx_info_h = info_to_hash(ctx_info)
+      stx_info_h = info_to_hash(stx_info)
 
       # send the info
-      msg_reply = { id: msg[:id], type: 4, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+      msg_reply = { id: msg[:id], type: 4, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
       client.puts(msg_reply)
 
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx_info: ctx_info_json, stx_info: stx_info_json,
+      puts "step 3"
+      puts ctx_info_h
+
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                         status: 5, msg_cache: msg_reply, nounce: 1 } })
 
       return true
@@ -732,11 +733,14 @@ class Communication
       # the logic is
       # 1. my signature is not modified
       # 2. my signature can still be verified.
-      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
-      local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx_info])
+      local_ctx_info_h = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_info], symbolize_names: true)
+      local_stx_info_h = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_info], symbolize_names: true)
 
-      remote_ctx_info = json_to_info(msg[:ctx_info])
-      remote_stx_info = json_to_info(msg[:stx_info])
+      local_ctx_info = hash_to_info(local_ctx_info_h)
+      local_stx_info = hash_to_info(local_stx_info_h)
+
+      remote_ctx_info = hash_to_info(msg[:ctx_info])
+      remote_stx_info = hash_to_info(msg[:stx_info])
 
       local_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_ctx_info[:witnesses][0]).lock)[:sig_A]
       remote_ctx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_ctx_info[:witnesses][0]).lock)[:sig_A]
@@ -782,8 +786,10 @@ class Communication
       msg_reply = { id: msg[:id], type: 5, fund_tx: fund_tx }.to_json
       client.puts(msg_reply)
       # update the database
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: msg[:ctx_info], stx_info: msg[:stx_info],
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: local_ctx_info_h.to_json, stx_info: local_stx_info_h.to_json,
                                                                         status: 6, msg_cache: msg_reply } })
+      puts "step 4"
+      puts local_ctx_info_h
       client.close()
       return "done"
     when 5
@@ -851,13 +857,22 @@ class Communication
         remote_investment = convert_hash_to_text(payment)
 
         # recv the new signed stx and unsigned ctx.
-        remote_ctx_info = json_to_info(msg[:ctx_info])
-        remote_stx_info = json_to_info(msg[:stx_info])
+        remote_ctx_info = hash_to_info(msg[:ctx_info])
+        remote_stx_info = hash_to_info(msg[:stx_info])
 
         @logger.info("#{@key.pubkey} check msg 6 payment: msg parsed.")
+        local_ctx_info = @coll_sessions.find({ id: id }).first[:ctx_info]
+        local_stx_info = @coll_sessions.find({ id: id }).first[:stx_info]
 
-        local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
-        local_ctx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:ctx_info])
+        puts "loads"
+
+        puts local_ctx_info
+        puts local_stx_info
+
+        local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
+        local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
+
+        @logger.info("#{@key.pubkey} check msg 6 payment: load local ctx and stx.")
 
         local_update_stx_info = @tx_generator.update_stx(payment, local_stx_info, remote_pubkey, local_pubkey)
         local_update_ctx_info = @tx_generator.update_ctx(local_ctx_info)
@@ -915,20 +930,20 @@ class Communication
         remote_ctx_info[:witnesses] = witness_new
 
         # update the database.
-        ctx_info_json = info_to_json(remote_ctx_info)
-        stx_info_json = info_to_json(remote_stx_info)
+        ctx_info_h = info_to_hash(remote_ctx_info)
+        stx_info_h = info_to_hash(remote_stx_info)
 
-        msg = { id: id, type: 7, ctx_info: ctx_info_json, stx_info: stx_info_json }.to_json
+        msg = { id: id, type: 7, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
         client.puts(msg)
         @logger.info("#{@key.pubkey} send msg_7: msg sent.")
         # update the local database.
-        @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_json,
-                                                                    stx_pend: stx_info_json,
+        @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
+                                                                    stx_pend: stx_info_h.to_json,
                                                                     status: 8, msg_cache: msg } })
       elsif msg_type == "closing"
         fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
         fund_tx = CKB::Types::Transaction.from_h(fund_tx)
-        local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
+        local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
         remote_change = CKB::Types::Output.from_h(msg[:change])
         remote_fee_cells = msg[:fee_cell].map { |cell| CKB::Types::Input.from_h(cell) }
         remote_fee = get_total_capacity(remote_fee_cells) - remote_change.capacity
@@ -1033,15 +1048,12 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      stx_pend = @coll_sessions.find({ id: id }).first[:stx_pend]
-      ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
+      local_ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
-      local_ctx_info = json_to_info(ctx_pend)
-      local_stx_info = json_to_info(stx_pend)
-
-      remote_ctx_info = json_to_info(msg[:ctx_info])
-      remote_stx_info = json_to_info(msg[:stx_info])
+      remote_ctx_info = hash_to_info(msg[:ctx_info])
+      remote_stx_info = hash_to_info(msg[:stx_info])
 
       if stage != 1
         puts "the fund tx is not on chain, so the you can not make payment now..."
@@ -1067,15 +1079,15 @@ class Communication
       end
       remote_ctx_info[:witnesses] = witness_new
 
-      ctx_info_json = info_to_json(remote_ctx_info)
-      stx_info_json = info_to_json(remote_stx_info)
+      ctx_info_h = info_to_hash(remote_ctx_info)
+      stx_info_h = info_to_hash(remote_stx_info)
 
-      msg = { id: id, type: 8, ctx_info: ctx_info_json }.to_json
+      msg = { id: id, type: 8, ctx_info: ctx_info_h }.to_json
       client.puts(msg)
 
       # update the local database.
-      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_json,
-                                                                  stx_info: stx_info_json,
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json,
+                                                                  stx_info: stx_info_h.to_json,
                                                                   nounce: nounce + 1,
                                                                   stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
@@ -1090,19 +1102,22 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      ctx_pend = @coll_sessions.find({ id: id }).first[:ctx_pend]
-      stx_pend = @coll_sessions.find({ id: id }).first[:stx_pend]
+      local_ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
-      local_ctx_info = json_to_info(ctx_pend)
-      remote_ctx_info = json_to_info(msg[:ctx_info])
+      remote_ctx_info = hash_to_info(msg[:ctx_info])
+      remote_stx_info = hash_to_info(msg[:stx_info])
 
       ctx_result = verify_info_args(local_ctx_info, remote_ctx_info)
       return false if !ctx_result
 
-      ctx_info_json = info_to_json(remote_ctx_info)
+      stx_result = verify_info_args(local_stx_info, remote_stx_info)
 
-      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_json, stx_info: stx_pend,
+      ctx_info_h = info_to_hash(remote_ctx_info)
+      stx_info_h = info_to_hash(remote_stx_info)
+
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
                                                                   nounce: nounce + 1 } })
       @logger.info("payment done, now the version in local db is #{nounce + 1}")
@@ -1239,22 +1254,26 @@ class Communication
     session_id = Digest::MD5.hexdigest(msg_digest)
 
     local_empty_stx = @tx_generator.generate_empty_settlement_info(funding_type_script_version, refund_lock_script)
+
+    # conver it to hash.
+    local_empty_stx_h = info_to_hash(Marshal.load(Marshal.dump(local_empty_stx)))
     refund_capacity = local_empty_stx[:outputs][0].capacity
-    local_empty_stx_json = info_to_json(local_empty_stx)
 
     local_change = @tx_generator.construct_change_output(local_cells, funding_type_script_version, fee_fund, refund_capacity, change_lock_script)
 
     local_change_h = cell_to_hash(local_change)
     local_cells_h = local_cells.map(&:to_h)
+
     msg = { id: session_id, type: 1, pubkey: local_pubkey, cells: local_cells_h, fee_fund: fee_fund,
-            timeout: timeout, asset: funding_type_script_version, change: local_change_h, stx_info: local_empty_stx_json }.to_json
+            timeout: timeout, asset: funding_type_script_version, change: local_change_h, stx_info: local_empty_stx_h }.to_json
 
     # send the msg.
     s.puts(msg)
 
     #insert the doc into database.
+
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
-            nounce: 0, ctx_info: 0, stx_info: local_empty_stx_json, local_cells: local_cells_h,
+            nounce: 0, ctx_info: 0, stx_info: local_empty_stx_h.to_json, local_cells: local_cells_h,
             timeout: timeout.to_s, msg_cache: msg.to_json, local_asset: funding_type_script_version.to_json, fee_fund: fee_fund,
             stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0, local_change: local_change_h.to_json,
             stx_pend: 0, ctx_pend: 0 }
@@ -1289,15 +1308,13 @@ class Communication
     local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
     sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
     stage = @coll_sessions.find({ id: id }).first[:stage]
-    stx = @coll_sessions.find({ id: id }).first[:stx_info]
-    ctx = @coll_sessions.find({ id: id }).first[:ctx_info]
+
+    stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
+    ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
 
     funding_type_script_version = convert_text_to_hash(payment)
 
     @logger.info("#{local_pubkey} prepare to send payment: #{payment}")
-
-    stx_info = json_to_info(stx)
-    ctx_info = json_to_info(ctx)
 
     if stage != 1
       puts "the fund tx is not on chain, so the you can not make payment now..."
@@ -1335,16 +1352,16 @@ class Communication
     end
     stx_info[:witnesses] = witness_new
 
-    ctx_info_json = info_to_json(ctx_info)
-    stx_info_json = info_to_json(stx_info)
+    ctx_info_h = info_to_hash(ctx_info)
+    stx_info_h = info_to_hash(stx_info)
 
     # send the msg.
-    msg = { id: id, type: 6, ctx_info: ctx_info_json, stx_info: stx_info_json,
+    msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h,
             payment: payment, msg_type: "payment" }.to_json
     s.puts(msg)
 
     # update the local database.
-    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_json, ctx_pend: ctx_info_json,
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
                                                                 status: 7, msg_cache: msg } })
     @logger.info("#{local_pubkey} sent payment")
 
@@ -1377,7 +1394,6 @@ class Communication
     fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
     return false if fee_cell == nil
 
-    puts fee_cell
     fee_cell_capacity = get_total_capacity(fee_cell)
     local_change_output.capacity = fee_cell_capacity - fee
     fee_cell_h = fee_cell.map(&:to_h)

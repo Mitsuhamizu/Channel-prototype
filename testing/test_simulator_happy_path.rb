@@ -5,7 +5,7 @@ require "bigdecimal"
 
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Test < Minitest::Test
+class Test_happy < Minitest::Test
   def simulation(file_name)
     @path_to_file = __dir__ + "/miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
