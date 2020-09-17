@@ -115,6 +115,7 @@ class Test_happy < Minitest::Test
     rescue Exception => e
       puts e
     ensure
+      tests.record_info_in_db()
       tests.close_all_thread(@monitor_A, @monitor_B, @db)
       if expect != nil
         for expect_iter in expect
@@ -128,11 +129,11 @@ class Test_happy < Minitest::Test
   ## happy path
 
   # # closing_channel_test
-  def test_closing_channel()
-    path_to_closing_channel_test = "./closing_channel_test/"
-    # simulation(path_to_closing_channel_test + "closing_unilateral.json")
-    simulation(path_to_closing_channel_test + "closing_bilateral.json")
-  end
+  # def test_closing_channel()
+  #   path_to_closing_channel_test = "./closing_channel_test/"
+  #   # simulation(path_to_closing_channel_test + "closing_unilateral.json")
+  #   simulation(path_to_closing_channel_test + "closing_bilateral.json")
+  # end
 
   # # gather_input_ckb
   # def test_gather_input_ckb()

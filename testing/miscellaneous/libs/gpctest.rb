@@ -93,15 +93,20 @@ class Gpctest < Minitest::Test
 
   def record_info_in_db()
     id = load_id()
+    @logger.info("The id of channel is #{id}")
     record_A = @coll_session_A.find({ id: id })
     record_B = @coll_session_B.find({ id: id })
 
     if record_A.first != nil
       record_result({ sender_status: record_A.first[:status] })
+    else
+      record_result({ sender_status: "none" })
     end
 
     if record_B.first != nil
       record_result({ receiver_status: record_B.first[:status] })
+    else
+      record_result({ receiver_status: "none" })
     end
   end
 
@@ -338,7 +343,7 @@ class Gpctest < Minitest::Test
 
     system("lsof -ti:1000 | xargs kill")
     system("lsof -ti:2000 | xargs kill")
-    
+
     db.drop()
   end
 

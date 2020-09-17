@@ -219,8 +219,15 @@ class Communication
 
     # record the msg
     data_json = msg.to_json
-    file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
-    file.syswrite(data_json)
+    if msg[:type] == 7 || msg[:type] == 8
+      file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
+      file.syswrite(data_json)
+    elsif msg[:type] == 6
+      if msg[:msg_type] == "payment"
+        file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
+        file.syswrite(data_json)
+      end
+    end
 
     # if there is no record and the msg is not the first step.
     @logger.info("#{@key.pubkey} msg#{type} comes, the number of record in the db is #{view.count_documents()}, id: #{msg[:id]}")
@@ -455,6 +462,7 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_asset: local_asset, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0 }
+      ra
       @logger.info("#{@key.pubkey} send msg_2: insert record #{channel_id}")
 
       return insert_with_check(@coll_sessions, doc) ? true : false
@@ -767,7 +775,7 @@ class Communication
       remote_stx_result = verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !remote_ctx_result || !remote_stx_result
-        record_result({ "sender_step4_error_invalid_signature": true })
+        record_result({ "sender_step4_error_signature_invalid": true })
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
       end

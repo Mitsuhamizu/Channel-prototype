@@ -29,14 +29,13 @@
         {
             "name": "modification 1",
             "key": [
-                "msg3",
-                "ctx_info",
-                "outputs_data",
-                0
+                "msg6",
+                "fund_tx",
+                "version"
             ],
-            "value_from": "0x3200000000000000",
-            "value_to": "0x1234"
+            "value_from": "0x0",
+            "value_to": "0x1"
         }
     ],
-    "expect_info": "[{\"receiver_step3_error_gpc_args_modified\":true}]"
+    "expect_info": "[{\"sender_status\":6},{\"receiver_make_payments_error_insufficient\":true}]"
 }

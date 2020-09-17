@@ -18,14 +18,11 @@
     "closing_fee_unilateral": 3000,
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
-    "channel_type": [
-        "ckb",
-        "udt"
-    ],
+    "channel_establishment": true,
     "payments": [
         {
             "name": "payment1",
-            "payment_type": "ckb",
+            "payment_type": "udt",
             "sender": "B",
             "receiver": "A",
             "amount": 10,

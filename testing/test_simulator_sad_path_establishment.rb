@@ -14,7 +14,7 @@ class Test_sad < Minitest::Test
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
       @path_to_file = __dir__ + "/miscellaneous/files/"
-      @path_to_msg = __dir__ + "/msg_lib/"
+      @path_to_msg = __dir__ + "/msg_lib_establishment/"
       @logger = Logger.new(@path_to_file + "gpc.log")
       @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
       @db = @client.database
@@ -25,7 +25,7 @@ class Test_sad < Minitest::Test
       msg_lib = {}
 
       # load msg template
-      for number in (1..9)
+      for number in (1..5)
         file_name = @path_to_msg + number.to_s + ".json"
         data_raw = File.read(file_name)
         msg_lib[("msg" + number.to_s).to_sym] = JSON.parse(data_raw, symbolize_names: true)
@@ -126,12 +126,14 @@ class Test_sad < Minitest::Test
     rescue => exception
       puts exception
     ensure
+      # record current state in db.
+      tests.record_info_in_db()
       if robot == "A"
         tests.close_all_thread(0, @monitor_B, @db)
       elsif robot == "B"
         tests.close_all_thread(0, 0, @db)
       end
-      
+
       if expect != nil
         for expect_iter in expect
           result_json = tests.load_json_file(@path_to_file + "result.json").to_json
@@ -165,25 +167,25 @@ class Test_sad < Minitest::Test
 
   ## step3
   # def test_step3()
-    # path_to_step3 = "./step3_test/"
-    # simulation(path_to_step3 + "test_step3_gpc_arg_modified.json")
-    # simulation(path_to_step3 + "test_step3_signature_invalid.json")
+  #   # path_to_step3 = "./step3_test/"
+  #   # simulation(path_to_step3 + "test_step3_gpc_arg_modified.json")
+  #   # simulation(path_to_step3 + "test_step3_signature_invalid.json")
   # end
 
   ## step4
   # def test_step4()
-  #   path_to_step4 = "./step4_test/"
-  #   simulation(path_to_step4 + "test_step4_local_data_modified.json")
-  #   simulation(path_to_step4 + "test_step4_signature_invalid.json")
-  #   simulation(path_to_step4 + "test_step4_signature_inconsistent.json")
+  #   # path_to_step4 = "./step4_test/"
+  #   # simulation(path_to_step4 + "test_step4_local_data_modified.json")
+  #   # simulation(path_to_step4 + "test_step4_signature_invalid.json")
+  #   # simulation(path_to_step4 + "test_step4_signature_inconsistent.json")
   # end
 
   ## step5
-  # def test_step5()
-  #   path_to_step5 = "./step5_test/"
-  #   simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
-  #   simulation(path_to_step5 + "test_step5_signature_invalid.json")
-  # end
+  def test_step5()
+    path_to_step5 = "./step5_test/"
+    simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
+    # simulation(path_to_step5 + "test_step5_signature_invalid.json")
+  end
 
   ## step6_closing
   ## step6_payment
