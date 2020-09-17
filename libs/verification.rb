@@ -208,7 +208,6 @@ def verify_info_args(info1, info2)
   witness_array1 = info1[:witnesses]
   witness_array2 = info2[:witnesses]
 
-
   # clear the witness to check the args are right.
   witness_array = Array.new()
   for witness1 in witness_array1
@@ -245,12 +244,16 @@ def verify_info_args(info1, info2)
   return false if info1[:witnesses].length != info2[:witnesses].length ||
                   info1[:outputs].length != info2[:outputs].length ||
                   info1[:outputs_data].length != info2[:outputs_data].length
+
+  @logger.info("verify_info_args: length is right!")
   for index in (0..witness_array1.length - 1)
     return false if witness_array1[index] != witness_array2[index]
   end
+  @logger.info("verify_info_args: witnesses are right!")
   for index in (0..info1[:outputs].length - 1)
     return false if info1[:outputs][index].to_h != info2[:outputs][index].to_h
     return false if info1[:outputs_data][index] != info2[:outputs_data][index]
   end
+  @logger.info("verify_info_args: outputs and outputs_data are right!")
   return true
 end

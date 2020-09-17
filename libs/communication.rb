@@ -232,7 +232,8 @@ class Communication
     elsif view.count_documents() == 1 && (![-2, -1, 0].include? type)
       view.each do |doc|
         if doc["status"] != type
-          msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database! I expect #{doc["status"]}")
+          msg_reply = generate_text_msg(msg[:id], "sry, the msg's type is inconsistent with the type in local database! Your version is #{type} I expect #{doc["status"]}")
+          @logger.info("sry, the msg's type is inconsistent with the type in local database! Your version is #{type} I expect #{doc["status"]}")
           client.puts (msg_reply)
           return false
         end
@@ -585,8 +586,6 @@ class Communication
       @logger.info("#{@key.pubkey} check msg_2: remote cells have been checked.")
 
       # gpc outptu checked.
-
-      puts "markmark"
       gpc_capacity = local_stx_info[:outputs][0].capacity + remote_stx_info[:outputs][0].capacity
 
       # regenerate the cell by myself, and check remote one is same as it.
@@ -713,9 +712,6 @@ class Communication
       msg_reply = { id: msg[:id], type: 4, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
       client.puts(msg_reply)
 
-      puts "step 3"
-      puts ctx_info_h
-
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                         status: 5, msg_cache: msg_reply, nounce: 1 } })
 
@@ -736,8 +732,8 @@ class Communication
       local_ctx_info_h = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_info], symbolize_names: true)
       local_stx_info_h = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_info], symbolize_names: true)
 
-      local_ctx_info = hash_to_info(local_ctx_info_h)
-      local_stx_info = hash_to_info(local_stx_info_h)
+      local_ctx_info = hash_to_info(Marshal.load(Marshal.dump(local_ctx_info_h)))
+      local_stx_info = hash_to_info(Marshal.load(Marshal.dump(local_stx_info_h)))
 
       remote_ctx_info = hash_to_info(msg[:ctx_info])
       remote_stx_info = hash_to_info(msg[:stx_info])
@@ -788,8 +784,7 @@ class Communication
       # update the database
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: local_ctx_info_h.to_json, stx_info: local_stx_info_h.to_json,
                                                                         status: 6, msg_cache: msg_reply } })
-      puts "step 4"
-      puts local_ctx_info_h
+
       client.close()
       return "done"
     when 5
@@ -863,11 +858,6 @@ class Communication
         @logger.info("#{@key.pubkey} check msg 6 payment: msg parsed.")
         local_ctx_info = @coll_sessions.find({ id: id }).first[:ctx_info]
         local_stx_info = @coll_sessions.find({ id: id }).first[:stx_info]
-
-        puts "loads"
-
-        puts local_ctx_info
-        puts local_stx_info
 
         local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
         local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
@@ -1048,8 +1038,8 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      local_ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
-      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
+      local_ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
       remote_ctx_info = hash_to_info(msg[:ctx_info])
@@ -1059,6 +1049,7 @@ class Communication
         puts "the fund tx is not on chain, so the you can not make payment now..."
         return false
       end
+      @logger.info("#{@key.pubkey} check msg 7: begin to check the info.")
 
       # check both the signatures are right.
       ctx_result = verify_info_args(local_ctx_info, remote_ctx_info) &&
@@ -1102,20 +1093,26 @@ class Communication
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       stage = @coll_sessions.find({ id: id }).first[:stage]
-      local_ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
-      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
+      local_ctx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
+      local_stx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
+      @logger.info("#{@key.pubkey} check msg 8: msg parsed.")
+
       remote_ctx_info = hash_to_info(msg[:ctx_info])
-      remote_stx_info = hash_to_info(msg[:stx_info])
 
-      ctx_result = verify_info_args(local_ctx_info, remote_ctx_info)
-      return false if !ctx_result
+      ctx_result = verify_info_args(local_ctx_info_pend, remote_ctx_info)
+      @logger.info("#{@key.pubkey} check msg 8: ctx_info checked.")
 
-      stx_result = verify_info_args(local_stx_info, remote_stx_info)
+      if !ctx_result
+        client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        return false
+      end
 
       ctx_info_h = info_to_hash(remote_ctx_info)
-      stx_info_h = info_to_hash(remote_stx_info)
+      stx_info_h = info_to_hash(local_stx_info_pend)
+
+      @logger.info("#{@key.pubkey} check msg 8: funished.")
 
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
@@ -1129,7 +1126,7 @@ class Communication
       local_fee_cell = @coll_sessions.find({ id: id }).first[:settlement_fee_cell]
       local_change_output = JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:settlement_fee_change], symbolize_names: true)
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
-      local_stx_info = json_to_info(@coll_sessions.find({ id: msg[:id] }).first[:stx_info])
+      local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_info], symbolize_names: true))
       fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
       fund_tx = CKB::Types::Transaction.from_h(fund_tx)
       local_fee_cell = local_fee_cell.map { |cell| JSON.parse(cell.to_json, symbolize_names: true) }
@@ -1138,7 +1135,6 @@ class Communication
       for output in local_stx_info[:outputs].map(&:to_h)
         if !terminal_tx.outputs.map(&:to_h).include? output
           msg_reply = generate_text_msg(msg[:id], "sry, the settlement outputs are inconsistent with my local one.")
-          client.puts(msg_reply)
           return false
         end
       end
