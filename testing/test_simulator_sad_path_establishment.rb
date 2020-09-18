@@ -114,7 +114,6 @@ class Test_sad < Minitest::Test
         # create bot and set msg to be replied.
         bot = Sender_bot.new(@private_key_B)
         thread_listen = Thread.new { bot.listen(listen_port_B, [msg_lib[:"msg2"], msg_lib[:"msg4"]]) }
-        # thread_listen = Thread.new { bot.listen(listen_port_B, [msg_lib[:"msg2"]]) }
 
         # send establishment request.
         tests.send_establishment_request_A(funding_amount_A, funding_fee_A)
@@ -181,11 +180,11 @@ class Test_sad < Minitest::Test
   # end
 
   ## step5
-  def test_step5()
-    path_to_step5 = "./step5_test/"
-    simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
-    # simulation(path_to_step5 + "test_step5_signature_invalid.json")
-  end
+  # def test_step5()
+  #   # path_to_step5 = "./step5_test/"
+  #   # simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
+  #   # simulation(path_to_step5 + "test_step5_signature_invalid.json")
+  # end
 
   ## step6_closing
   ## step6_payment

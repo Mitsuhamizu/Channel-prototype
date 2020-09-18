@@ -372,20 +372,27 @@ class Tx_generator
   def update_stx(payments, stx_info, pubkey_payer, pubkey_payee)
     for payment_type_hash in payments.keys()
       for index in (0..stx_info[:outputs].length - 1)
+        @logger.info("update_stx: begin.")
         output = stx_info[:outputs][index]
         output_data = stx_info[:outputs_data][index]
+        @logger.info("update_stx: output: #{output}, output_data: #{output_data}")
         type = find_type(payment_type_hash)
         amount = payments[payment_type_hash]
         if payment_type_hash == ""
+          @logger.info("update_stx: ckb branch.")
           return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity - amount if output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity + amount if output.lock.args == pubkey_payee
-        else
+        elsif payment_type_hash == "0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"
+          @logger.info("update_stx: udt branch.")
           return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
+        else
+          return "not suppurt"
         end
       end
+      return true
     end
 
     witness_new = Array.new()

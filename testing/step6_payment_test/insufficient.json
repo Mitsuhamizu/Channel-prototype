@@ -23,19 +23,19 @@
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
     "channel_establishment": true,
-    "robot": "A",
+    "robot": "B",
     "closing_type": "bilateral",
     "modifications": [
         {
             "name": "modification 1",
             "key": [
                 "msg6",
-                "fund_tx",
-                "version"
+                "payment",
+                "0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"
             ],
-            "value_from": "0x0",
-            "value_to": "0x1"
+            "value_from": 10,
+            "value_to": 30
         }
     ],
-    "expect_info": "[{\"sender_status\":6},{\"receiver_make_payments_error_insufficient\":true}]"
+    "expect_info": "[{\"receiver_status\":6},{\"receiver_make_payments_error_insufficient\":-10}]"
 }

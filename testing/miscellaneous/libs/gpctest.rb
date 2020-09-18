@@ -337,13 +337,19 @@ class Gpctest < Minitest::Test
     system("ruby " + @path_to_gpc + " send_establishment_request --pubkey #{@pubkey_A} --ip #{@ip_B} --port #{@listen_port_B} --fee #{fee_A} --since #{since} --funding #{command_input}")
   end
 
-  def close_all_thread(monitor_A, monitor_B, db)
-    system("kill #{monitor_A}") if monitor_A != 0
-    system("kill #{monitor_B}") if monitor_B != 0
-
+  def kill_listener()
     system("lsof -ti:1000 | xargs kill")
     system("lsof -ti:2000 | xargs kill")
+  end
 
+  def kill_monitor(monitor_A, monitor_B)
+    system("kill #{monitor_A}") if monitor_A != 0
+    system("kill #{monitor_B}") if monitor_B != 0
+  end
+
+  def close_all_thread(monitor_A, monitor_B, db)
+    kill_monitor(monitor_A, monitor_B)
+    kill_listener()
     db.drop()
   end
 
@@ -464,8 +470,6 @@ class Gpctest < Minitest::Test
 
   def create_channel(funding_A, funding_B, container_min, fee_A_fund, fee_B_fund, success)
     begin
-      init_client()
-
       @monitor_A, @monitor_B, @listener_A, @listener_B = start_listen_monitor()
 
       # load the udt type.

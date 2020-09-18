@@ -462,9 +462,8 @@ class Communication
               local_cells: local_cells_h, fund_tx: fund_tx.to_h, msg_cache: msg_reply,
               timeout: timeout.to_s, local_asset: local_asset, stage: 0, settlement_time: 0,
               sig_index: 1, closing_time: 0, stx_info_pend: 0, ctx_info_pend: 0 }
-      ra
+      record_result({ "id" => channel_id })
       @logger.info("#{@key.pubkey} send msg_2: insert record #{channel_id}")
-
       return insert_with_check(@coll_sessions, doc) ? true : false
     when 2
       @logger.info("#{@key.pubkey} receive msg 2.")
@@ -887,7 +886,10 @@ class Communication
         stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
                      verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
-        return false if !ctx_result || !stx_result
+        if !ctx_result || !stx_result
+
+          return false
+        end
 
         @logger.info("#{@key.pubkey} check msg 6 payment: check stx and ctx are consistent.")
 
@@ -1066,6 +1068,7 @@ class Communication
                    verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !ctx_result || !stx_result
+        record_result({ "sender_make_payments_error_info_wrong": true })
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
         return false
       end

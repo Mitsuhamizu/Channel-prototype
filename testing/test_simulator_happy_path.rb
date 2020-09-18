@@ -35,6 +35,7 @@ class Test_happy < Minitest::Test
     # init the ckb environment.
     tests = Gpctest.new("test")
     tests.setup()
+    tests.init_client()
 
     # get the asset information at the beginning.
     udt_A_begin, udt_B_begin = tests.get_account_balance_udt()

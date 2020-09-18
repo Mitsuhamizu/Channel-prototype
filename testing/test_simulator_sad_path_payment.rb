@@ -18,7 +18,6 @@ class Test_sad < Minitest::Test
       @logger = Logger.new(@path_to_file + "gpc.log")
       @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
       @db = @client.database
-      @db.drop()
 
       data_raw = File.read(__dir__ + "/" + file_name)
       data_json = JSON.parse(data_raw, symbolize_names: true)
@@ -57,7 +56,6 @@ class Test_sad < Minitest::Test
       robot = data_json[:robot]
       channel_establishment = data_json[:channel_establishment]
       modifications = data_json[:modifications]
-
       # init the ckb environment.
       tests = Gpctest.new("test")
       tests.setup()
@@ -83,8 +81,15 @@ class Test_sad < Minitest::Test
           if key.is_a? Numeric
             msg_layered = msg_layered[key]
           elsif key.is_a? String
+            if key.to_s.to_sym==:capacity
+              puts msg_layered[:capacity]
+              puts msg_layered
+              puts "symbol!!!"
+            end
             msg_layered = msg_layered[key.to_s.to_sym]
           end
+          puts "123123"
+          puts msg_layered
           msg_layered_lib.append(msg_layered)
         end
         msg_layered_lib[-1] = value
@@ -100,25 +105,26 @@ class Test_sad < Minitest::Test
         msg_lib[keys[0].to_s.to_sym] = msg_layered_lib[0]
       end
 
+      # create the channel.
+      channel_id, @monitor_A, @monitor_B = tests.create_channel(funding_amount_A, funding_amount_B, container_min, funding_fee_A, funding_fee_B, channel_establishment)
+
       # tell me who is robot.
       if robot == "A"
         @logger.info("sad path: branch A.")
-        @monitor_B, @listener_B = tests.start_listen_monitor_B()
+        tests.kill_listener()
 
-        # create bot and set msg to be sent.
         bot = Sender_bot.new(@private_key_A)
-        bot.send_msg(ip_B, listen_port_B, [msg_lib[:"msg1"], msg_lib[:"msg3"], msg_lib[:"msg5"]])
+        thread_listen = Thread.new { bot.listen(listen_port_A, [msg_lib[:"msg7"]]) }
+
+        # send establishment request.
+        tests.make_payment_B_A(channel_id, payments[:payment_type], payments[:amount])
+        thread_listen.join
       elsif robot == "B"
         @logger.info("sad path: branch B.")
 
         # create bot and set msg to be replied.
         bot = Sender_bot.new(@private_key_B)
-        thread_listen = Thread.new { bot.listen(listen_port_B, [msg_lib[:"msg2"], msg_lib[:"msg4"]]) }
-        # thread_listen = Thread.new { bot.listen(listen_port_B, [msg_lib[:"msg2"]]) }
-
-        # send establishment request.
-        tests.send_establishment_request_A(funding_amount_A, funding_fee_A)
-        thread_listen.join
+        bot.send_msg(ip_A, listen_port_A, [msg_lib[:"msg6"], msg_lib[:"msg8"]])
       else
         puts "robot can only be A or B."
         return false
@@ -128,11 +134,7 @@ class Test_sad < Minitest::Test
     ensure
       # record current state in db.
       tests.record_info_in_db()
-      if robot == "A"
-        tests.close_all_thread(0, @monitor_B, @db)
-      elsif robot == "B"
-        tests.close_all_thread(0, 0, @db)
-      end
+      tests.close_all_thread(@monitor_A, @monitor_B, @db)
 
       if expect != nil
         for expect_iter in expect
@@ -146,12 +148,18 @@ class Test_sad < Minitest::Test
   ### sad path
 
   ## step6_payment
+  # def test_step6()
+  #   path_to_step6 = "./step6_payment_test/"
+  #   # simulation(path_to_step6 + "insufficient.json")
+  #   # simulation(path_to_step5 + "test_step5_signature_invalid.json")
+  # end
+
+  ## step7
   def test_step6()
-    path_to_step6 = "./step6_payment_test/"
-    # simulation(path_to_step6 + "test.json")
+    path_to_step6 = "./step7_test/"
+    simulation(path_to_step6 + "info_wrong.json")
     # simulation(path_to_step5 + "test_step5_signature_invalid.json")
   end
 
-  ## step7
   ## step8
 end
