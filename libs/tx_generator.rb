@@ -392,7 +392,7 @@ class Tx_generator
           return "not suppurt"
         end
       end
-      return true
+      return stx_info
     end
 
     witness_new = Array.new()
@@ -400,6 +400,7 @@ class Tx_generator
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
       @logger.info("#{pubkey_payer} current nounce: #{lock[:nounce] + 1}")
+      # here, load
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
     stx_info[:witnesses] = witness_new

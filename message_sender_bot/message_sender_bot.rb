@@ -26,7 +26,6 @@ class Sender_bot
   end
 
   def listen(src_port, msg_array)
-    puts "listen start"
     server = TCPServer.open(src_port)
     msg_counter = 0
     begin
@@ -34,15 +33,19 @@ class Sender_bot
         Thread.start(server.accept) do |client|
           #parse the msg
           begin
+            @logger.info("robot listen linked.")
             timeout(5) do
               Thread.current.report_on_exception = false
               while (true)
                 msg = client.gets
                 if msg != nil
                   msg = JSON.parse(msg, symbolize_names: true)
+                  @logger.info("listener robot: receiver msg #{msg[:type]}.")
                   if msg[:type] + 1 == msg_array[msg_counter][:type]
+                    @logger.info("listener robot: send msg #{msg_array[msg_counter][:type]}.")
                     client.puts(msg_array[msg_counter].to_json)
                     msg_counter += 1
+                    @logger.info("listener robot: #{msg_array[msg_counter - 1][:type]} has been sent. The type of next msg is #{msg_array[msg_counter][:type]}.")
                   end
                 end
 
@@ -86,7 +89,7 @@ class Sender_bot
             if msg[:type] + 1 == msg_array[msg_counter][:type]
               @logger.info("send_bot: send msg at index #{msg_counter}, with type #{msg_array[msg_counter][:type]}.")
               s.puts(msg_array[msg_counter].to_json)
-              msg_counter += 1
+              # @logger.info("send_bot: and next msg type is #{msg_array[msg_counter][:type]}")
             end
           end
         end

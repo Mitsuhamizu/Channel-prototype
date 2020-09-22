@@ -217,17 +217,26 @@ class Communication
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
 
-    # record the msg
-    data_json = msg.to_json
-    if msg[:type] == 7 || msg[:type] == 8
-      file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
-      file.syswrite(data_json)
-    elsif msg[:type] == 6
-      if msg[:msg_type] == "payment"
-        file = File.new(__dir__ + "/../message/#{msg[:type]}.json", "w")
-        file.syswrite(data_json)
-      end
-    end
+    # # this is for loading msg.
+    # # record the msg
+    # data_json = msg.to_json
+    # if msg[:type] == 7 || msg[:type] == 8
+    #   file = File.new(__dir__ + "/../testing/msg_lib_payment/#{msg[:type]}.json", "w")
+    #   file.syswrite(data_json)
+    # elsif msg[:type] == 6
+    #   if msg[:msg_type] == "payment"
+    #     file = File.new(__dir__ + "/../testing/msg_lib_payment/#{msg[:type]}.json", "w")
+    #   else
+    #     file = File.new(__dir__ + "/../testing/msg_lib_closing/#{msg[:type]}.json", "w")
+    #   end
+    #   file.syswrite(data_json)
+    # elsif msg[:type] < 6
+    #   file = File.new(__dir__ + "/../testing/msg_lib_establishment/#{msg[:type]}.json", "w")
+    #   file.syswrite(data_json)
+    # elsif msg[:type] ==  9
+    #   file = File.new(__dir__ + "/../testing/msg_lib_closing/#{msg[:type]}.json", "w")
+    #   file.syswrite(data_json)
+    # end
 
     # if there is no record and the msg is not the first step.
     @logger.info("#{@key.pubkey} msg#{type} comes, the number of record in the db is #{view.count_documents()}, id: #{msg[:id]}")
@@ -877,17 +886,21 @@ class Communication
         @logger.info("#{@key.pubkey} check msg 6 payment: construct local stx and ctx.")
 
         if local_update_stx_info.is_a? Numeric
-          record_result({ "receiver_make_payments_error_insufficient": local_update_stx_info })
+          record_result({ "receiver_step6_make_payments_error_insufficient": local_update_stx_info })
           return false
         end
 
+        # but I have a problem, why original one is fine????
+
         # check the updated info is right.
+        # this is becase the witness has wrong...
+
         ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
+        # this is becase the output capacity is not consistent.
         stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
                      verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
-
         if !ctx_result || !stx_result
-
+          record_result({ "receiver_step6_make_payments_error_info_inconsistent": true })
           return false
         end
 
@@ -1068,8 +1081,9 @@ class Communication
                    verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
 
       if !ctx_result || !stx_result
-        record_result({ "sender_make_payments_error_info_wrong": true })
+        record_result({ "sender_step7_error_info_wrong": true })
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        client.close()
         return false
       end
 
@@ -1116,6 +1130,7 @@ class Communication
       @logger.info("#{@key.pubkey} check msg 8: ctx_info checked.")
 
       if !ctx_result
+        record_result({ "receiver_step8_error_info_wrong": true })
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
         return false
       end
@@ -1321,7 +1336,7 @@ class Communication
 
     funding_type_script_version = convert_text_to_hash(payment)
 
-    @logger.info("#{local_pubkey} prepare to send payment: #{payment}")
+    @logger.info("#{local_pubkey} send_payments: prepare to send #{payment}")
 
     if stage != 1
       puts "the fund tx is not on chain, so the you can not make payment now..."
@@ -1385,6 +1400,8 @@ class Communication
       end
     rescue Timeout::Error
       puts "Timed out!"
+    rescue => exception
+      s.close()
     end
   end
 

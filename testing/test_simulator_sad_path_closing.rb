@@ -14,7 +14,7 @@ class Test_sad < Minitest::Test
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
       @private_key_B = "0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc"
       @path_to_file = __dir__ + "/miscellaneous/files/"
-      @path_to_msg = __dir__ + "/msg_lib_payment/"
+      @path_to_msg = __dir__ + "/msg_lib_closing/"
       @logger = Logger.new(@path_to_file + "gpc.log")
       @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
       @db = @client.database
@@ -113,7 +113,7 @@ class Test_sad < Minitest::Test
         @logger.info("Robot A is ready.")
 
         # send establishment request.
-        tests.make_payment_B_A(channel_id, payments[0][:payment_type], payments[0][:amount])
+        
         thread_listen.join
       elsif robot == "B"
         @logger.info("sad path: branch B.")
@@ -142,22 +142,4 @@ class Test_sad < Minitest::Test
 
   ### sad path
 
-  ## step6_payment
-  # def test_step6()
-  #   path_to_step6 = "./step6_payment_test/"
-  #   # simulation(path_to_step6 + "insufficient.json")
-  #   # simulation(path_to_step5 + "test_step5_signature_invalid.json")
-  # end
-
-  ## step7
-  # def test_step7()
-  #   path_to_step7 = "./step7_test/"
-  #   simulation(path_to_step7 + "info_wrong.json")
-  # end
-
-  ## step8
-  # def test_step8()
-  #   path_to_step8 = "./step8_test/"
-  #   simulation(path_to_step8 + "info_wrong.json")
-  # end
 end
