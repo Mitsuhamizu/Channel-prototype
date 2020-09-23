@@ -851,6 +851,8 @@ class Communication
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
       stage = @coll_sessions.find({ id: id }).first[:stage]
 
+      @logger.info("#{@key.pubkey} check msg 6: basic value parsed.")
+
       # check the stage.
       if stage != 1
         puts "the fund tx is not on chain, so the you can not make payment now..."
@@ -861,6 +863,7 @@ class Communication
       # 1. payment request.
       # 2. closing request.
       if msg_type == "payment"
+        @logger.info("#{@key.pubkey} check msg 6: branch payment.")
         local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
         sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
@@ -954,12 +957,14 @@ class Communication
                                                                     stx_pend: stx_info_h.to_json,
                                                                     status: 8, msg_cache: msg } })
       elsif msg_type == "closing"
+        @logger.info("#{@key.pubkey} check msg 6: branch closing.")
+
         fund_tx = @coll_sessions.find({ id: id }).first[:fund_tx]
         fund_tx = CKB::Types::Transaction.from_h(fund_tx)
         local_stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
         remote_change = CKB::Types::Output.from_h(msg[:change])
         remote_fee_cells = msg[:fee_cell].map { |cell| CKB::Types::Input.from_h(cell) }
-        remote_fee = get_total_capacity(remote_fee_cells) - remote_change.capacity
+
         nounce = @coll_sessions.find({ id: id }).first[:nounce]
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         current_height = @api.get_tip_block_number
@@ -976,6 +981,7 @@ class Communication
           end
         end
 
+        remote_fee = get_total_capacity(remote_fee_cells) - remote_change.capacity
         puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
         puts "Tell me whether you are willing to accept this request"
         commands = load_command()
@@ -1108,7 +1114,6 @@ class Communication
                                                                   stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
       client.close
-      return "done"
     when 8
       # it is the final step of making payments.
       # the payer just check the remote signatures are right,
@@ -1164,15 +1169,12 @@ class Communication
           return false
         end
       end
-
       terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
       remote_fee_cells = terminal_tx.inputs.map(&:to_h) - local_fee_cell - [input_fund.to_h]
       remote_fee_cells = remote_fee_cells.map { |cell| CKB::Types::Input.from_h(cell) }
       remote_change_output = terminal_tx.outputs.map(&:to_h) - [local_change_output] - local_stx_info[:outputs].map(&:to_h)
 
       remote_change_output = remote_change_output.map { |output| CKB::Types::Output.from_h(output) }
-      remote_fee = get_total_capacity(remote_fee_cells) - remote_change_output.map(&:capacity).inject(0, &:+)
-
       # check cell is live.
       for cell in remote_fee_cells
         validation = @api.get_live_cell(cell.previous_output)
@@ -1182,6 +1184,8 @@ class Communication
           return false
         end
       end
+
+      remote_fee = get_total_capacity(remote_fee_cells) - remote_change_output.map(&:capacity).inject(0, &:+)
 
       puts "#{remote_pubkey} reply your closign request about id #{id}. Remote fee is #{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
@@ -1207,7 +1211,6 @@ class Communication
       terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
 
       exist = @api.get_transaction(terminal_tx.hash)
-
       begin
         @api.send_transaction(terminal_tx) if exist == nil
       rescue
@@ -1438,6 +1441,7 @@ class Communication
       end
     rescue Timeout::Error
       puts "Timed out!"
+    rescue Exception => e
     end
 
     return "done"

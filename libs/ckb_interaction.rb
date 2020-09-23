@@ -51,8 +51,8 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
     break if amount_gathered >= amount_required
   end
 
-  puts "here is available ckbyte."
-  puts amount_gathered
+  # puts "here is available ckbyte."
+  # puts amount_gathered
   return amount_gathered < amount_required ? amount_gathered - amount_required : final_inputs
 end
 

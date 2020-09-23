@@ -257,15 +257,33 @@ class Minotor
       return false
     end
 
+    # # print the version number to see what happens.
+    # if type == "closing"
+    #   # load the nounce in witness and output.args
+    #   # load output nounce
+    #   # puts "closing: args nounce #{@tx_generator.parse_lock_args(tx_info[:outputs][0].lock.args)[:nounce]}"
+    #   witness_ser = @tx_generator.parse_witness(tx_info[:witnesses][0])
+    #   witness_id = @tx_generator.parse_witness_lock(witness_ser.lock)
+    #   puts "closing: wtiness nounce #{witness_id[:nounce]}"
+    # elsif type == "settlement"
+    #   # @tx_generator.parse_witness
+    #   # @tx_generator.parse_witness_lock
+    #   # load the nounce in witness.
+    #   # load witness nounce
+    #   witness_ser = @tx_generator.parse_witness(tx_info[:witnesses][0])
+    #   witness_id = @tx_generator.parse_witness_lock(witness_ser.lock)
+    #   puts "settle: wtiness nounce #{witness_id[:nounce]}"
+    # else
+    #   return false
+    # end
     # require the change ckbyte is greater than the min capacity.
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
-    
+
     fee_cell = gather_fee_cell([@lock_hash], fee_total, @coll_cells, 0)
     return false if fee_cell == nil
 
     fee_cell_capacity = get_total_capacity(fee_cell)
     input += fee_cell
-
     local_change_output.capacity = fee_cell_capacity - fee
     tx_info[:outputs] << local_change_output
     for nosense in fee_cell

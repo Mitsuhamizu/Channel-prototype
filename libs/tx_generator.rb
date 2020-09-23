@@ -370,6 +370,7 @@ class Tx_generator
 
   # can only accept one payment.
   def update_stx(payments, stx_info, pubkey_payer, pubkey_payee)
+
     for payment_type_hash in payments.keys()
       for index in (0..stx_info[:outputs].length - 1)
         @logger.info("update_stx: begin.")
@@ -392,17 +393,16 @@ class Tx_generator
           return "not suppurt"
         end
       end
-      return stx_info
     end
 
     witness_new = Array.new()
     for witness in stx_info[:witnesses]
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
-      @logger.info("#{pubkey_payer} current nounce: #{lock[:nounce] + 1}")
       # here, load
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
+
     stx_info[:witnesses] = witness_new
 
     return stx_info

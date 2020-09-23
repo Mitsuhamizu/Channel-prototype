@@ -41,7 +41,7 @@ class Sender_bot
                 if msg != nil
                   msg = JSON.parse(msg, symbolize_names: true)
                   @logger.info("listener robot: receiver msg #{msg[:type]}.")
-                  if msg[:type] + 1 == msg_array[msg_counter][:type]
+                  if msg[:type] + 1 == msg_array[msg_counter][:type] || (msg[:type] == 6 && msg_array[msg_counter][:type] == 9)
                     @logger.info("listener robot: send msg #{msg_array[msg_counter][:type]}.")
                     client.puts(msg_array[msg_counter].to_json)
                     msg_counter += 1
@@ -96,6 +96,7 @@ class Sender_bot
       end
     rescue Timeout::Error
       puts "Timed out!"
+    rescue => exception
     end
     s.close()
   end
