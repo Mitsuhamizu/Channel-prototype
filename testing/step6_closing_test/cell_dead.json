@@ -1,0 +1,47 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000,
+        "spent_cell": [
+            {
+                "tx_hash": "0x68bcdcb96d2c7e4a6acae570e642dae0dceaa588660ace7eea7f1aa2f04b7825",
+                "index": "0x4"
+            }
+        ]
+    },
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "udt",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        }
+    ],
+    "modifications": [],
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "description": "send the dead cell, you can see B->spent_cell",
+    "expect_info": "[{\"sender_status\":6},{\"receiver_step6_error_cell_dead\":true}]"
+}
