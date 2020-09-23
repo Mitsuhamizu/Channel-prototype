@@ -39,5 +39,5 @@
     ],
     "closing_type": "bilateral",
     "expect_info": "[{\"sender_gather_funding_error_negtive\":-100000000}]",
-    "describe-line1": "A::funding_amount::udt = -100000000."
+    "describe-line1": "The funding of A is negative."
 }

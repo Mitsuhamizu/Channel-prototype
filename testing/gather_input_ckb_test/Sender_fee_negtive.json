@@ -39,5 +39,5 @@
     ],
     "closing_type": "bilateral",
     "expect_info": "[{\"sender_gather_fee_error_negtive\":-100}]",
-    "describe-line1": "A::funding_fee:: = -100."
+    "describe-line1": "The funding fee of A is negative."
 }

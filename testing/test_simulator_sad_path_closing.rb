@@ -189,9 +189,9 @@ class Test_sad_closing < Minitest::Test
   #   simulation(path_to_step6 + "cell_dead.json")
   # end
 
-  # step9
-  def test_step9()
-    path_to_step9 = "./step9_test/"
-    simulation(path_to_step9 + "cell_dead.json")
-  end
+  # # step9
+  # def test_step9()
+  #   path_to_step9 = "./step9_test/"
+  #   simulation(path_to_step9 + "cell_dead.json")
+  # end
 end

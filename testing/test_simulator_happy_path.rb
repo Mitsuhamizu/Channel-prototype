@@ -132,19 +132,19 @@ class Test_happy < Minitest::Test
   # # closing_channel_test
   # def test_closing_channel()
   #   path_to_closing_channel_test = "./closing_channel_test/"
-  #   # simulation(path_to_closing_channel_test + "closing_unilateral.json")
+  #   simulation(path_to_closing_channel_test + "closing_unilateral.json")
   #   simulation(path_to_closing_channel_test + "closing_bilateral.json")
   # end
 
   # # gather_input_ckb
   # def test_gather_input_ckb()
   #   path_to_gather_input_ckb = "./gather_input_ckb_test/"
-  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negtive.json")
-  #   simulation(path_to_gather_input_ckb + "test/Receiver_funding_negtive.json")
-  #   simulation(path_to_gather_input_ckb + "test/Receiver_gather_insufficient.json")
-  #   simulation(path_to_gather_input_ckb + "test/Sender_fee_negtive.json")
-  #   simulation(path_to_gather_input_ckb + "test/Sender_funding_negtive.json")
-  #   simulation(path_to_gather_input_ckb + "test/Sender_gather_insufficient.json")
+  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negtive.json") 
+  #   simulation(path_to_gather_input_ckb + "Receiver_funding_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "Receiver_gather_insufficient.json")
+  #   simulation(path_to_gather_input_ckb + "Sender_fee_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "Sender_funding_negtive.json")
+  #   simulation(path_to_gather_input_ckb + "Sender_gather_insufficient.json")
   # end
 
   # # gather_input_udt

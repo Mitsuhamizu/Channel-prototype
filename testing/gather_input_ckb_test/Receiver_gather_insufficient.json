@@ -39,6 +39,5 @@
     ],
     "closing_type": "bilateral",
     "expect_info": "[{\"receiver_gather_funding_error_insufficient\":-1}]",
-    "describe-line1": "B::funding_amount::udt = 201.",
-    "describe-line2": "B's total UDT is 200, so the value of expect_info is 200 - 201 = -1."
+    "describe-line1": "B's total UDT is 200, so the value of expect_info is 200 - 201 = -1."
 }
