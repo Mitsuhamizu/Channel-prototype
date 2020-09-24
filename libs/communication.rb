@@ -158,45 +158,6 @@ class Communication
     file.syswrite(data_json)
   end
 
-  def assemble_change(changes)
-    @logger.info("#{@key.pubkey} assemble_change: begin.")
-    output_assembled = CKB::Types::Output.new(
-      capacity: 0,
-      lock: nil,
-      type: nil,
-    )
-
-    output_assembled.capacity = changes.map { |h| h[:output].capacity }.sum
-    @logger.info("#{@key.pubkey} assemble_change: capacity assembled.")
-
-    if changes.length == 1
-      @logger.info("#{@key.pubkey} assemble_change: branch 1.")
-      output_assembled.lock = changes[0][:output].lock
-      output_assembled.type = changes[0][:output].type
-      output_data_assembled = changes[0][:output_data]
-    elsif changes.length == 2
-      @logger.info("#{@key.pubkey} assemble_change: branch 2.")
-      if changes[0][:output].type != nil
-        asset_change_index = 0
-      elsif changes[1][:output].type
-        asset_change_index = 1
-      else
-        asset_change_index = -1
-      end
-
-      return "lock_inconsistent" if changes[0][:output].lock.to_h != changes[1][:output].lock.to_h
-      return "type_collision" if changes[0][:output].type != nil && changes[1][:output].type != nil
-
-      output_assembled.lock = changes[asset_change_index][:output].lock
-      output_assembled.type = changes[asset_change_index][:output].type
-      output_data_assembled = changes[asset_change_index][:output_data]
-    else
-      return "length_unknow"
-    end
-
-    return { output: output_assembled, output_data: output_data_assembled }
-  end
-
   def get_balance_in_channel(stx_info, type_info, pubkey)
     balance = nil
     for index in (0..stx_info[:outputs].length - 1)
@@ -316,9 +277,7 @@ class Communication
       return false if remote_fee_fund < 0
 
       @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input finished.")
-      remote_change_assembled = assemble_change(remote_change)
-      @logger.info("#{@key.pubkey} check msg_1: change assembled.")
-      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change_assembled, remote_stx_info)
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
 
       # check remote cells.
       if remote_cell_check_result != "success"
@@ -587,11 +546,9 @@ class Communication
       @logger.info("#{@key.pubkey} check msg_2: separte remote change.")
 
       # assemble remote change
-      remote_change_assembled = assemble_change(remote_change)
-
       @logger.info("#{@key.pubkey} check msg_2: start to check remote cells.")
       # check the cells remote party providing is right.
-      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change_assembled, remote_stx_info)
+      remote_cell_check_result, remote_cell_check_value = check_cells(remote_cells, remote_asset, remote_fee_fund, remote_change, remote_stx_info)
 
       if remote_cell_check_result != "success"
         client.puts(generate_text_msg(msg[:id], "sry, there are some problem abouty your cells."))

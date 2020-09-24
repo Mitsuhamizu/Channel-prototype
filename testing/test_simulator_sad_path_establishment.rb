@@ -8,7 +8,7 @@ require "bigdecimal"
 # A is sender and B is listener
 Mongo::Logger.logger.level = Logger::FATAL
 
-class Test_sad < Minitest::Test
+class Test_sad_establishment < Minitest::Test
   def simulation(file_name)
     begin
       @private_key_A = "0x63d86723e08f0f813a36ce6aa123bb2289d90680ae1e99d4de8cdb334553f24d"
@@ -69,10 +69,6 @@ class Test_sad < Minitest::Test
       udt_A_begin, udt_B_begin = tests.get_account_balance_udt()
       ckb_A_begin, ckb_B_begin = tests.get_account_balance_ckb()
 
-      # spend the cells.
-      tests.spend_cell("A", cells_spent_A)
-      tests.spend_cell("B", cells_spent_B)
-
       # process modification, i.e., modify the msg_lib.
       for modification in modifications
         keys = modification[:key]
@@ -99,6 +95,10 @@ class Test_sad < Minitest::Test
         end
         msg_lib[keys[0].to_s.to_sym] = msg_layered_lib[0]
       end
+
+      # spend the cells.
+      tests.spend_cell("A", cells_spent_A)
+      tests.spend_cell("B", cells_spent_B)
 
       # tell me who is robot.
       if robot == "A"
@@ -142,17 +142,19 @@ class Test_sad < Minitest::Test
     end
   end
 
-  ### sad path
-  ## step1
-  # def test_step1()
-  #   path_to_step1 = "./step1_test/"
-  #   # simulation(path_to_step1 + "test_step1_amount_negtive.json")
-  #   # simulation(path_to_step1 + "test_step1_fee_negtive.json")
-  #   # simulation(path_to_step1 + "test_step1_change_container_insufficient.json")
-  #   # simulation(path_to_step1 + "test_step1_settle_container_insufficient.json")
-  #   # simulation(path_to_step1 + "test_step1_cell_dead.json")
-  #   # simulation(path_to_step1 + "test_step1_capacity_inconsistent.json")
-  # end
+  # step1
+  def test_step1()
+    path_to_step1 = "./step1_test/"
+    # simulation(path_to_step1 + "test_step1_amount_negtive.json")
+    # simulation(path_to_step1 + "test_step1_fee_negtive.json")
+    # simulation(path_to_step1 + "test_step1_change_container_insufficient.json")
+    # simulation(path_to_step1 + "test_step1_settle_container_insufficient.json")
+    # simulation(path_to_step1 + "test_step1_capacity_inconsistent.json")
+    # simulation(path_to_step1 + "test_step1_cell_dead.json")
+    simulation(path_to_step1 + "test_step1_amount_claimed_inconsistent.json")
+    # simulation(path_to_step1 + "test_step1_error_amount_claimed_inconsistent.json")
+
+  end
 
   ## step2
   # def test_step2()
@@ -186,9 +188,4 @@ class Test_sad < Minitest::Test
   #   # simulation(path_to_step5 + "test_step5_signature_invalid.json")
   # end
 
-  ## step6_closing
-  ## step6_payment
-  ## step7
-  ## step8
-  ## step9
 end

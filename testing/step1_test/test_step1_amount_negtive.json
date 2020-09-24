@@ -33,7 +33,8 @@
                 "asset",
                 ""
             ],
-            "value": -100
+            "value_from": 30,
+            "value_to": -100
         }
     ],
     "expect_info": "[{\"sender_step1_error_amount_negtive\":-100}]"

@@ -1,0 +1,45 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "A",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg1",
+                "change",
+                0,
+                "output",
+                "capacity"
+            ],
+            "value_from": "0x31eb3c600",
+            "value_to": "0x324a9a700"
+        }
+    ],
+    "expect_info": "[{\"receiver_step1_error_capacity_inconsistent\":-100000000}]",
+    "describe-line1": "0x324a9a700 - 0x31eb3c600 = 10**8",
+    "describe-line2": "The receiver increase change by 1 ckbyte, so the capacity is not right."
+}

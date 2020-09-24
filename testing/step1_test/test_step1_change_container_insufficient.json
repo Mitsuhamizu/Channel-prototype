@@ -1,44 +1,45 @@
 {
     "A": {
-        "msg_1": {
-            "id": "e1cc71b3c65a24ce8a9cf917959506a8",
-            "type": 1,
-            "pubkey": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
-            "cells": [
-                {
-                    "previous_output": {
-                        "tx_hash": "0xb995c493f02090311dc82ca824124f8edab99fd2855c9c1e56b5c73a793fb2d9",
-                        "index": "0x2"
-                    },
-                    "since": "0x0"
-                }
-            ],
-            "fee_fund": 2000,
-            "timeout": "9223372036854775908",
-            "asset": {
-                "": 2000000000
-            },
-            "change": {
-                "output": {
-                    "capacity": "0x12ffbd300",
-                    "lock": {
-                        "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
-                        "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
-                        "hash_type": "type"
-                    },
-                    "type": null
-                },
-                "output_data": "0x"
-            },
-            "stx_info": "{\"outputs\":[{\"capacity\":\"0x1e2cc3100\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0x470dcdc5e44064909650113a274b3b36aecb6dc7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0x10000000100000001000000010000000\"]}"
-        }
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
     },
     "B": {
-        "amount": 10,
-        "fee": 3000,
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
         "ip": "127.0.0.1",
         "port": 2000
     },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "A",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg1",
+                "change",
+                0,
+                "output",
+                "capacity"
+            ],
+            "value_from": "0x31eb3c600",
+            "value_to": "0x2e318fc00"
+        }
+    ],
     "expect_info": "[{\"receiver_step1_error_change_container_insufficient\":-1000000000}]",
-    "describe-line1": "A -> msg1 -> change -> output -> capacity == 0x12ffbd300 (5100000000)"
+    "describe-line1": "0x2e318fc00 (124*10**8) - capacity_min (134*10**8) = -1000000000",
+    "describe-line2": "the min_capacity of change in udt, 134 ckbyte, but it is 124 ckbyte"
 }

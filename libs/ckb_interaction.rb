@@ -193,14 +193,69 @@ def check_output(amount, output, output_data, decoder)
   end
 end
 
+def assemble_change(changes)
+  @logger.info("#{@key.pubkey} assemble_change: begin.")
+  output_assembled = CKB::Types::Output.new(
+    capacity: 0,
+    lock: nil,
+    type: nil,
+  )
+
+  output_assembled.capacity = changes.map { |h| h[:output].capacity }.sum
+  @logger.info("#{@key.pubkey} assemble_change: capacity assembled.")
+
+  if changes.length == 1
+    @logger.info("#{@key.pubkey} assemble_change: branch 1.")
+    output_assembled.lock = changes[0][:output].lock
+    output_assembled.type = changes[0][:output].type
+    output_data_assembled = changes[0][:output_data]
+  elsif changes.length == 2
+    @logger.info("#{@key.pubkey} assemble_change: branch 2.")
+    if changes[0][:output].type != nil
+      asset_change_index = 0
+    elsif changes[1][:output].type
+      asset_change_index = 1
+    else
+      asset_change_index = -1
+    end
+
+    return "lock_inconsistent" if changes[0][:output].lock.to_h != changes[1][:output].lock.to_h
+    return "type_collision" if changes[0][:output].type != nil && changes[1][:output].type != nil
+
+    output_assembled.lock = changes[asset_change_index][:output].lock
+    output_assembled.type = changes[asset_change_index][:output].type
+    output_data_assembled = changes[asset_change_index][:output_data]
+  else
+    return "length_unknow"
+  end
+
+  return { output: output_assembled, output_data: output_data_assembled }
+end
+
 # def check_cells(cells, amount_required, fee_required, change, stx_info, type_script_hash, decoder)
-def check_cells(cells, remote_asset, fee_required, change, stx_info)
+def check_cells(cells, remote_asset, fee_required, changes, stx_info)
   @logger.info("#{@key.pubkey} check cells: amount begin.")
 
+  for change in changes
+    change_actual = change[:output].capacity
+    change_min = change[:output].calculate_min_capacity(change[:output_data])
+    return "error_change_container_insufficient", change_actual - change_min if change_actual < change_min
+  end
+
+  stx_actual = stx_info[:outputs][0].capacity
+  stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
+  return "error_settle_container_insufficient", stx_actual - stx_min if stx_actual < stx_min
+
+  change = assemble_change(changes)
+
+
+  capacity_gathered = get_total_capacity(cells)
+  return "error_cell_dead", true if !capacity_gathered
   # check stx is enough.
   for current_type_script_hash in remote_asset.keys()
     current_type = find_type(current_type_script_hash)
     current_decoder = current_type[:decoder]
+    # I only import one stx, so the index is 0.
     check_output_result = check_output(remote_asset[current_type_script_hash], stx_info[:outputs][0], stx_info[:outputs_data][0], current_decoder)
     return "error_amount_claimed_inconsistent", check_output_result if check_output_result != 0
     # check amount
@@ -211,22 +266,11 @@ def check_cells(cells, remote_asset, fee_required, change, stx_info)
       return "error_amount_refund_inconsistent", amount_gathered - refund_amount if amount_gathered != refund_amount
     end
   end
-  
-  @logger.info("#{@key.pubkey} check cells: amount end.")
-  # check the ckbyte is enough to support this output.
-  change_actual = change[:output].capacity
-  change_min = change[:output].calculate_min_capacity(change[:output_data])
-  stx_actual = stx_info[:outputs][0].capacity
-  stx_min = stx_info[:outputs][0].calculate_min_capacity(stx_info[:outputs_data][0])
-  capacity_gathered = get_total_capacity(cells)
-  @logger.info("#{@key.pubkey} check cells: capacity end.")
 
   refund_capacity = change[:output].capacity + stx_info[:outputs][0].capacity
 
   return "error_capacity_inconsistent", capacity_gathered - (fee_required + refund_capacity) if capacity_gathered != fee_required + refund_capacity
-  return "error_cell_dead", true if !capacity_gathered
 
   @logger.info("#{@key.pubkey} check cells: capacity end.")
-
   return "success", "0"
 end
