@@ -1348,7 +1348,7 @@ class Communication
 
     for payment_amount in payment.values()
       if payment_amount < 0
-        record_result({ "sender_gather_funding_error_negtive": payment_amount })
+        record_result({ "sender_make_payments_error_negtive": payment_amount })
         return false
       end
     end

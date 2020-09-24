@@ -1,9 +1,0 @@
-{
-    "funding_fee_A": 2000,
-    "funding_fee_B": 3000,
-    "container_min": 26800000000,
-    "funding_amount_A": 100,
-    "funding_amount_B": 20,
-    "expect_info": "[{\"receiver_status\":6}]",
-    "describe-line1": "UDT::Receiver::"
-}

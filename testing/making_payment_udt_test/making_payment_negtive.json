@@ -1,26 +1,35 @@
 {
-    "funding_fee_A": 2000,
-    "funding_fee_B": 3000,
-    "settle_fee_A": 2500,
-    "settle_fee_B": 2900,
-    "container_min": 26800000000,
-    "funding_amount_A": 100,
-    "funding_amount_B": 150,
-    "closing_type": "bilateral",
-    "payment_type": "udt",
-    "payments": {
-        "payment1": {
-            "sender": "A",
-            "receiver": "B",
-            "amount": -5,
-            "success": false
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
         },
-        "payment2": {
+        "funding_fee": 2000,
+        "settle_fee": 2500
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "udt",
             "sender": "B",
             "receiver": "A",
-            "amount": 10,
-            "success": true
+            "amount": -5,
+            "success": false
         }
-    },
-    "expect_info": "[{\"sender_make_payments_error_negtive\":-5}]"
+    ],
+    "closing_type": "bilateral",
+    "expect_info": "[{\"sender_make_payments_error_negtive\":-5}]",
+    "describe-line1": "B wants to pay A -5 udt, which corresponding to -5 udt."
 }

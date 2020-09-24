@@ -111,7 +111,7 @@ def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_scr
   for asset_type_hash in funding_type_script_version.keys()
     current_type = find_type(asset_type_hash)
 
-    # gather fund inputs.
+    # gather fund inputs according to the type script.
     fund_inputs = gather_fund_input(lock_hashes, funding_type_script_version[asset_type_hash], asset_type_hash, current_type[:decoder], coll_cells, from_block_number)
     return fund_inputs if fund_inputs.is_a? Numeric
     input_cells += fund_inputs
@@ -129,9 +129,9 @@ def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_scr
   required_capacity = funding_type_script_version.length() == 1 ?
     refund_minimal_capacity + change_minimal_capacity + fee :
     refund_minimal_capacity + change_minimal_capacity + fee + funding_type_script_version.values()[0]
+
   # check whether the fund cells' capacity is enought.
   # If yes, it is unnecessary to gather fee cells.
-
   diff_capacity = required_capacity - fund_inputs_capacity
   return input_cells if diff_capacity <= 0
 

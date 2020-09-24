@@ -1,9 +1,0 @@
-{
-    "funding_fee_A": 2000,
-    "funding_fee_B": 2000,
-    "container_min": 26800000000,
-    "funding_amount_A": 201,
-    "funding_amount_B": 100,
-    "expect_info": "[{\"sender_gather_funding_error_insufficient\":-1}]",
-    "describe-line1": "UDT::Sender::"
-}

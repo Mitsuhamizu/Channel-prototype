@@ -1,4 +1,4 @@
-require_relative "./miscellaneous/libs/gpctest.rb"
+˝ "./miscellaneous/libs/gpctest.rb"
 require "minitest/autorun"
 require "mongo"
 require "bigdecimal"
@@ -139,7 +139,7 @@ class Test_happy < Minitest::Test
   # # gather_input_ckb
   # def test_gather_input_ckb()
   #   path_to_gather_input_ckb = "./gather_input_ckb_test/"
-  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negtive.json") 
+  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negtive.json")
   #   simulation(path_to_gather_input_ckb + "Receiver_funding_negtive.json")
   #   simulation(path_to_gather_input_ckb + "Receiver_gather_insufficient.json")
   #   simulation(path_to_gather_input_ckb + "Sender_fee_negtive.json")
@@ -147,31 +147,24 @@ class Test_happy < Minitest::Test
   #   simulation(path_to_gather_input_ckb + "Sender_gather_insufficient.json")
   # end
 
-  # # gather_input_udt
-  # # reconsider it.
+  # gather_input_udt
   # def test_gather_input_udt()
   #   path_to_gather_input_udt = "./gather_input_udt_test/"
-  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient_1_stage.json")
-  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient_2_stage.json")
-  #   simulation(path_to_gather_input_udt + "Receiver_gather_success_1_stage.json")
-  #   simulation(path_to_gather_input_udt + "Receiver_gather_success_2_stage.json")
-  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient_1_stage.json")
-  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient_2_stage.json")
-  #   simulation(path_to_gather_input_udt + "Sender_gather_success_1_stage.json")
-  #   simulation(path_to_gather_input_udt + "Sender_gather_success_2_stage.json")
+  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient.json")
+  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient.json")
   # end
 
-  # # making_payment_ckb
+  # making_payment_ckb
   # def test_makeing_payment_ckb()
   #   path_to_making_payment_ckb = "./making_payment_ckb_test/"
-  #   simulation(path_to_making_payment_ckb + "making_payment_success.json")
   #   simulation(path_to_making_payment_ckb + "making_payment_negtive.json")
   #   simulation(path_to_making_payment_ckb + "making_payment_insufficient.json")
   # end
 
-  # # making_payment_udt
+  # making_payment_udt
   # def test_makeing_payment_udt()
   #   path_to_making_payment_udt = "./making_payment_udt_test/"
-  #   simulation(path_to_making_payment_udt + "making_payment_success.json")
+  #   simulation(path_to_making_payment_udt + "making_payment_negtive.json")
+  #   simulation(path_to_making_payment_udt + "making_payment_insufficient.json")
   # end
 end
