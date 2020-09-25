@@ -91,7 +91,7 @@ def verify_info_sig(info, flag, pubkey, sig_index)
     when 1
       info_witness_lock[:sig_B]
     end
-
+    
   # generate the msg.
   msg_signed = generate_msg_from_info(info, flag)
 

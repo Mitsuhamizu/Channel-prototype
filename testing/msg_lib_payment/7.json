@@ -1,1 +1,64 @@
-{"id":"fdf4faf2d3460edf330596ce858d053a","type":7,"ctx_info":{"outputs":[{"capacity":"0x6f037ea00","lock":{"code_hash":"0x5f91704a53e2cedbfda80903b472b917be2c0e0c78fdc786b3639147081676bc","args":"0xfdf4faf2d3460edf330596ce858d053a0164000000000000800200000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7","hash_type":"data"},"type":{"code_hash":"0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a","args":"0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd","hash_type":"data"}}],"outputs_data":["0x3200000000000000"],"witnesses":["0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010200000000000000e734934d7bb1d3ad0c447d4da85c4ddc2f2eaccfb988898503b389bcfe7d22be4313605c7e7566670a914cf08ab324587b69512faed6e8b21cb2b008bfe7e7ef010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]},"stx_info":{"outputs":[{"capacity":"0x395e95a00","lock":{"code_hash":"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8","args":"0x470dcdc5e44064909650113a274b3b36aecb6dc7","hash_type":"type"},"type":{"code_hash":"0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a","args":"0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd","hash_type":"data"}},{"capacity":"0x35a4e9000","lock":{"code_hash":"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8","args":"0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7","hash_type":"type"},"type":{"code_hash":"0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a","args":"0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd","hash_type":"data"}}],"outputs_data":["0x2800000000000000","0x0a00000000000000"],"witnesses":["0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a0001000000000000009badaa3765a351184bc325b295d218c35a7e0a4de593751ea7175d5916850fe85d217bec1215adc145891ec8783e19ba84905c363bff0f277a4abae355afa192006aaf723f356e632e2a0f3ebaef4fbf7af39cdba81eb9c3993f710693d26e541338b5b37e6b4bd85cd65867c19746d8be4ad8dce6da0f5817991ed28d52a7084b00"]}}
+{
+    "id": "fdf4faf2d3460edf330596ce858d053a",
+    "type": 7,
+    "ctx_info": {
+        "outputs": [
+            {
+                "capacity": "0x6f037ea00",
+                "lock": {
+                    "code_hash": "0x5f91704a53e2cedbfda80903b472b917be2c0e0c78fdc786b3639147081676bc",
+                    "args": "0xfdf4faf2d3460edf330596ce858d053a0164000000000000800200000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7",
+                    "hash_type": "data"
+                },
+                "type": {
+                    "code_hash": "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                    "args": "0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd",
+                    "hash_type": "data"
+                }
+            }
+        ],
+        "outputs_data": [
+            "0x3200000000000000"
+        ],
+        "witnesses": [
+            "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010200000000000000e734934d7bb1d3ad0c447d4da85c4ddc2f2eaccfb988898503b389bcfe7d22be4313605c7e7566670a914cf08ab324587b69512faed6e8b21cb2b008bfe7e7ef010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+    },
+    "stx_info": {
+        "outputs": [
+            {
+                "capacity": "0x395e95a00",
+                "lock": {
+                    "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                    "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
+                    "hash_type": "type"
+                },
+                "type": {
+                    "code_hash": "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                    "args": "0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd",
+                    "hash_type": "data"
+                }
+            },
+            {
+                "capacity": "0x35a4e9000",
+                "lock": {
+                    "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                    "args": "0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7",
+                    "hash_type": "type"
+                },
+                "type": {
+                    "code_hash": "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+                    "args": "0xc219351b150b900e50a7039f1e448b844110927e5fd9bd30425806cb8ddff1fd",
+                    "hash_type": "data"
+                }
+            }
+        ],
+        "outputs_data": [
+            "0x2800000000000000",
+            "0x0a00000000000000"
+        ],
+        "witnesses": [
+            "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a0002000000000000001ab9579874809536206b25dd400471ec9cb5644575b7029f317302de184fa9f91962323dbae8ba7dde23cd35925b44f3f3e91cca84f6a3f704139e6468619c830062edc031751932c977402f62a810f348530ce9a92a5d362f89113d1091923199066be3a14ea6330317098c01ed87af54246d64f58ac1a77465d64b7c5135888001"
+        ]
+    }
+}

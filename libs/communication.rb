@@ -268,12 +268,12 @@ class Communication
 
       for amount in remote_asset.values()
         if amount < 0
-          record_result({ "sender_step1_error_amount_negtive": amount })
+          record_result({ "sender_step1_error_amount_negative": amount })
           return false
         end
       end
 
-      record_result({ "sender_step1_error_fee_negtive": remote_fee_fund }) if remote_fee_fund < 0
+      record_result({ "sender_step1_error_fee_negative": remote_fee_fund }) if remote_fee_fund < 0
       return false if remote_fee_fund < 0
 
       @logger.info("#{@key.pubkey} check msg_1: checking negtive remote input finished.")
@@ -330,13 +330,13 @@ class Communication
       # check all amount are positive.
       for funding_amount in local_asset.values()
         if funding_amount < 0
-          record_result({ "receiver_gather_funding_error_negtive": funding_amount }) if funding_amount < 0
+          record_result({ "receiver_gather_funding_error_negative": funding_amount }) if funding_amount < 0
           return false
         end
       end
 
       if local_fee_fund < 0
-        record_result({ "receiver_gather_fee_error_negtive": local_fee_fund })
+        record_result({ "receiver_gather_fee_error_negative": local_fee_fund })
         return false
       end
 
@@ -718,7 +718,6 @@ class Communication
       local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witnesses][0]).lock)[:sig_A]
       remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witnesses][0]).lock)[:sig_A]
 
-
       local_ctx_result = verify_info_sig(remote_ctx_info, "closing", local_pubkey, sig_index)
       local_stx_result = verify_info_sig(remote_stx_info, "settlement", local_pubkey, sig_index)
 
@@ -847,22 +846,28 @@ class Communication
 
         @logger.info("#{@key.pubkey} check msg 6 payment: construct local stx and ctx.")
 
+
+        # check the payment is positive.
+        for payment_value in payment.values()
+          if payment_value < 0
+            record_result({ "receiver_step6_make_payments_error_negative": payment_value })
+            return false
+          end
+        end
+
+        # check the balance is enough.
         if local_update_stx_info.is_a? Numeric
           record_result({ "receiver_step6_make_payments_error_insufficient": local_update_stx_info })
           return false
         end
 
-        # but I have a problem, why original one is fine????
-
-        # check the updated info is right.
-        # this is becase the witness has wrong...
-
-        ctx_result = verify_info_args(local_update_ctx_info, remote_ctx_info)
         # this is becase the output capacity is not consistent.
-        stx_result = verify_info_args(local_update_stx_info, remote_stx_info) &&
-                     verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
-        if !ctx_result || !stx_result
+        if !verify_info_args(local_update_ctx_info, remote_ctx_info) || !verify_info_args(local_update_stx_info, remote_stx_info)
           record_result({ "receiver_step6_make_payments_error_info_inconsistent": true })
+          return false
+        end
+        if !verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+          record_result({ "receiver_step6_make_payments_error_signature_invalid": true })
           return false
         end
 
@@ -1039,15 +1044,18 @@ class Communication
       end
       @logger.info("#{@key.pubkey} check msg 7: begin to check the info.")
 
+      verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
       # check both the signatures are right.
-      ctx_result = verify_info_args(local_ctx_info, remote_ctx_info) &&
-                   verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
-      stx_result = verify_info_args(local_stx_info, remote_stx_info) &&
-                   verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
-
-      if !ctx_result || !stx_result
-        record_result({ "sender_step7_error_info_wrong": true })
+      if !verify_info_args(local_ctx_info, remote_ctx_info) || !verify_info_args(local_stx_info, remote_stx_info)
+        record_result({ "sender_step7_error_info_inconsistent": true })
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+        client.close()
+        return false
+      end
+
+      if !verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index) || !verify_info_sig(remote_stx_info, "settlement", remote_pubkey, 1 - sig_index)
+        record_result({ "sender_step7_error_signature_invalid": true })
+        client.puts(generate_text_msg(msg[:id], "sry, the sig of closing or settlement transaction have problem."))
         client.close()
         return false
       end
@@ -1090,12 +1098,17 @@ class Communication
 
       remote_ctx_info = hash_to_info(msg[:ctx_info])
 
-      ctx_result = verify_info_args(local_ctx_info_pend, remote_ctx_info)
       @logger.info("#{@key.pubkey} check msg 8: ctx_info checked.")
 
-      if !ctx_result
-        record_result({ "receiver_step8_error_info_wrong": true })
-        client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
+      if !verify_info_args(local_ctx_info_pend, remote_ctx_info)
+        record_result({ "receiver_step8_error_info_inconsistent": true })
+        client.puts(generate_text_msg(msg[:id], "sry, the args of closing transaction have problem."))
+        return false
+      end
+
+      if !verify_info_sig(remote_ctx_info, "closing", remote_pubkey, 1 - sig_index)
+        record_result({ "receiver_step8_error_signature_invalid": true })
+        client.puts(generate_text_msg(msg[:id], "sry, the sig of closing transaction have problem."))
         return false
       end
 
@@ -1211,14 +1224,14 @@ class Communication
     # check all amount are positive.
     for funding_amount in funding.values()
       if funding_amount < 0
-        record_result({ "sender_gather_funding_error_negtive": funding_amount })
+        record_result({ "sender_gather_funding_error_negative": funding_amount })
         return false
       end
     end
 
     # check fee is positive.s
     if fee_fund < 0
-      record_result({ "sender_gather_fee_error_negtive": fee_fund })
+      record_result({ "sender_gather_fee_error_negative": fee_fund })
       return false
     end
 
@@ -1307,7 +1320,7 @@ class Communication
 
     for payment_amount in payment.values()
       if payment_amount < 0
-        record_result({ "sender_make_payments_error_negtive": payment_amount })
+        record_result({ "sender_make_payments_error_negative": payment_amount })
         return false
       end
     end
@@ -1335,7 +1348,6 @@ class Communication
       witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
     end
     stx_info[:witnesses] = witness_new
-
     ctx_info_h = info_to_hash(ctx_info)
     stx_info_h = info_to_hash(stx_info)
 

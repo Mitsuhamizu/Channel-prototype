@@ -1,0 +1,57 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "udt",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        }
+    ],
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg8",
+                "ctx_info",
+                "witnesses",
+                0
+            ],
+            "value_from": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010200000000000000e734934d7bb1d3ad0c447d4da85c4ddc2f2eaccfb988898503b389bcfe7d22be4313605c7e7566670a914cf08ab324587b69512faed6e8b21cb2b008bfe7e7ef010735847556b72fa25a69d1ae70ff8f9bd3dfa84a55c4174c0ec49fa445f0b4fa3da0dcb2d8dcf8ebc67a99943b92d8641cff78fed75b884b3f406009d9e3cb0401",
+            "value_to": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010200000000000000e734934d7bb1d3ad0c447d4da85c4ddc2f2eaccfb988898503b389bcfe7d22be4313605c7e7566670a914cf08ab324587b69512faed6e8b21cb2b008bfe7e7ef010735847556b72fa25a69d1ae70ff8f9bd3dfa84a55c4174c0ec49fa445f0b4fa3da0dcb2d8dcf8ebc67a99943b92d8641cff78fed75b884b3f406009d9e3cb0402",
+            "value_from_sig": "B's sig: 0735847556b72fa25a69d1ae70ff8f9bd3dfa84a55c4174c0ec49fa445f0b4fa3da0dcb2d8dcf8ebc67a99943b92d8641cff78fed75b884b3f406009d9e3cb0401",
+            "value_to_sig": "B's sig: 0735847556b72fa25a69d1ae70ff8f9bd3dfa84a55c4174c0ec49fa445f0b4fa3da0dcb2d8dcf8ebc67a99943b92d8641cff78fed75b884b3f406009d9e3cb0402"
+        }
+    ],
+    "expect_info": "[{\"sender_status\":8},{\"receiver_step8_error_signature_invalid\":true}]",
+    "describe-line1": "B send msg with invalid signature.",
+    "describe-line2": "I extract the signature from the witness, so you can know which byte is change clearly.",
+    "describe-line3": "In this case, is the last byte."
+}

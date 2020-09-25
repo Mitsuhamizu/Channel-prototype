@@ -1,0 +1,41 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg6",
+                "payment",
+                "0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"
+            ],
+            "value_from": 10,
+            "value_to": 30
+        }
+    ],
+    "expect_info": "[{\"sender_status\":6},{\"receiver_step6_make_payments_error_insufficient\":-10}]"
+}

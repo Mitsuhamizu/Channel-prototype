@@ -1,0 +1,47 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg6",
+                "stx_info",
+                "witnesses",
+                0
+            ],
+            "value_from": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000062edc031751932c977402f62a810f348530ce9a92a5d362f89113d1091923199066be3a14ea6330317098c01ed87af54246d64f58ac1a77465d64b7c5135888001",
+            "value_to": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000062edc031751932c977402f62a810f348530ce9a92a5d362f89113d1091923199066be3a14ea6330317098c01ed87af54246d64f58ac1a77465d64b7c5135888002",
+            "value_from_sig": "B's sig: 62edc031751932c977402f62a810f348530ce9a92a5d362f89113d1091923199066be3a14ea6330317098c01ed87af54246d64f58ac1a77465d64b7c5135888001",
+            "value_to_sig": "B's sig: 62edc031751932c977402f62a810f348530ce9a92a5d362f89113d1091923199066be3a14ea6330317098c01ed87af54246d64f58ac1a77465d64b7c5135888002"
+        }
+    ],
+    "expect_info": "[{\"sender_status\":6},{\"receiver_step6_make_payments_error_signature_invalid\":true}]",
+    "describe-line1": "B send msg with invalid signature.",
+    "describe-line2": "I extract the signature from the witness, so you can know which byte is change clearly.",
+    "describe-line3": "In this case, is the last byte."
+}

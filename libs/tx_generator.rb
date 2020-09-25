@@ -399,7 +399,6 @@ class Tx_generator
     for witness in stx_info[:witnesses]
       witness = parse_witness(witness)
       lock = parse_witness_lock(witness.lock)
-      # here, load
       witness_new << generate_empty_witness(lock[:id], lock[:flag], lock[:nounce] + 1, witness.input_type, witness.output_type)
     end
 

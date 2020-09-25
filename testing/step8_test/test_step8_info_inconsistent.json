@@ -1,0 +1,52 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "udt",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        }
+    ],
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg8",
+                "ctx_info",
+                "witnesses",
+                0
+            ],
+            "value_from": "0x6f037ea00",
+            "value_to": "0x6f037ea11"
+        }
+    ],
+    "expect_info": "[{\"sender_status\":8},{\"receiver_step8_error_info_inconsistent\":true}]"
+}
