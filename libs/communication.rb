@@ -846,7 +846,6 @@ class Communication
 
         @logger.info("#{@key.pubkey} check msg 6 payment: construct local stx and ctx.")
 
-
         # check the payment is positive.
         for payment_value in payment.values()
           if payment_value < 0
@@ -946,6 +945,18 @@ class Communication
         end
 
         remote_fee = get_total_capacity(remote_fee_cells) - remote_change.capacity
+        # check sufficient.
+        if remote_fee < 0
+          record_result({ "receiver_step6_error_fee_negative": remote_fee })
+          client.puts(generate_text_msg(msg[:id], "sry, you fee is not enough as you claimed."))
+          return false
+        end
+        # check container sufficient.
+        if remote_change.capacity < 61 * 10 ** 8
+          record_result({ "receiver_step6_error_change_container_insufficient": remote_change.capacity - 61 * 10 ** 8 })
+          client.puts(generate_text_msg(msg[:id], "sry, the container of change is not enough."))
+          return false
+        end
         puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
         puts "Tell me whether you are willing to accept this request"
         commands = load_command()
@@ -1021,7 +1032,7 @@ class Communication
 
         msg_reply = { id: msg[:id], type: 9, terminal_tx: terminal_tx }.to_json
         client.puts(msg_reply)
-        @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2, closing_time: current_height + 20 } })
+        @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2 } })
       end
     when 7
 
@@ -1115,7 +1126,7 @@ class Communication
       ctx_info_h = info_to_hash(remote_ctx_info)
       stx_info_h = info_to_hash(local_stx_info_pend)
 
-      @logger.info("#{@key.pubkey} check msg 8: funished.")
+      @logger.info("#{@key.pubkey} check msg 8: finished.")
 
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
@@ -1135,12 +1146,18 @@ class Communication
       local_fee_cell = local_fee_cell.map { |cell| JSON.parse(cell.to_json, symbolize_names: true) }
       input_fund = @tx_generator.convert_input(fund_tx, 0, 0)
 
+      @logger.info("#{@key.pubkey} check msg 9: msg parsed.")
+
       for output in local_stx_info[:outputs].map(&:to_h)
         if !terminal_tx.outputs.map(&:to_h).include? output
+          record_result({ "sender_step9_error_stx_inconsistent": true })
           msg_reply = generate_text_msg(msg[:id], "sry, the settlement outputs are inconsistent with my local one.")
           return false
         end
       end
+
+      @logger.info("#{@key.pubkey} check msg 9: settlement is right.")
+
       terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
       remote_fee_cells = terminal_tx.inputs.map(&:to_h) - local_fee_cell - [input_fund.to_h]
       remote_fee_cells = remote_fee_cells.map { |cell| CKB::Types::Input.from_h(cell) }
@@ -1157,7 +1174,30 @@ class Communication
         end
       end
 
-      remote_fee = get_total_capacity(remote_fee_cells) - remote_change_output.map(&:capacity).inject(0, &:+)
+      @logger.info("#{@key.pubkey} check msg 9: cell all live.")
+
+      remote_change_capacity = remote_change_output.map(&:capacity).inject(0, &:+)
+      remote_fee = get_total_capacity(remote_fee_cells) - remote_change_capacity
+
+      if remote_fee < 0
+        record_result({ "receiver_step9_error_fee_negative": remote_fee })
+        client.puts(generate_text_msg(msg[:id], "sry, you fee is not enough as you claimed."))
+        return false
+      end
+      # check container sufficient.
+      if remote_change_capacity < 61 * 10 ** 8
+        record_result({ "receiver_step9_error_change_container_insufficient": remote_change_capacity - 61 * 10 ** 8 })
+        client.puts(generate_text_msg(msg[:id], "sry, the container of change is not enough."))
+        return false
+      end
+
+      # check signature.
+      terminal_tx = verify_fund_tx_sig(terminal_tx, remote_pubkey)
+      if !terminal_tx
+        record_result({ "receiver_step9_error_signature_invalid": true })
+        client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
+        return false
+      end
 
       puts "#{remote_pubkey} reply your closign request about id #{id}. Remote fee is #{remote_fee}"
       puts "Tell me whether you are willing to accept this request"

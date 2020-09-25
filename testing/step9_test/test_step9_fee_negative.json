@@ -1,0 +1,56 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
+        "ip": "127.0.0.1",
+        "port": 2000
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "A",
+    "closing_type": "bilateral",
+    "payments": [
+        {
+            "name": "payment1",
+            "payment_type": "udt",
+            "sender": "B",
+            "receiver": "A",
+            "amount": 10,
+            "success": true
+        }
+    ],
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg9",
+                "terminal_tx",
+                "outputs",
+                3,
+                "capacity"
+            ],
+            "value_from": "0x736ec05ab21dbdc",
+            "value_to": "0x736ec05ab21e5a1"
+        }
+    ],
+    "expect_info": "[{\"receiver_step9_error_fee_negative\":-1}]",
+    "description1":"The input fee has 736ec05ab21e5a0",
+    "description2":"B wants to invest 2500, so the change is 0x736ec05ab21dbdc",
+    "description3":"But now the change is 736ec05ab21e5a1, so the fee is negative."
+}
