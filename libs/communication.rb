@@ -483,6 +483,7 @@ class Communication
       local_updated_id = Digest::MD5.hexdigest(msg_digest)
       if local_updated_id != remote_updated_id
         client.puts(generate_text_msg(msg[:id], "sry, the channel ids are inconsistent."))
+        record_result({ "sender_step2_id_inconsistent" => true })
         return false
       end
 
@@ -517,6 +518,11 @@ class Communication
 
       # check there is no my cells in remote cell.
       for cell in remote_cells
+        if @api.get_live_cell(cell.previous_output).status != "live"
+          client.puts(generate_text_msg(msg[:id], "sry, cell dead."))
+          record_result({ "sender_step2_error_cell_dead" => true })
+          return false
+        end
         output = @api.get_live_cell(cell.previous_output).cell.output
         return false if local_cell_lock_lib.include? output.lock.compute_hash
       end
@@ -536,7 +542,8 @@ class Communication
       local_change_set = local_change_h.to_set()
 
       if !local_change_set.subset?(change_all_set)
-        # record the error
+        client.puts(generate_text_msg(msg[:id], "sry, something wrong with my local change."))
+        record_result({ "sender_step2_local_change_modified" => true })
         return false
       end
 
@@ -566,11 +573,6 @@ class Communication
       gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, total_asset,
                                                     local_updated_id, timeout, local_pubkey[2..-1], remote_pubkey[2..-1])
 
-      # @logger.info("gpc_output 1: #{gpc_cell[:output].to_h}")
-      # @logger.info("gpc_output 2: #{gpc_output.to_h}")
-      # @logger.info("gpc_output_data 1: #{gpc_cell[:output_data]}")
-      # @logger.info("gpc_output_data 2: #{gpc_output_data}")
-      # @logger.info("result: #{(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)}")
       if !(gpc_cell[:output].to_h == gpc_output.to_h && gpc_cell[:output_data] == gpc_output_data)
         client.puts(generate_text_msg(msg[:id], "sry, gpc output goes wrong."))
         record_result({ "sender_step2_error_gpc_modified": true })
@@ -653,11 +655,10 @@ class Communication
       local_ctx_info = @tx_generator.generate_closing_info(msg[:id], output, fund_tx.outputs_data[0], witness_closing, sig_index)
       local_stx_info = @tx_generator.sign_settlement_info(msg[:id], local_stx_info, witness_settlement, sig_index)
 
-      # check the args are same.
-
+      # set the witness to empty and then check everything is consistent.
       if !verify_info_args(local_ctx_info, remote_ctx_info) || !verify_info_args(local_stx_info, remote_stx_info)
         client.puts(generate_text_msg(msg[:id], "sry, the args of closing or settlement transaction have problem."))
-        record_result({ "receiver_step3_error_gpc_args_modified": true })
+        record_result({ "receiver_step3_error_info_modified": true })
         return false
       end
 
@@ -717,6 +718,7 @@ class Communication
       local_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(local_stx_info[:witnesses][0]).lock)[:sig_A]
       remote_stx_sig = @tx_generator.parse_witness_lock(@tx_generator.parse_witness(remote_stx_info[:witnesses][0]).lock)[:sig_A]
 
+
       local_ctx_result = verify_info_sig(remote_ctx_info, "closing", local_pubkey, sig_index)
       local_stx_result = verify_info_sig(remote_stx_info, "settlement", local_pubkey, sig_index)
 
@@ -730,7 +732,7 @@ class Communication
 
       # verify signature to make sure the data is not modified
       if !local_ctx_result || !local_stx_result
-        record_result({ "sender_step4_error_local_data_modified": true })
+        record_result({ "sender_step4_error_info_modified": true })
         client.puts(generate_text_msg(msg[:id], "The data is modified."))
         return false
       end

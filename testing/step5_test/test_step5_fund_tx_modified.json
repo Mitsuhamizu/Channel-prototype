@@ -37,5 +37,6 @@
             "value_to": "0x1"
         }
     ],
-    "expect_info": "[{\"receiver_status\":5},{\"receiver_step5_error_fund_tx_modified\":true}]"
+    "expect_info": "[{\"receiver_status\":5},{\"receiver_step5_error_fund_tx_modified\":true}]",
+    "describe-line1": "A change the version field of fund tx."
 }

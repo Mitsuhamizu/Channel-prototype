@@ -1,52 +1,47 @@
 {
     "A": {
-        "msg_1": {
-            "id": "e1cc71b3c65a24ce8a9cf917959506a8",
-            "type": 1,
-            "pubkey": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
-            "cells": [
-                {
-                    "previous_output": {
-                        "tx_hash": "0xb995c493f02090311dc82ca824124f8edab99fd2855c9c1e56b5c73a793fb2d9",
-                        "index": "0x2"
-                    },
-                    "since": "0x0"
-                }
-            ],
-            "fee_fund": 2000,
-            "timeout": "9223372036854775908",
-            "asset": {
-                "": 2000000000
-            },
-            "change": {
-                "output": {
-                    "capacity": "0x736ec043f8b48a0",
-                    "lock": {
-                        "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
-                        "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
-                        "hash_type": "type"
-                    },
-                    "type": null
-                },
-                "output_data": "0x"
-            },
-            "stx_info": "{\"outputs\":[{\"capacity\":\"0x1e2cc3100\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0x470dcdc5e44064909650113a274b3b36aecb6dc7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0x10000000100000001000000010000000\"]}"
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
         },
-        "msg_3": {
-            "id": "faa37578980737deac6c168df2356669",
-            "type": 3,
-            "ctx_info": "{\"outputs\":[{\"capacity\":\"0x389fd9800\",\"lock\":{\"code_hash\":\"0x5f91704a53e2cedbfda80903b472b917be2c0e0c78fdc786b3639147081676bc\",\"args\":\"0xfaa37578980737deac6c168df23566690164000000000000800100000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7\",\"hash_type\":\"data\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0xaf00000010000000af000000af0000009b000000faa37578980737deac6c168df23566690101000000000000003bd524c8aba3c9768b0d12297ff625cb3013c62f19ea046e5ea27157ea7a7549237ec92ce2c7121e4ae6900be4e6cbb43e695284ae6f9a4e5388b3b282f85e37000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"]}",
-            "stx_info": "{\"outputs\":[{\"capacity\":\"0x1e2cc3100\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0x470dcdc5e44064909650113a274b3b36aecb6dc7\",\"hash_type\":\"type\"},\"type\":null},{\"capacity\":\"0x1a7316700\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\",\"0x\"],\"witnesses\":[\"0xaf00000010000000af000000af0000009b000000faa37578980737deac6c168df2356669000100000000000000ce15655f026af175937968cf27e4e564cadcb134184b697d032d595e9ab9801b4d8fd691b5fc6267ba6e26783973e0a66435fcd3392ea76069c682b4229d7704000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"]}"
-        }
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
     },
     "B": {
-        "amount": 10,
-        "fee": 3000,
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
         "ip": "127.0.0.1",
         "port": 2000
     },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "A",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg3",
+                "ctx_info",
+                "witnesses",
+                0
+            ],
+            "value_from": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010100000000000000a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "value_to": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010100000000000000a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "value_from_sig": "A's sig: a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061e00",
+            "value_to_sig": "A's sig: a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061e01"
+        }
+    ],
     "expect_info": "[{\"receiver_step3_error_signature_invalid\":true}]",
-    "describe-line1": "A -> msg3 -> ctx_info -> witness -> from ",
-    "describe-line2": "0xaf00000010000000af000000af0000009b000000faa37578980737deac6c168df23566690101000000000000004bd524c8aba3c9768b0d12297ff625cb3013c62f19ea046e5ea27157ea7a7549237ec92ce2c7121e4ae6900be4e6cbb43e695284ae6f9a4e5388b3b282f85e37000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-    "describe-line3": "0xaf00000010000000af000000af0000009b000000faa37578980737deac6c168df23566690101000000000000004bd524c8aba3c9768b0d12297ff625cb3013c62f19ea046e5ea27157ea7a7549237ec92ce2c7121e4ae6900be4e6cbb43e695284ae6f9a4e5388b3b282f85e37000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "describe-line1": "A send msg with invalid signature.",
+    "describe-line2": "I extract the signature from the witness, so you can know which byte is change clearly.",
+    "describe-line3": "In this case, is the last byte."
 }

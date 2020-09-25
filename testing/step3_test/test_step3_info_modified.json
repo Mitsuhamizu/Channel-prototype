@@ -23,14 +23,14 @@
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
     "channel_establishment": true,
-    "robot": "B",
+    "robot": "A",
     "closing_type": "bilateral",
     "modifications": [
         {
             "name": "modification 1",
             "key": [
-                "msg2",
-                "fund_tx",
+                "msg3",
+                "ctx_info",
                 "outputs_data",
                 0
             ],
@@ -38,6 +38,6 @@
             "value_to": "0x1234"
         }
     ],
-    "expect_info": "[{\"sender_step2_error_gpc_modified\":true}]",
-    "describe-line1": "A computes the GPC output data by himself, and finds that B changes the output of GPC."
+    "expect_info": "[{\"receiver_step3_error_info_modified\":true}]",
+    "describe-line1": "A change the gpc args."
 }

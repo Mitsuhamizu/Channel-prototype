@@ -1,98 +1,44 @@
 {
     "A": {
-        "amount_fund": 20,
-        "fee_fund": 2000
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 2000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500,
+        "ip": "127.0.0.1",
+        "port": 1000
     },
     "B": {
-        "msg_2": {
-            "id": "e1cc71b3c65a24ce8a9cf917959506a8",
-            "updated_id": "faa37578980737deac6c168df2356669",
-            "type": 2,
-            "amount": 1000000000,
-            "fee_fund": 3000,
-            "fund_tx": {
-                "version": "0x0",
-                "cell_deps": [
-                    {
-                        "out_point": {
-                            "tx_hash": "0xa563884b3686078ec7e7677a5f86449b15cf2693f3c1241766c6996f206cc541",
-                            "index": "0x1"
-                        },
-                        "dep_type": "code"
-                    },
-                    {
-                        "out_point": {
-                            "tx_hash": "0xa563884b3686078ec7e7677a5f86449b15cf2693f3c1241766c6996f206cc541",
-                            "index": "0x3"
-                        },
-                        "dep_type": "code"
-                    }
-                ],
-                "header_deps": [],
-                "inputs": [
-                    {
-                        "previous_output": {
-                            "tx_hash": "0xb995c493f02090311dc82ca824124f8edab99fd2855c9c1e56b5c73a793fb2d9",
-                            "index": "0x2"
-                        },
-                        "since": "0x0"
-                    },
-                    {
-                        "previous_output": {
-                            "tx_hash": "0xa563884b3686078ec7e7677a5f86449b15cf2693f3c1241766c6996f206cc541",
-                            "index": "0x7"
-                        },
-                        "since": "0x0"
-                    }
-                ],
-                "outputs": [
-                    {
-                        "capacity": "0x389fd9899",
-                        "lock": {
-                            "code_hash": "0x5f91704a53e2cedbfda80903b472b917be2c0e0c78fdc786b3639147081676bc",
-                            "args": "0xfaa37578980737deac6c168df23566690064000000000000800000000000000000470dcdc5e44064909650113a274b3b36aecb6dc7c8328aabcd9b9e8e64fbc566c4385c3bdeb219d7",
-                            "hash_type": "data"
-                        },
-                        "type": null
-                    },
-                    {
-                        "capacity": "0x736ec043f8b48a0",
-                        "lock": {
-                            "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
-                            "args": "0x470dcdc5e44064909650113a274b3b36aecb6dc7",
-                            "hash_type": "type"
-                        },
-                        "type": null
-                    },
-                    {
-                        "capacity": "0x1bc16d65a7968d48",
-                        "lock": {
-                            "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
-                            "args": "0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7",
-                            "hash_type": "type"
-                        },
-                        "type": null
-                    }
-                ],
-                "outputs_data": [
-                    "0x",
-                    "0x",
-                    "0x"
-                ],
-                "witnesses": [
-                    "0x10000000100000001000000010000000",
-                    "0x10000000100000001000000010000000"
-                ],
-                "hash": "0xe3cb9537b8292d98edeb3c4d1d839d3c1f190da635757a9b0386531a3ad6bace"
-            },
-            "stx_info": "{\"outputs\":[{\"capacity\":\"0x1a7316700\",\"lock\":{\"code_hash\":\"0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8\",\"args\":\"0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7\",\"hash_type\":\"type\"},\"type\":null}],\"outputs_data\":[\"0x\"],\"witnesses\":[\"0x10000000100000001000000010000000\"]}",
-            "pubkey": "0xc8328aabcd9b9e8e64fbc566c4385c3bdeb219d7"
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 1000000000
         },
+        "funding_fee": 3000,
+        "settle_fee": 2900,
         "ip": "127.0.0.1",
         "port": 2000
     },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "robot": "B",
+    "closing_type": "bilateral",
+    "modifications": [
+        {
+            "name": "modification 1",
+            "key": [
+                "msg2",
+                "fund_tx",
+                "outputs",
+                0,
+                "capacity"
+            ],
+            "value_from": "0x6f037ea00",
+            "value_to": "0x6f037ea01"
+        }
+    ],
     "expect_info": "[{\"sender_step2_error_gpc_modified\":true}]",
-    "describe-line1": "B modifies A's change.",
-    "describe-line2": "You can look at the B -> msg2 -> fund_tx -> output[0] -> capacity",
-    "describe-line3": "I change it from 0x389fd9800 to 0x389fd9899"
+    "describe-line1": "A computes the GPC output by himself, and finds that B changes the output of GPC."
 }

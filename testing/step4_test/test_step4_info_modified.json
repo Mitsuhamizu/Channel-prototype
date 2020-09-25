@@ -29,15 +29,16 @@
         {
             "name": "modification 1",
             "key": [
-                "msg2",
-                "fund_tx",
-                "outputs_data",
-                0
+                "msg4",
+                "ctx_info",
+                "outputs",
+                0,
+                "capacity"
             ],
-            "value_from": "0x3200000000000000",
-            "value_to": "0x1234"
+            "value_from": "0x6f037ea00",
+            "value_to": "0x6f037ea01"
         }
     ],
-    "expect_info": "[{\"sender_step2_error_gpc_modified\":true}]",
-    "describe-line1": "A computes the GPC output data by himself, and finds that B changes the output of GPC."
+    "expect_info": "[{\"sender_step4_error_info_modified\":true}]",
+    "describe-line1": "B change the transaction information."
 }

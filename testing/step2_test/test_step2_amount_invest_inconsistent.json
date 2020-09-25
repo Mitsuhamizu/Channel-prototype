@@ -23,22 +23,22 @@
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
     "channel_establishment": true,
-    "robot": "A",
+    "robot": "B",
     "closing_type": "bilateral",
     "modifications": [
         {
             "name": "modification 1",
             "key": [
-                "msg1",
+                "msg2",
                 "stx_info",
                 "outputs_data",
                 0
             ],
-            "value_from": "0x1e00000000000000",
-            "value_to": "0x1f00000000000000"
+            "value_from": "0x1400000000000000",
+            "value_to": "0x1600000000000000"
         }
     ],
-    "expect_info": "[{\"receiver_step1_error_amount_claimed_inconsistent\":-1}]",
-    "describe-line1": "0x1e00000000000000 (30) - 0x1f00000000000000 (31) = -1",
-    "describe-line2": "A claims that he invest 30 UDT, but his output has 31 UDTs=."
+    "expect_info": "[{\"sender_step2_error_amount_invest_inconsistent\":-2}]",
+    "describe-line1": "0x1400000000000000 (20) - 0x1500000000000000 (22) = -2",
+    "describe-line2": "B claims that he invest 20 UDT, but his output has 22 UDTs."
 }

@@ -80,7 +80,7 @@ class Sender_bot
             msg = JSON.parse(msg, symbolize_names: true)
             @logger.info("send_bot: receive msg #{msg[:type]}.")
             @logger.info("send_bot: the error detail #{msg[:text]}.") if msg[:type] == 0
-
+            
             if msg_counter >= msg_array.length()
               @logger.info("send_bot: all msg have been sent.")
               s.close()
@@ -89,6 +89,7 @@ class Sender_bot
             if msg[:type] + 1 == msg_array[msg_counter][:type]
               @logger.info("send_bot: send msg at index #{msg_counter}, with type #{msg_array[msg_counter][:type]}.")
               s.puts(msg_array[msg_counter].to_json)
+              msg_counter += 1
               # @logger.info("send_bot: and next msg type is #{msg_array[msg_counter][:type]}")
             end
           end

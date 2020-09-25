@@ -36,9 +36,12 @@
             ],
             "value_from": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010100000000000000a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061e00708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f00",
             "value_to": "0xaf00000010000000af000000af0000009b000000fdf4faf2d3460edf330596ce858d053a010100000000000000a68c0cc7cae8aee35594e02a8d30d0fe95bfaf6a04dc87a97fa05723e19747ac45afdb41dd86e4a95b018ca7f580132d46b11babaf82d6c909f4b1016935061e00708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f22",
-            "value_from_sig": "00708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f00",
-            "value_to_sig": "00708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f22"
+            "value_from_sig": "B's sig 708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f00",
+            "value_to_sig": "B's sig 708e772431daa8b7132f9535bea330250bd7a04e9d1b58d6fad10d25349d5c641e3857812ab8213c673045c411e312c04acc4db506654d1cc7718ebcecfbc44f22"
         }
     ],
-    "expect_info": "[{\"sender_step4_error_signature_invalid\":true}]"
+    "expect_info": "[{\"sender_step4_error_signature_invalid\":true}]",
+    "describe-line1": "B send msg with invalid signature.",
+    "describe-line2": "I extract the signature from the witness, so you can know which byte is change clearly.",
+    "describe-line3": "In this case, is the last two byte."
 }

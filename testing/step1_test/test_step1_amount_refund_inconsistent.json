@@ -23,21 +23,22 @@
     "settle_fee_unilateral": 4000,
     "container_min": 13400000000,
     "channel_establishment": true,
-    "robot": "B",
+    "robot": "A",
     "closing_type": "bilateral",
     "modifications": [
         {
             "name": "modification 1",
             "key": [
-                "msg2",
-                "fund_tx",
-                "outputs_data",
-                0
+                "msg1",
+                "change",
+                0,
+                "output_data"
             ],
-            "value_from": "0x3200000000000000",
-            "value_to": "0x1234"
+            "value_from": "0x0a00000000000000",
+            "value_to": "0x0b00000000000000"
         }
     ],
-    "expect_info": "[{\"sender_step2_error_gpc_modified\":true}]",
-    "describe-line1": "A computes the GPC output data by himself, and finds that B changes the output of GPC."
+    "expect_info": "[{\"receiver_step1_error_amount_refund_inconsistent\":-1}]",
+    "describe-line1": "The cells A sends has 40 UDT, 30 for investment and 10 for change.",
+    "describe-line2": "But A has 11 change in this case."
 }

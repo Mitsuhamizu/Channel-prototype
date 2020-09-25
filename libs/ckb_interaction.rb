@@ -257,8 +257,9 @@ def check_cells(cells, remote_asset, fee_required, changes, stx_info)
     current_decoder = current_type[:decoder]
     # I only import one stx, so the index is 0.
     check_output_result = check_output(remote_asset[current_type_script_hash], stx_info[:outputs][0], stx_info[:outputs_data][0], current_decoder)
-    return "error_amount_claimed_inconsistent", check_output_result if check_output_result != 0
-    # check amount
+    # check the amount he invests is right as he claims.
+    return "error_amount_invest_inconsistent", check_output_result if check_output_result != 0
+    # check change + settelement refund is equal to amount_total
     if current_type_script_hash != ""
       amount_required = remote_asset[current_type_script_hash]
       amount_gathered = get_total_amount(cells, current_type_script_hash, current_decoder)

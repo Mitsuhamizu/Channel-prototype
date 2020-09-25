@@ -30,14 +30,12 @@
             "name": "modification 1",
             "key": [
                 "msg2",
-                "fund_tx",
-                "outputs_data",
-                0
+                "updated_id"
             ],
-            "value_from": "0x3200000000000000",
-            "value_to": "0x1234"
+            "value_from": "fdf4faf2d3460edf330596ce858d053a",
+            "value_to": "fdf4faf2d3460edf330596ce858d053b"
         }
     ],
-    "expect_info": "[{\"sender_step2_error_gpc_modified\":true}]",
-    "describe-line1": "A computes the GPC output data by himself, and finds that B changes the output of GPC."
+    "expect_info": "[{\"sender_step2_id_inconsistent\":true}]",
+    "describe-line1": "A computes the id according to the cells, and then finds that B change the id."
 }

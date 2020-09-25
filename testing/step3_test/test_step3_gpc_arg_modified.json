@@ -38,5 +38,6 @@
             "value_to": "0x1234"
         }
     ],
-    "expect_info": "[{\"receiver_step3_error_gpc_args_modified\":true}]"
+    "expect_info": "[{\"receiver_step3_error_info_modified\":true}]",
+    "describe-line1": "A change the output of closing transaction info."
 }
