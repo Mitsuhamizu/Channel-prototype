@@ -1,1 +1,1 @@
-{"sender_reply":"yes","recv_reply":"yes","recv_fund":{"udt":30,"ckb":"0.1e2"},"recv_fund_fee":3000,"one_way_channel_permission":"yes","payment_reply":"yes","closing_reply":"yes"}
+{"sender_reply":"yes","recv_reply":"yes","recv_fund":{"udt":20,"ckb":"0.1e2"},"recv_fund_fee":3000,"one_way_channel_permission":"yes","payment_reply":"yes","closing_reply":"yes"}

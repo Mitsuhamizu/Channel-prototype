@@ -1454,7 +1454,7 @@ class Communication
     rescue Timeout::Error
       puts "Timed out!"
     rescue Exception => e
-      puts exception
+      puts e
     end
 
     return "done"
