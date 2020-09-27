@@ -96,6 +96,7 @@ class Test_happy < Minitest::Test
         udt_A_after_closing, udt_B_after_closing = tests.get_account_balance_udt()
 
         # assert udt
+        # puts file_name
         assert_equal(udt_A_B, udt_A_begin - udt_A_after_closing, "A'udt after payment is wrong.")
         assert_equal(-udt_A_B, udt_B_begin - udt_B_after_closing, "B'udt after payment is wrong.")
 
@@ -127,44 +128,44 @@ class Test_happy < Minitest::Test
     end
   end
 
-  ## happy path
+  # happy path
 
-  # # closing_channel_test
-  # def test_closing_channel()
-  #   path_to_closing_channel_test = "./closing_channel_test/"
-  #   simulation(path_to_closing_channel_test + "closing_unilateral.json")
-  #   simulation(path_to_closing_channel_test + "closing_bilateral.json")
-  # end
+  # closing_channel_test
+  def test_closing_channel()
+    path_to_closing_channel_test = "./closing_channel_test/"
+    simulation(path_to_closing_channel_test + "closing_unilateral.json")
+    simulation(path_to_closing_channel_test + "closing_bilateral.json")
+  end
 
-  # # gather_input_ckb
-  # def test_gather_input_ckb()
-  #   path_to_gather_input_ckb = "./gather_input_ckb_test/"
-  #   simulation(path_to_gather_input_ckb + "Receiver_fee_negative.json")
-  #   simulation(path_to_gather_input_ckb + "Receiver_funding_negative.json")
-  #   simulation(path_to_gather_input_ckb + "Receiver_gather_insufficient.json")
-  #   simulation(path_to_gather_input_ckb + "Sender_fee_negative.json")
-  #   simulation(path_to_gather_input_ckb + "Sender_funding_negative.json")
-  #   simulation(path_to_gather_input_ckb + "Sender_gather_insufficient.json")
-  # end
+  # gather_input_ckb
+  def test_gather_input_ckb()
+    path_to_gather_input_ckb = "./gather_input_ckb_test/"
+    simulation(path_to_gather_input_ckb + "Receiver_fee_negative.json")
+    simulation(path_to_gather_input_ckb + "Receiver_funding_negative.json")
+    simulation(path_to_gather_input_ckb + "Receiver_gather_insufficient.json")
+    simulation(path_to_gather_input_ckb + "Sender_fee_negative.json")
+    simulation(path_to_gather_input_ckb + "Sender_funding_negative.json")
+    simulation(path_to_gather_input_ckb + "Sender_gather_insufficient.json")
+  end
 
-  # # gather_input_udt
-  # def test_gather_input_udt()
-  #   path_to_gather_input_udt = "./gather_input_udt_test/"
-  #   simulation(path_to_gather_input_udt + "Receiver_gather_insufficient.json")
-  #   simulation(path_to_gather_input_udt + "Sender_gather_insufficient.json")
-  # end
+  # gather_input_udt
+  def test_gather_input_udt()
+    path_to_gather_input_udt = "./gather_input_udt_test/"
+    simulation(path_to_gather_input_udt + "Receiver_gather_insufficient.json")
+    simulation(path_to_gather_input_udt + "Sender_gather_insufficient.json")
+  end
 
-  # # making_payment_ckb
-  # def test_makeing_payment_ckb()
-  #   path_to_making_payment_ckb = "./making_payment_ckb_test/"
-  #   simulation(path_to_making_payment_ckb + "making_payment_negative.json")
-  #   simulation(path_to_making_payment_ckb + "making_payment_insufficient.json")
-  # end
+  # making_payment_ckb
+  def test_makeing_payment_ckb()
+    path_to_making_payment_ckb = "./making_payment_ckb_test/"
+    simulation(path_to_making_payment_ckb + "making_payment_negative.json")
+    simulation(path_to_making_payment_ckb + "making_payment_insufficient.json")
+  end
 
-  # # making_payment_udt
-  # def test_makeing_payment_udt()
-  #   path_to_making_payment_udt = "./making_payment_udt_test/"
-  #   simulation(path_to_making_payment_udt + "making_payment_negative.json")
-  #   simulation(path_to_making_payment_udt + "making_payment_insufficient.json")
-  # end
+  # making_payment_udt
+  def test_makeing_payment_udt()
+    path_to_making_payment_udt = "./making_payment_udt_test/"
+    simulation(path_to_making_payment_udt + "making_payment_negative.json")
+    simulation(path_to_making_payment_udt + "making_payment_insufficient.json")
+  end
 end

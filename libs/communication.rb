@@ -1032,7 +1032,7 @@ class Communication
 
         msg_reply = { id: msg[:id], type: 9, terminal_tx: terminal_tx }.to_json
         client.puts(msg_reply)
-        @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2 } })
+        @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2, closing_time: current_height + 20 } })
       end
     when 7
 
@@ -1192,8 +1192,8 @@ class Communication
       end
 
       # check signature.
-      terminal_tx = verify_fund_tx_sig(terminal_tx, remote_pubkey)
-      if !terminal_tx
+      verify_result = verify_fund_tx_sig(terminal_tx, remote_pubkey)
+      if !verify_result
         record_result({ "receiver_step9_error_signature_invalid": true })
         client.puts(generate_text_msg(msg[:id], "The signatures are invalid."))
         return false
@@ -1217,6 +1217,7 @@ class Communication
         end
       end
 
+      @logger.info("#{@key.pubkey} check msg 9: begin to constrct terminal transaction.")
       # add my signature and send it to blockchain.
       local_fee_cell = local_fee_cell.map { |cell| CKB::Types::Input.from_h(cell) }
       terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell)
@@ -1225,7 +1226,7 @@ class Communication
       exist = @api.get_transaction(terminal_tx.hash)
       begin
         @api.send_transaction(terminal_tx) if exist == nil
-      rescue
+      rescue Exception => e
       end
       return "done"
     end
@@ -1453,6 +1454,7 @@ class Communication
     rescue Timeout::Error
       puts "Timed out!"
     rescue Exception => e
+      puts exception
     end
 
     return "done"

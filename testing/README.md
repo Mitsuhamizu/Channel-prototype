@@ -1,6 +1,6 @@
 # Testing
 
-Tests in this dir is about the gather_input function in CKB and UDT. The two accounts used for testing are as follows
+Tests in this dir are about the gather_input function in CKB and UDT. The two accounts used for testing are as follows
 
 **A's info**
 
@@ -41,7 +41,7 @@ CKB(asset): 2000000000000000000 (shannon)
 CKB(total): 2000000134000000000 (shannon)
 ```
 
-The *CKB asset* represents the number of CKByte that a user can use for trading, while the *CKB total* represents the user's total CKB including containers. This is because, CKB is a special asset, a cell representing UDT also contains CKB, and users can store some data in output_data. Therefore, we should not consider these CKByte that support UDT or data as CKByte assets. For B, the 134000000000 additional CKBytes represent containers for 10 UDT cells. For A, the extra 9319600000000 CKBytes represents containers for 10 UDT cells, GPC and UDT contracts.
+The *CKB asset* represents the number of CKByte that a user can use for trading, while the *CKB total* represents the user's total CKB including containers. This is because, CKB is a special asset, a cell representing UDT also contains CKB, and users can store some data in output_data. Therefore, we should not consider these CKByte that support UDT or data as CKByte assets.
 
 You can find the detail of the setup work in [gpctest.rb](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/testing/miscellaneous/libs/gpctest.rb#L97-L183). 
 
@@ -54,34 +54,34 @@ I will describe the test according to the lifecycle of the channel.
 ## Happy paths
 
 ### Establishment
-When establishing a channel, the interaction between the client and the user is simply the amount invested and whether or not the establishment is accepted. The client is not yet able to interrupt the reconnection, so the answer to the connection request is YES, so we need to test only the amount of investment the user wants to make.
 
-[gather_input_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_ckb_test): Test various possibilities for the amount of money users put into the CKB channel.
+When establishing a channel, the interaction between the client and the user is simply the amount invested and whether or not the establishment is accepted. Here we assume the answer to the connection request is YES, so we only need to test the amount of investment the user wants to make.
 
+The test file of happy path is [test_simulator_happy_path.rb](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/test_simulator_happy_path.rb). It contains following tests.
 
-[gather_input_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users put into the UDT channel.
+* Establishment: [gather_input_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_ckb_test) and 
+[gather_input_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test) tests correct behaviour of progra when the gathering amount of fee are negtive or insufficient in CKB and UDT situations.
 
-### Making payments
-
-Similarly, here I have only discussed the various amounts that users make payments.
-
-[making_payment_ckb_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/making_payment_ckb_test): Test various possibilities for the amount of money users pay in the CKB channel.
-
-
-[making_payment_udt_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/gather_input_udt_test): Test various possibilities for the amount of money users pay in the UDT channel.
-
-### Closing channel
-
-[closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/closing_channel_test): Unilateral and bilateral closures are tested.
+* Making payments: Folder [making_payment_ckb](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/making_payment_ckb) and [making_payment_udt](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/making_payment_ckb) tests the correct behaviour of the program when the payment amount is insufficient or negative when the payment asset type is CKB and UDT, respectively.
+* Closing channel: Folder [closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/closing_channel_test) tests bilateral and unilateral close situation of GPC.
 
 ## Sad paths
 
 ### Establishment
 
-[closing_channel_test](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/step1_ckb_test: Different error types for msg1. For example, the cells are dead, the amount is not consistent as adversary claimed.
+There are three .rb file to test the sad paths, namely 
+* [test_simulator_sad_path_closing.rb](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/test_simulator_sad_path_closing.rb): tests the first step 1-5.
+* [test_simulator_sad_path_establishment.rb](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/test_simulator_sad_path_establishment.rb): tests step 6-8.
+* [test_simulator_sad_path_closing.rb](https://github.com/ZhichunLu-11/Channel-prototype/tree/master/testing/test_simulator_sad_path_closing.rb) tests step 6 and step 9.
+
+To simulate the misbehaviour, invalid signature for example. Firstly, I record every message in the normal case, I can make sure that every time the msg is valid since I will truncate to block 0 before every test begins.
+
+Then, I adopt a [message robot](https://github.com/ZhichunLu-11/Channel-prototype/blob/master/message_sender_bot/message_sender_bot.rb) to simulate malicious users. In every json file for sad path, there is one field called *robot* to point out which one is robot and one filed called *modification* to illustrate which part of msg I will change.
 
 # Usage
 
-```
+You can type rake in the terminal to let all test begins. 
+
+``` 
 rake
 ```

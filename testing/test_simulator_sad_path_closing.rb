@@ -183,21 +183,21 @@ class Test_sad_closing < Minitest::Test
     end
   end
 
-  # # step6
-  # def test_step6()
-  #   path_to_step6 = "./step6_closing_test/"
-  #   simulation(path_to_step6 + "test_step6_cell_dead.json")
-  #   simulation(path_to_step6 + "test_step6_change_container_insufficient.json")
-  #   simulation(path_to_step6 + "test_step6_fee_negative.json")
-  # end
+  # step6
+  def test_step6()
+    path_to_step6 = "./step6_closing_test/"
+    simulation(path_to_step6 + "test_step6_cell_dead.json")
+    simulation(path_to_step6 + "test_step6_change_container_insufficient.json")
+    simulation(path_to_step6 + "test_step6_fee_negative.json")
+  end
 
-  # # step9
-  # def test_step9()
-  #   path_to_step9 = "./step9_test/"
-  #   simulation(path_to_step9 + "test_step9_cell_dead.json")
-  #   simulation(path_to_step9 + "test_step9_stx_info_inconsistent.json")
-  #   simulation(path_to_step9 + "test_step9_change_container_insufficient.json")
-  #   simulation(path_to_step9 + "test_step9_fee_negative.json")
-  #   simulation(path_to_step9 + "test_step9_signature_invalid.json")
-  # end
+  # step9
+  def test_step9()
+    path_to_step9 = "./step9_test/"
+    simulation(path_to_step9 + "test_step9_cell_dead.json")
+    simulation(path_to_step9 + "test_step9_stx_info_inconsistent.json")
+    simulation(path_to_step9 + "test_step9_change_container_insufficient.json")
+    simulation(path_to_step9 + "test_step9_fee_negative.json")
+    simulation(path_to_step9 + "test_step9_signature_invalid.json")
+  end
 end

@@ -3,5 +3,9 @@ task default: "test"
 
 Rake::TestTask.new do |task|
   task.warning = false
-  task.pattern = FileList["test*.rb"]
+  # task.pattern = FileList["test*.rb"]
+  # task.pattern = FileList["test_simulator_sad_path_establishment.rb"]
+  # task.pattern = FileList["test_simulator_sad_path_payment.rb"]
+  # task.pattern = FileList["test_simulator_sad_path_closing.rb"]
+  task.pattern = FileList["test_simulator_happy_path.rb"]
 end

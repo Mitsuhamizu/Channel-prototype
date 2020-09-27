@@ -41,8 +41,9 @@
             "key": [
                 "msg8",
                 "ctx_info",
-                "witnesses",
-                0
+                "outputs",
+                0,
+                "capacity"
             ],
             "value_from": "0x6f037ea00",
             "value_to": "0x6f037ea11"

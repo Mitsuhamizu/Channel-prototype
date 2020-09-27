@@ -140,26 +140,26 @@ class Test_sad_payment < Minitest::Test
     end
   end
 
-  # # step6_payment
-  # def test_step6()
-  #   path_to_step6 = "./step6_payment_test/"
-  #   simulation(path_to_step6 + "test_step6_payment_insufficient.json")
-  #   simulation(path_to_step6 + "test_step6_payment_negative.json")
-  #   simulation(path_to_step6 + "test_step6_info_inconsistent.json")
-  #   simulation(path_to_step6 + "test_step6_signature_invalid.json")
-  # end
+  # step6_payment
+  def test_step6()
+    path_to_step6 = "./step6_payment_test/"
+    simulation(path_to_step6 + "test_step6_payment_insufficient.json")
+    simulation(path_to_step6 + "test_step6_payment_negative.json")
+    simulation(path_to_step6 + "test_step6_info_inconsistent.json")
+    simulation(path_to_step6 + "test_step6_signature_invalid.json")
+  end
 
-  # # step7
-  # def test_step7()
-  #   path_to_step7 = "./step7_test/"
-  #   simulation(path_to_step7 + "test_step7_info_inconsistent.json")
-  #   simulation(path_to_step7 + "test_step7_signature_invalid.json")
-  # end
+  # step7
+  def test_step7()
+    path_to_step7 = "./step7_test/"
+    simulation(path_to_step7 + "test_step7_info_inconsistent.json")
+    simulation(path_to_step7 + "test_step7_signature_invalid.json")
+  end
 
-  # # step8
-  # def test_step8()
-  #   path_to_step8 = "./step8_test/"
-  #   simulation(path_to_step8 + "test_step8_info_inconsistent.json")
-  #   simulation(path_to_step8 + "test_step8_signature_invalid.json")
-  # end
+  # step8
+  def test_step8()
+    path_to_step8 = "./step8_test/"
+    simulation(path_to_step8 + "test_step8_info_inconsistent.json")
+    simulation(path_to_step8 + "test_step8_signature_invalid.json")
+  end
 end

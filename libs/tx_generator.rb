@@ -207,6 +207,7 @@ class Tx_generator
     input_group = group_input(inputs_tuple)
     return false if !input_group
 
+    @logger.info("sign_tx: finish input_group.")
     for key in input_group.keys
       first_index = input_group[key][0]
 
@@ -227,6 +228,8 @@ class Tx_generator
       blake2b.update([emptied_witness_data_size].pack("Q<"))
       blake2b.update(emptied_witness_data_binary)
 
+      @logger.info("sign_tx: include the first witness.")
+
       #include the witness in the same group
       for index in input_group[key][1..]
         witness = tx.witnesses[index]
@@ -240,6 +243,8 @@ class Tx_generator
         blake2b.update([data_size].pack("Q<"))
         blake2b.update(data_binary)
       end
+
+      @logger.info("sign_tx: include the witness in the same group.")
 
       # include other witness
       witnesses_len = tx.witnesses.length()
@@ -258,6 +263,8 @@ class Tx_generator
         blake2b.update(data_binary)
       end
 
+      @logger.info("sign_tx: include other witnesses.")
+
       message = blake2b.hexdigest
       tx.witnesses[first_index] = case tx.witnesses[first_index]
         when CKB::Types::Witness
@@ -267,8 +274,10 @@ class Tx_generator
         end
       tx.witnesses[first_index].lock = @key.sign_recoverable(message)
       tx.witnesses[first_index] = CKB::Serializers::WitnessArgsSerializer.from(tx.witnesses[first_index]).serialize
+      @logger.info("sign_tx: sign successfully.")
     end
 
+    @logger.info("sign_tx: all done.")
     return tx
   end
 
@@ -370,7 +379,6 @@ class Tx_generator
 
   # can only accept one payment.
   def update_stx(payments, stx_info, pubkey_payer, pubkey_payee)
-
     for payment_type_hash in payments.keys()
       for index in (0..stx_info[:outputs].length - 1)
         @logger.info("update_stx: begin.")

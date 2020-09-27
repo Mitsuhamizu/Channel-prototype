@@ -141,49 +141,49 @@ class Test_sad_establishment < Minitest::Test
     end
   end
 
-  # # step1
-  # def test_step1()
-  #   path_to_step1 = "./step1_test/"
-  #   simulation(path_to_step1 + "test_step1_amount_negative.json")
-  #   simulation(path_to_step1 + "test_step1_fee_negative.json")
-  #   simulation(path_to_step1 + "test_step1_change_container_insufficient.json")
-  #   simulation(path_to_step1 + "test_step1_settle_container_insufficient.json")
-  #   simulation(path_to_step1 + "test_step1_capacity_inconsistent.json")
-  #   simulation(path_to_step1 + "test_step1_cell_dead.json")
-  #   simulation(path_to_step1 + "test_step1_amount_invest_inconsistent.json")
-  #   simulation(path_to_step1 + "test_step1_amount_refund_inconsistent.json")
-  # end
+  # step1
+  def test_step1()
+    path_to_step1 = "./step1_test/"
+    simulation(path_to_step1 + "test_step1_amount_negative.json")
+    simulation(path_to_step1 + "test_step1_fee_negative.json")
+    simulation(path_to_step1 + "test_step1_change_container_insufficient.json")
+    simulation(path_to_step1 + "test_step1_settle_container_insufficient.json")
+    simulation(path_to_step1 + "test_step1_capacity_inconsistent.json")
+    simulation(path_to_step1 + "test_step1_cell_dead.json")
+    simulation(path_to_step1 + "test_step1_amount_invest_inconsistent.json")
+    simulation(path_to_step1 + "test_step1_amount_refund_inconsistent.json")
+  end
 
-  # # step2
-  # def test_step2()
-  #   path_to_step2 = "./step2_test/"
-  #   simulation(path_to_step2 + "test_step2_id_inconsistent.json")
-  #   simulation(path_to_step2 + "test_step2_gpc_output_modified.json")
-  #   simulation(path_to_step2 + "test_step2_gpc_output_data_modified.json")
-  #   simulation(path_to_step2 + "test_step2_local_change_modified.json")
-  #   simulation(path_to_step2 + "test_step2_cell_dead.json")
-  #   simulation(path_to_step2 + "test_step2_amount_invest_inconsistent.json")
-  # end
+  # step2
+  def test_step2()
+    path_to_step2 = "./step2_test/"
+    simulation(path_to_step2 + "test_step2_id_inconsistent.json")
+    simulation(path_to_step2 + "test_step2_gpc_output_modified.json")
+    simulation(path_to_step2 + "test_step2_gpc_output_data_modified.json")
+    simulation(path_to_step2 + "test_step2_local_change_modified.json")
+    simulation(path_to_step2 + "test_step2_cell_dead.json")
+    simulation(path_to_step2 + "test_step2_amount_invest_inconsistent.json")
+  end
 
-  # # step3
-  # def test_step3()
-  #   path_to_step3 = "./step3_test/"
-  #   simulation(path_to_step3 + "test_step3_signature_invalid.json")
-  #   simulation(path_to_step3 + "test_step3_info_modified.json")
-  # end
+  # step3
+  def test_step3()
+    path_to_step3 = "./step3_test/"
+    simulation(path_to_step3 + "test_step3_signature_invalid.json")
+    simulation(path_to_step3 + "test_step3_info_modified.json")
+  end
 
-  # # step4
-  # def test_step4()
-  #   path_to_step4 = "./step4_test/"
-  #   simulation(path_to_step4 + "test_step4_signature_invalid.json")
-  #   simulation(path_to_step4 + "test_step4_signature_inconsistent.json")
-  #   simulation(path_to_step4 + "test_step4_info_modified.json")
-  # end
+  # step4
+  def test_step4()
+    path_to_step4 = "./step4_test/"
+    simulation(path_to_step4 + "test_step4_signature_invalid.json")
+    simulation(path_to_step4 + "test_step4_signature_inconsistent.json")
+    simulation(path_to_step4 + "test_step4_info_modified.json")
+  end
 
-  # # step5
-  # def test_step5()
-  #   path_to_step5 = "./step5_test/"
-  #   simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
-  #   simulation(path_to_step5 + "test_step5_signature_invalid.json")
-  # end
+  # step5
+  def test_step5()
+    path_to_step5 = "./step5_test/"
+    simulation(path_to_step5 + "test_step5_fund_tx_modified.json")
+    simulation(path_to_step5 + "test_step5_signature_invalid.json")
+  end
 end
