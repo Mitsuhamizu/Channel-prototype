@@ -1,0 +1,41 @@
+{
+    "A": {
+        "funding_amount": {
+            "udt": 30,
+            "ckb": 20000000000
+        },
+        "funding_fee": 2000,
+        "settle_fee": 2500
+    },
+    "B": {
+        "funding_amount": {
+            "udt": 20,
+            "ckb": 10000000000
+        },
+        "funding_fee": 3000,
+        "settle_fee": 2900
+    },
+    "closing_fee_unilateral": 3000,
+    "settle_fee_unilateral": 4000,
+    "container_min": 13400000000,
+    "channel_establishment": true,
+    "tg_msg": [
+        {
+            "name": "msg1",
+            "payment_type": "ckb",
+            "sender": "A",
+            "receiver": "B",
+            "user_name": "Zhichun1",
+            "tg_msg": "This is a tg_msg issued with ckb."
+        },
+        {
+            "name": "msg2",
+            "payment_type": "udt",
+            "sender": "A",
+            "receiver": "B",
+            "user_name": "Zhichun2",
+            "tg_msg": "This is a tg_msg issued with udt."
+        }
+    ],
+    "closing_type": "bilateral"
+}
