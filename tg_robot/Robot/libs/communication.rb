@@ -9,6 +9,7 @@ require "digest/sha1"
 require "mongo"
 require "set"
 require "timeout"
+require "date"
 require_relative "tx_generator.rb"
 require_relative "verification.rb"
 require_relative "type_script_info.rb"
@@ -830,7 +831,7 @@ class Communication
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         payment = msg[:payment].map() { |key, value| [key.to_s, value] }.to_h
         remote_investment = convert_hash_to_text(payment)
-        tg_msg = msg[:tg_msg]
+        tg_command = msg[:tg_command]
 
         # recv the new signed stx and unsigned ctx.
         remote_ctx_info = hash_to_info(msg[:ctx_info])
@@ -922,7 +923,7 @@ class Communication
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
                                                                     stx_pend: stx_info_h.to_json,
-                                                                    status: 8, msg_cache: msg, tg_msg: tg_msg } })
+                                                                    status: 8, msg_cache: msg, tg_command: tg_command } })
       elsif msg_type == "closing"
         @logger.info("#{@key.pubkey} check msg 6: branch closing.")
 
@@ -1109,7 +1110,7 @@ class Communication
       local_stx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
-      tg_msg = @coll_sessions.find({ id: id }).first[:tg_msg]
+      tg_command = @coll_sessions.find({ id: id }).first[:tg_command]
 
       @logger.info("#{@key.pubkey} check msg 8: msg parsed.")
 
@@ -1134,10 +1135,19 @@ class Communication
 
       @logger.info("#{@key.pubkey} check msg 8: finished.")
 
-      user_name = tg_msg["user_name"]
-      text = tg_msg["text"]
+      # mute some body...
+
+      group_id = -1001372639358
+      requester = tg_command["user_name"]
+      muted_id = tg_command["muted_id"]
+      muted_second = tg_command["time"]
+      chatpermission = {
+        "can_send_messages": false,
+      }
       Telegram::Bot::Client.run(@token) do |bot|
-        bot.api.send_message(chat_id: -429847794, text: "#{user_name} says: #{text}")
+        current_unix_time = Time.now.to_i
+        bot.api.restrictChatMember(chat_id: group_id, user_id: muted_id, permissions: chatpermission, until_date: current_unix_time + muted_second)
+        bot.api.send_message(chat_id: group_id, text: "#{requester} mutes #{muted_id} from unixtime #{current_unix_time} to #{current_unix_time + muted_second}")
       end
 
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,

@@ -150,11 +150,11 @@ class GPCCLI < Thor
     puts "Tell me who you are."
     # user_name = STDIN.gets.chomp
     user_name = tg_msg_json[:user_name]
-    puts "Tell me what you want to publish."
-    # msg_sent = STDIN.gets.chomp
-    msg_sent = tg_msg_json[:tg_msg]
-
-
+    puts "Tell me who you want to mute."
+    mute_id = tg_msg_json[:muted_id]
+    puts "Tell me how long would you like to mute him."
+    # mute_time = STDIN.gets.chomp
+    mute_time = tg_msg_json[:time]
     # ask the type.
     puts "Tell me what type of asset you want to pay."
     # payment_type = STDIN.gets.chomp
@@ -162,14 +162,12 @@ class GPCCLI < Thor
     # construct payment.
 
     if payment_type == "ckb"
-      payment_amount = msg_sent.length
+      payment_amount = mute_time
     elsif payment_type == "udt"
-      payment_amount = ((msg_sent.length).to_f / 100).ceil
+      payment_amount = ((mute_time).to_f / 10).ceil
     end
     payment = { payment_type => payment_amount }
     payment = payment.map() { |key, value| [key.to_sym, value] }.to_h
-
-    puts payment
 
     private_key = pubkey_to_privkey(options[:pubkey])
 
@@ -179,7 +177,7 @@ class GPCCLI < Thor
     end
 
     communicator = Communication.new(private_key)
-    communicator.send_payments(options[:ip], options[:port], options[:id], payment, user_name, msg_sent)
+    communicator.send_payments(options[:ip], options[:port], options[:id], payment, tg_msg_json)
   end
 end
 

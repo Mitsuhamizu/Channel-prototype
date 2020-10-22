@@ -25,16 +25,18 @@
             "payment_type": "ckb",
             "sender": "A",
             "receiver": "B",
-            "user_name": "Zhichun1",
-            "tg_msg": "This is a tg_msg issued with ckb."
+            "user_name": "Somebody",
+            "muted_id": 1256191191,
+            "time": 40
         },
         {
             "name": "msg2",
             "payment_type": "udt",
             "sender": "A",
             "receiver": "B",
-            "user_name": "Zhichun2",
-            "tg_msg": "This is a tg_msg issued with udt."
+            "user_name": "Somebody",
+            "muted_id": 1256191191,
+            "time": 50
         }
     ],
     "closing_type": "bilateral"

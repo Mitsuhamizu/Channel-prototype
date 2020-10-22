@@ -827,7 +827,7 @@ class Communication
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         payment = msg[:payment].map() { |key, value| [key.to_s, value] }.to_h
         remote_investment = convert_hash_to_text(payment)
-        
+
         # recv the new signed stx and unsigned ctx.
         remote_ctx_info = hash_to_info(msg[:ctx_info])
         remote_stx_info = hash_to_info(msg[:stx_info])
@@ -1339,9 +1339,8 @@ class Communication
     end
   end
 
-  def send_payments(remote_ip, remote_port, id, payment, user_name = nil, msg_sent = nil)
+  def send_payments(remote_ip, remote_port, id, payment, tg_command = nil)
     s = TCPSocket.open(remote_ip, remote_port)
-
 
     remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
     local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
@@ -1393,12 +1392,9 @@ class Communication
     ctx_info_h = info_to_hash(ctx_info)
     stx_info_h = info_to_hash(stx_info)
 
-    # add the corresponding tg msg.
-    tg_msg = { user_name: user_name, text: msg_sent }
-
     # send the msg.
     msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h,
-            payment: payment, msg_type: "payment", tg_msg: tg_msg }.to_json
+            payment: payment, msg_type: "payment", tg_command: tg_command }.to_json
     s.puts(msg)
 
     # update the local database.

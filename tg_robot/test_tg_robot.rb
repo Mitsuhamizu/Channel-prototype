@@ -50,7 +50,8 @@ class Test_happy < Minitest::Test
           receiver = tg_msg[:receiver]
           payment_type = tg_msg[:payment_type]
           user_name = tg_msg[:user_name]
-          msg_sent = tg_msg[:tg_msg]
+          muted_id = tg_msg[:muted_id]
+          muted_time = tg_msg[:time]
 
           # store the payment type, msg and the user_name.
           file = File.new(@path_to_file + "tg_msg.json", "w")
@@ -61,7 +62,7 @@ class Test_happy < Minitest::Test
           else
             return false
           end
-          sleep(2)
+          sleep(3)
         end
 
         # B send the close request to A.
