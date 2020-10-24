@@ -30,10 +30,10 @@ class Communication
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
 
-    @path_to_file = __dir__ + "/../../miscellaneous/files/"
+    @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
-
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
+    @group_id = -1001372639358
   end
 
   # Generate the plain text msg, client will print it.
@@ -174,27 +174,6 @@ class Communication
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
 
-    # # this is for loading msg.
-    # # record the msg
-    # data_json = msg.to_json
-    # if msg[:type] == 7 || msg[:type] == 8
-    #   file = File.new(__dir__ + "/../../msg_lib_payment/#{msg[:type]}.json", "w")
-    #   file.syswrite(data_json)
-    # elsif msg[:type] == 6
-    #   if msg[:msg_type] == "payment"
-    #     file = File.new(__dir__ + "/../../msg_lib_payment/#{msg[:type]}.json", "w")
-    #   else
-    #     file = File.new(__dir__ + "/../../msg_lib_closing/#{msg[:type]}.json", "w")
-    #   end
-    #   file.syswrite(data_json)
-    # elsif msg[:type] < 6
-    #   file = File.new(__dir__ + "/../../msg_lib_establishment/#{msg[:type]}.json", "w")
-    #   file.syswrite(data_json)
-    # elsif msg[:type] ==  9
-    #   file = File.new(__dir__ + "/../../msg_lib_closing/#{msg[:type]}.json", "w")
-    #   file.syswrite(data_json)
-    # end
-
     # if there is no record and the msg is not the first step.
     @logger.info("#{@key.pubkey} msg#{type} comes, the number of record in the db is #{view.count_documents()}, id: #{msg[:id]}")
     if view.count_documents() == 0 && type != 1
@@ -282,18 +261,14 @@ class Communication
         return false
       end
 
-      # Ask whether willing to accept the request, the capacity is same as negotiations.
-      puts "#{remote_pubkey} wants to establish channel with you #{remote_investment}"
-      puts "The fund fee is #{remote_fee_fund}."
-      puts "Tell me whether you are willing to accept this request."
+      # Ask whether willing to accept the request, the capacity is same as negotiations
 
       @logger.info("#{@key.pubkey} check msg_1: finished.")
 
       # read data from json file.
       while true
         # testing
-        response STDIN.gets.chomp
-        # response = "yes"
+        response = "yes"
         if response == "yes"
           break
         elsif response == "no"
@@ -307,14 +282,12 @@ class Communication
 
       # Get the capacity and fee. These code need to be more robust.
       while true
-        puts "Please input the amount and fee you want to use for funding"
-        local_funding = STDIN.gets.chomp
-
+        local_funding = { ckb: 0, udt: 2000000 }
         for asset_type in local_funding.keys()
           local_funding[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(local_funding[asset_type])) : BigDecimal(local_funding[asset_type])
           local_funding[asset_type] = local_funding[asset_type].to_i
         end
-        local_fee_fund STDIN.gets.chomp.to_i
+        local_fee_fund = 3000
         break
       end
       local_asset = convert_text_to_hash(local_funding)
@@ -336,15 +309,16 @@ class Communication
 
       @logger.info("#{@key.pubkey} send msg_2: gather input begin.")
       # gather local fund inputs.
+
       local_cells = gather_inputs(local_asset, local_fee_fund, lock_hashes, change_lock_script,
                                   refund_lock_script, @coll_cells)
-
-      @logger.info("#{@key.pubkey} send msg_2: gather input finished.")
 
       if local_cells.is_a? Numeric
         record_result({ "receiver_gather_funding_error_insufficient": local_cells })
         return false
       end
+
+      @logger.info("#{@key.pubkey} send msg_2: gather input finished.")
 
       return false if local_cells == nil
 
@@ -352,6 +326,8 @@ class Communication
       channel_id = Digest::MD5.hexdigest(msg_digest)
 
       @logger.info("#{@key.pubkey} send msg_2: generate settlement info and change: begin")
+
+      local_asset = local_asset.sort.reverse.to_h
 
       # generate the settlement infomation.
       local_empty_stx = @tx_generator.generate_empty_settlement_info(local_asset, refund_lock_script)
@@ -490,25 +466,24 @@ class Communication
         local_cell_lock_lib.add(output.lock.compute_hash)
       end
 
-      commands = load_command()
       # About the one way channel.
 
-      if remote_asset.values().sum == 0
-        puts "It is a one-way channel, tell me whether you want to accept it."
-        while true
-          # response = STDIN.gets.chomp
-          response STDIN.gets.chomp
-          if response == "yes"
-            break
-          elsif response == "no"
-            msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request since it is one-way channel.")
-            client.puts(msg_reply)
-            return false
-          else
-            puts "your input is invalid"
-          end
-        end
-      end
+      # if remote_asset.values().sum == 0
+      #   puts "It is a one-way channel, tell me whether you want to accept it."
+      #   while true
+      #     # response = STDIN.gets.chomp
+      #     response = STDIN.gets.chomp
+      #     if response == "yes"
+      #       break
+      #     elsif response == "no"
+      #       msg_reply = generate_text_msg(msg[:id], "sry, remote node refuses your request since it is one-way channel.")
+      #       client.puts(msg_reply)
+      #       return false
+      #     else
+      #       puts "your input is invalid"
+      #     end
+      #   end
+      # end
 
       # check there is no my cells in remote cell.
       for cell in remote_cells
@@ -583,22 +558,6 @@ class Communication
       #   return -1
       # end
       # check the remote capcity is satisfactory.
-
-      puts "#{remote_pubkey} reply you with: The remote fund amount: #{remote_investment}."
-      puts "The fund fee is #{remote_fee_fund}."
-      puts "Tell me whether you are willing to accept this request"
-      while true
-        response STDIN.gets.chomp
-        # response = STDIN.gets.chomp
-        if response == "yes"
-          break
-        elsif response == "no"
-          client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
-          return false
-        else
-          puts "your input is invalid"
-        end
-      end
 
       @logger.info("#{@key.pubkey} check msg_2: read input finished.")
 
@@ -754,6 +713,7 @@ class Communication
                                                                         status: 6, msg_cache: msg_reply } })
 
       client.close()
+      puts "channel is established, please wait the transaction is on chain."
       return "done"
     when 5
       @logger.info("#{@key.pubkey} receive msg 5.")
@@ -786,14 +746,21 @@ class Communication
       fund_tx = @tx_generator.sign_tx(fund_tx_remote, local_inputs)
 
       # send the fund tx to chain.
-      while true
-        exist = @api.get_transaction(fund_tx.hash)
-        break if exist != nil
-        @api.send_transaction(fund_tx)
+
+      begin
+        while true
+          exist = @api.get_transaction(fund_tx.hash)
+          break if exist != nil
+          @api.send_transaction(fund_tx) if exist == nil
+        end
+      rescue Exception => e
+        # puts e
       end
       # update the database
 
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx.to_h, status: 6 } })
+
+      puts "channel is established, please wait the transaction is on chain."
 
       return "done"
     when 6
@@ -821,7 +788,7 @@ class Communication
         type_hash = @coll_sessions.find({ id: id }).first[:type_hash]
         payment = msg[:payment].map() { |key, value| [key.to_s, value] }.to_h
         remote_investment = convert_hash_to_text(payment)
-        tg_command = msg[:tg_command]
+        tg_msg = nil
 
         # recv the new signed stx and unsigned ctx.
         remote_ctx_info = hash_to_info(msg[:ctx_info])
@@ -834,20 +801,27 @@ class Communication
         local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
         local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
 
+        # check the value is right.
+        # payment
+        if payment.length == 1
+          tg_msg = msg[:tg_msg]
+          if payment.values()[0] < 0
+            record_result({ "receiver_step6_make_payments_error_negative": payment_value })
+            return false
+          end
+          # exchange
+        elsif payment.length == 2
+          if payment["0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"] * 10 ** 8 != -payment[""]
+            puts "The data is wrong."
+          end
+        end
+
         @logger.info("#{@key.pubkey} check msg 6 payment: load local ctx and stx.")
 
         local_update_stx_info = @tx_generator.update_stx(payment, local_stx_info, remote_pubkey, local_pubkey)
         local_update_ctx_info = @tx_generator.update_ctx(local_ctx_info)
 
         @logger.info("#{@key.pubkey} check msg 6 payment: construct local stx and ctx.")
-
-        # check the payment is positive.
-        for payment_value in payment.values()
-          if payment_value < 0
-            record_result({ "receiver_step6_make_payments_error_negative": payment_value })
-            return false
-          end
-        end
 
         # check the balance is enough.
         if local_update_stx_info.is_a? Numeric
@@ -866,24 +840,6 @@ class Communication
         end
 
         @logger.info("#{@key.pubkey} check msg 6 payment: check stx and ctx are consistent.")
-
-        commands = load_command()
-
-        # ask users whether the payments are right.
-        puts "The remote node wants to pay you #{remote_investment} in channel #{id}."
-        puts "Tell me whether you are willing to accept this payment."
-        while true
-          response STDIN.gets.chomp
-          # response = STDIN.gets.chomp
-          if response == "yes"
-            break
-          elsif response == "no"
-            client.puts(generate_text_msg(msg[:id], "sry, remote node refuses your request."))
-            return false
-          else
-            puts "your input is invalid"
-          end
-        end
 
         # generate the signed message.
         msg_signed = generate_msg_from_info(remote_stx_info, "settlement")
@@ -913,7 +869,7 @@ class Communication
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
                                                                     stx_pend: stx_info_h.to_json,
-                                                                    status: 8, msg_cache: msg, tg_command: tg_command } })
+                                                                    status: 8, msg_cache: msg, tg_msg: tg_msg } })
       elsif msg_type == "closing"
         @logger.info("#{@key.pubkey} check msg 6: branch closing.")
 
@@ -954,9 +910,9 @@ class Communication
         end
         puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
         puts "Tell me whether you are willing to accept this request"
-        commands = load_command()
+
         while true
-          response STDIN.gets.chomp
+          response = STDIN.gets.chomp
           # response = STDIN.gets.chomp
           if response == "yes"
             break
@@ -970,7 +926,7 @@ class Communication
         end
         while true
           puts "Please input fee you want to use for settlement"
-          local_fee STDIN.gets.chomp.to_i
+          local_fee = STDIN.gets.chomp.to_i
           break
         end
 
@@ -1100,7 +1056,7 @@ class Communication
       local_stx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
 
-      tg_command = @coll_sessions.find({ id: id }).first[:tg_command]
+      tg_msg = @coll_sessions.find({ id: id }).first[:tg_msg]
 
       @logger.info("#{@key.pubkey} check msg 8: msg parsed.")
 
@@ -1125,24 +1081,17 @@ class Communication
 
       @logger.info("#{@key.pubkey} check msg 8: finished.")
 
-      # mute some body...
-
-      group_id = -1001372639358
-      requester = tg_command["user_name"]
-      muted_id = tg_command["muted_id"]
-      muted_second = tg_command["time"]
-      chatpermission = {
-        "can_send_messages": false,
-      }
-      Telegram::Bot::Client.run(@token) do |bot|
-        current_unix_time = Time.now.to_i
-        bot.api.restrictChatMember(chat_id: group_id, user_id: muted_id, permissions: chatpermission, until_date: current_unix_time + muted_second)
-        bot.api.send_message(chat_id: group_id, text: "#{requester} mutes #{muted_id} from unixtime #{current_unix_time} to #{current_unix_time + muted_second}")
-      end
-
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
                                                                   nounce: nounce + 1 } })
+
+      # if the msg to be sent is not empty, just send the msg to telegra group.
+      if tg_msg != nil
+        Telegram::Bot::Client.run(@token) do |bot|
+          bot.api.send_message(chat_id: @group_id, text: "#{tg_msg}")
+        end
+      end
+
       @logger.info("payment done, now the version in local db is #{nounce + 1}")
       return "done"
     when 9
@@ -1213,10 +1162,9 @@ class Communication
 
       puts "#{remote_pubkey} reply your closign request about id #{id}. Remote fee is #{remote_fee}"
       puts "Tell me whether you are willing to accept this request"
-      commands = load_command()
 
       while true
-        response STDIN.gets.chomp
+        response = STDIN.gets.chomp
         # response = STDIN.gets.chomp
         if response == "yes"
           break
@@ -1235,8 +1183,8 @@ class Communication
       terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell)
       terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
 
-      exist = @api.get_transaction(terminal_tx.hash)
       begin
+        exist = @api.get_transaction(terminal_tx.hash)
         @api.send_transaction(terminal_tx) if exist == nil
       rescue Exception => e
       end
@@ -1268,7 +1216,22 @@ class Communication
     }
   end
 
-  def send_establish_channel(remote_ip, remote_port, funding, fee_fund, timeout, refund_lock_script = @lock)
+  def print_stx(stx, local_pubkey, remote_pubkey)
+    for index in (0..stx[:outputs].length - 1)
+      output = stx[:outputs][index]
+      output_data = stx[:outputs_data][index]
+      ckb = output.capacity - output.calculate_min_capacity(output_data)
+      udt = decoder(stx[:outputs_data][index])
+      if local_pubkey == output.lock.args
+        puts " Local's ckb: #{ckb}, udt: #{udt}."
+      elsif remote_pubkey == output.lock.args
+        puts " Remote's ckb: #{ckb}, udt: #{udt}"
+      end
+    end
+    return true
+  end
+
+  def send_establish_channel(remote_ip, remote_port, funding, fee_fund = 3000, timeout = "9223372036854775908", refund_lock_script = @lock)
     s = TCPSocket.open(remote_ip, remote_port)
     change_lock_script = refund_lock_script
     local_pubkey = CKB::Key.blake160(@key.pubkey)
@@ -1303,6 +1266,7 @@ class Communication
     msg_digest = (local_cells.map(&:to_h)).to_json
     session_id = Digest::MD5.hexdigest(msg_digest)
 
+    funding_type_script_version = funding_type_script_version.sort.reverse.to_h
     local_empty_stx = @tx_generator.generate_empty_settlement_info(funding_type_script_version, refund_lock_script)
 
     # conver it to hash.
@@ -1351,7 +1315,7 @@ class Communication
     end
   end
 
-  def send_payments(remote_ip, remote_port, id, payment)
+  def send_payments(remote_ip, remote_port, id, payment, tg_msg = nil)
     s = TCPSocket.open(remote_ip, remote_port)
 
     remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
@@ -1361,8 +1325,6 @@ class Communication
 
     stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
     ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
-
-    funding_type_script_version = convert_text_to_hash(payment)
 
     @logger.info("#{local_pubkey} send_payments: prepare to send #{payment}")
 
@@ -1405,7 +1367,7 @@ class Communication
     stx_info_h = info_to_hash(stx_info)
 
     # send the msg.
-    msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h,
+    msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h, tg_msg: tg_msg,
             payment: payment, msg_type: "payment" }.to_json
     s.puts(msg)
 
@@ -1470,5 +1432,84 @@ class Communication
     end
 
     return "done"
+  end
+
+  def make_exchange(remote_ip, remote_port, id, flag, quantity)
+    s = TCPSocket.open(remote_ip, remote_port)
+
+    remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+    local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+    stage = @coll_sessions.find({ id: id }).first[:stage]
+
+    stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
+    ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
+
+    @logger.info("#{local_pubkey} make_exchange: #{flag}")
+
+    if stage != 1
+      puts "the fund tx is not on chain, so the you can not make payment now..."
+      return false
+    end
+
+    @logger.info("#{local_pubkey} is payer, #{remote_pubkey} is payee.")
+
+    if flag == "ckb2udt"
+      payment = { ckb: quantity * 10 ** 8, udt: -quantity }
+    elsif flag == "udt2ckb"
+      payment = { ckb: -quantity * 10 ** 8, udt: quantity }
+    else
+      puts "something went wrong."
+    end
+
+    payment = convert_text_to_hash(payment)
+
+    # just read and update the latest stx, the new
+    stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)
+    ctx_info = @tx_generator.update_ctx(ctx_info)
+
+    if stx_info.is_a? Numeric
+      record_result({ "sender_make_payments_error_insufficient": stx_info })
+      return false
+    end
+
+    # sign the stx.
+    msg_signed = generate_msg_from_info(stx_info, "settlement")
+
+    # the msg ready.
+    witness_new = Array.new()
+    for witness in stx_info[:witnesses]
+      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+    end
+    stx_info[:witnesses] = witness_new
+    ctx_info_h = info_to_hash(ctx_info)
+    stx_info_h = info_to_hash(stx_info)
+
+    # send the msg.
+    msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h,
+            payment: payment, msg_type: "payment" }.to_json
+    s.puts(msg)
+
+    # update the local database.
+    @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
+                                                                status: 7, msg_cache: msg } })
+    @logger.info("#{local_pubkey} make exchange.")
+
+    begin
+      timeout(5) do
+        while (1)
+          msg = JSON.parse(s.gets, symbolize_names: true)
+          ret = process_recv_message(s, msg)
+          if ret == "done"
+            s.close()
+            break
+          end
+        end
+      end
+    rescue Timeout::Error
+      puts "Timed out!"
+    rescue => exception
+      s.close()
+    end
   end
 end

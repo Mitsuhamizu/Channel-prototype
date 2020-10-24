@@ -61,7 +61,7 @@ class Gpctest < Minitest::Test
     @coll_session_A = @db[@pubkey_A + "_session_pool"]
     @coll_session_B = @db[@pubkey_B + "_session_pool"]
 
-    @listen_port_A = 1000
+    @listen_port_A = 1000 
     @listen_port_B = 2000
 
     @wallet_A = CKB::Wallet.from_hex(@api, @private_key_A)
