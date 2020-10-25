@@ -24,6 +24,97 @@ def decoder(data)
   return result.to_i
 end
 
+def load_config()
+  data_raw = File.read("config.json")
+  data_json = JSON.parse(data_raw, symbolize_names: true)
+  return data_json
+end
+
+def load_pubkey(options)
+  pubkey = nil
+  config = load_config()
+  if options[:pubkey] != nil
+    pubkey = options[:pubkey]
+  elsif config[:pubkey] != nil
+    pubkey = config[:pubkey]
+  end
+
+  if pubkey == nil
+    puts "Please init the config.json or provide the pubkey with --pubkey."
+  end
+
+  return pubkey
+end
+
+def load_id(options)
+  id = nil
+  config = load_config()
+  if options[:id] != nil
+    id = options[:id]
+  elsif config[:id] != nil
+    id = config[:id]
+  end
+
+  if id == nil
+    puts "Please init the config.json or provide the id with --id."
+  end
+
+  return id
+end
+
+def load_ip_port(options, pubkey, id)
+  @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
+  @db = @client.database
+  @coll_sessions = @db[pubkey + "_session_pool"]
+
+  ip_info = nil
+
+  view = @coll_sessions.find { }
+  view.each do |doc|
+    if doc[:id] == id
+      ip_info = { ip: doc[:remote_ip], port: doc[:remote_port] }
+    end
+  end
+
+  if options[:ip] != nil && options[:port] != nil
+    ip_info = { ip: options[:ip], port: options[:port] }
+  end
+
+  if ip_info == nil
+    puts "Please init the config.json or provide the ip and port with --pubkey --port."
+  end
+
+  return ip_info
+end
+
+def load_pubkey_id(options)
+  pubkey = load_pubkey(options)
+  id = load_id(options)
+
+  if pubkey == nil
+    return false
+  end
+
+  if id == nil
+    return false
+  end
+
+  return { pubkey: pubkey, id: id }
+end
+
+def load_pubkey_id_ip(options)
+  # load pubkey and id
+  channel_info = load_pubkey_id(options)
+  return false if !channel_info
+
+  # load ip info
+  ip_info = load_ip_port(options, channel_info[:pubkey], channel_info[:id])
+  return false if !ip_info
+
+  result = channel_info.merge(ip_info)
+  return result
+end
+
 def get_balance(pubkey)
   @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
   @db = @client.database
@@ -51,6 +142,7 @@ def get_balance(pubkey)
       end
       # puts doc[:nounce] - 1
       balance[doc[:id]][:payments] = doc[:nounce] - 1
+      balance[doc[:id]][:stage] = doc[:stage]
     end
   end
 
@@ -68,31 +160,24 @@ class GPCCLI < Thor
     Init.new(private_key)
   end
 
-  # --------------listen
-  desc "listen <pubkey> <port>", "Listen the port."
-
-  def listen(pubkey, port = 1000)
-    if ARGV.length != 3
-      puts "The arg number is not right."
-      return false
-    end
-    private_key = pubkey_to_privkey(pubkey)
-    communicator = Communication.new(private_key)
-    communicator.listen(port)
-  end
-
   # --------------establishment
-  desc "send_establishment_request --pubkey <public key> --ip <ip> \
-        --port <port> \
-        --funding <fundings>",
+  desc "send_establishment_request [--pubkey public key] <--ip ip> \
+        <--port port> \
+        <--funding fundings>",
        "Send the chanenl establishment request."
-  option :pubkey, :required => true
+  option :pubkey
   option :ip, :required => true
   option :port, :required => true
   option :funding, :required => true, :type => :hash
 
   def send_establishment_request()
-    private_key = pubkey_to_privkey(options[:pubkey])
+    pubkey = load_pubkey(options)
+    if pubkey == nil
+      puts "Please init the config.json or provide the pubkey with --pubkey."
+      return false
+    end
+
+    private_key = pubkey_to_privkey(pubkey)
     communicator = Communication.new(private_key)
     fundings = options[:funding]
 
@@ -106,38 +191,18 @@ class GPCCLI < Thor
     communicator.send_establish_channel(options[:ip], options[:port], fundings)
   end
 
-  # --------------make payments
-  desc "make_payment --pubkey <public key> --ip <ip> --port <port> --id <id> --payment <payment>", "Make payments"
+  # --------------monitor
+  desc "monitor [--pubkey public key]", "Monitor the chain."
 
-  option :pubkey, :required => true
-  option :ip, :required => true
-  option :port, :required => true
-  option :id, :required => true
-  option :payment, :required => true, :type => :hash
+  option :pubkey
 
-  def make_payment()
-    @path_to_file = __dir__ + "/../../miscellaneous/files/"
-    private_key = pubkey_to_privkey(options[:pubkey])
-    @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
-    @db = @client.database
-    @coll_sessions = @db[options[:pubkey] + "_session_pool"]
-
-    payment = options[:payment]
-    payment = payment.map() { |key, value| [key.to_sym, value] }.to_h
-
-    for asset_type in payment.keys()
-      payment[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(payment[asset_type])) : BigDecimal(payment[asset_type])
-      payment[asset_type] = payment[asset_type].to_i
+  def monitor()
+    pubkey = load_pubkey(options)
+    if pubkey == nil
+      puts "Please init the config.json or provide the pubkey with --pubkey."
+      return false
     end
 
-    communicator = Communication.new(private_key)
-    communicator.send_payments(options[:ip], options[:port], options[:id], payment)
-  end
-
-  # --------------monitor
-  desc "monitor <public key>", "Monitor the chain."
-
-  def monitor(pubkey)
     private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
     thread_monitor_chain = Thread.start { monitor.monitor_chain() }
@@ -147,9 +212,17 @@ class GPCCLI < Thor
   end
 
   # --------------close the channel unilateral
-  desc "closing_channel <pubkey> <id>", "closing the channel with id."
+  desc "close_channel [--pubkey pubkey] [--id channel id]", "close the channel with id."
+  option :pubkey
+  option :id
 
-  def closing_channel(pubkey, id)
+  def close_channel()
+    # load pubkey and id.
+    channel_info = load_pubkey_id(options)
+    return false if !channel_info
+    pubkey = channel_info[:pubkey]
+    id = channel_info[:id]
+
     private_key = pubkey_to_privkey(pubkey)
     monitor = Minotor.new(private_key)
 
@@ -162,71 +235,101 @@ class GPCCLI < Thor
   end
 
   # --------------send the closing request about bilateral closing.
-  desc "send_closing_request --pubkey <public key> --ip <ip> --port <port> --id <id> --fee ", "The good case, bilateral closing."
+  desc "send_closing_request [--pubkey public key] [--ip ip] [--port port] [--id id] [--fee fee] ", "The good case, bilateral closing."
 
-  option :pubkey, :required => true
-  option :ip, :required => true
-  option :port, :required => true
-  option :id, :required => true
+  option :pubkey
+  option :ip
+  option :port
+  option :id
   option :fee
 
   def send_closing_request()
-    private_key = pubkey_to_privkey(options[:pubkey])
+    info = load_pubkey_id_ip(options)
+    return false if !info
+
+    private_key = pubkey_to_privkey(info[:pubkey])
     communicator = Communication.new(private_key)
-    communicator.send_closing_request(options[:ip], options[:port], options[:id], options[:fee].to_i) if options[:fee]
-    communicator.send_closing_request(options[:ip], options[:port], options[:id]) if !options[:fee]
+    communicator.send_closing_request(info[:ip], info[:port], info[:id], options[:fee].to_i) if options[:fee]
+    communicator.send_closing_request(info[:ip], info[:port], info[:id]) if !options[:fee]
   end
 
   # --------------list the channel.
-  desc "list_channel --pubkey <public key>", "List channels"
+  desc "list_channel [--pubkey public key]", "List channels"
 
-  option :pubkey, :required => true
+  option :pubkey
 
   def list_channel()
-    puts "\n"
-    balance = get_balance(options[:pubkey])
+    pubkey = load_pubkey(options)
+    return false if !pubkey
+
+    balance = get_balance(pubkey)
     for id in balance.keys()
-      puts "channel #{id}, with #{balance[id][:payments]} payments."
-      puts " local's ckb: #{balance[id][:local][:ckb]}, local's udt #{balance[id][:local][:udt]}."
-      puts " remote's ckb: #{balance[id][:remote][:ckb]}, local's udt #{balance[id][:remote][:udt]}.\n\n"
+      puts "channel #{id}, with #{balance[id][:payments]} payments and stage is #{balance[id][:stage]}"
+      puts " local's ckb: #{balance[id][:local][:ckb] / 10 ** 8} ckbytes, local's udt #{balance[id][:local][:udt]}."
+      puts " remote's ckb: #{balance[id][:remote][:ckb] / 10 ** 8} ckbytes, remote's udt #{balance[id][:remote][:udt]}.\n\n"
     end
   end
 
   # --------------exchange the ckb and channel.
-  desc "make_exchange_ckb_to_udt --pubkey <public key> --ip <ip> --port <port> --id <id> --quantity <quantity>", "use ckb for udt."
-  option :pubkey, :required => true
-  option :ip, :required => true
-  option :port, :required => true
-  option :id, :required => true
+  desc "make_exchange_ckb_to_udt [--pubkey public key] [--ip ip] [--port port] [--id id] <--quantity quantity>", "use ckb for udt."
+  option :pubkey
+  option :ip
+  option :port
+  option :id
   option :quantity, :required => true
 
   def make_exchange_ckb_to_udt()
-    private_key = pubkey_to_privkey(options[:pubkey])
+    info = load_pubkey_id_ip(options)
+    return false if !info
+
+    private_key = pubkey_to_privkey(info[:pubkey])
+    quantity = options[:quantity]
+    communicator = Communication.new(private_key)
+    communicator.make_exchange(info[:ip], info[:port], info[:id], "ckb2udt", quantity.to_i)
+  end
+
+  # --------------exchange the udt and channel.
+  desc "make_exchange_ckb_to_udt [--pubkey public key] [--ip ip] [--port port] [--id id] <--quantity quantity>", "use udt for ckb."
+
+  option :pubkey
+  option :ip
+  option :port
+  option :id
+  option :quantity, :required => true
+
+  def make_exchange_udt_to_ckb()
+    info = load_pubkey_id_ip(options)
+    return false if !info
+
+    private_key = pubkey_to_privkey(info[:pubkey])
     quantity = options[:quantity]
     communicator = Communication.new(private_key)
 
-    communicator.make_exchange(options[:ip], options[:port], options[:id], "ckb2udt", quantity.to_i)
+    communicator.make_exchange(info[:ip], info[:port], info[:id], "udt2ckb", quantity.to_i)
   end
 
   # --------------send_msg by payment channel.
   desc "send_tg_msg --pubkey <public key> --ip <ip> --port <port> --id <id>", "pay tg robot and he will send msg for you."
 
-  option :pubkey, :required => true
-  option :port, :required => true
-  option :ip, :required => true
-  option :id, :required => true
+  option :pubkey
+  option :port
+  option :ip
+  option :id
 
   def send_tg_msg()
-    private_key = pubkey_to_privkey(options[:pubkey])
+    info = load_pubkey_id_ip(options)
+    return false if !info
+
+    private_key = pubkey_to_privkey(info[:pubkey])
 
     puts "Tell me what you want to say."
     tg_msg = STDIN.gets.chomp
     tg_msg_len = tg_msg.length
 
-    balance = get_balance(options[:pubkey])
+    balance = get_balance(info[:pubkey])
 
     udt_required = tg_msg_len * 1
-    udt_actual = balance[options[:id]][:local][:udt]
+    udt_actual = balance[info[:id]][:local][:udt]
 
     if udt_actual < udt_actual
       puts "you do not have enough udt, please exchange it with ckb first."
@@ -235,7 +338,42 @@ class GPCCLI < Thor
     # construct the payment.
     payment = { udt: udt_required }
     communicator = Communication.new(private_key)
-    communicator.send_payments(options[:ip], options[:port], options[:id], payment, tg_msg)
+    communicator.send_payments(info[:ip], info[:port], info[:id], payment, tg_msg)
+  end
+
+  # --------------send_msg by payment channel.
+  desc "use_pubkey --pubkey <public key>", "denote the pubkey you want to use."
+
+  option :pubkey, :required => true
+
+  def use_pubkey()
+    data_hash = {}
+    if File.file?("config.json")
+      data_raw = File.read("config.json")
+      data_hash = JSON.parse(data_raw, symbolize_names: true)
+    end
+    pubkey = { pubkey: options[:pubkey] }
+    data_hash = data_hash.merge(pubkey)
+    data_json = data_hash.to_json
+    file = File.new("config.json", "w")
+    file.syswrite(data_json)
+  end
+
+  desc "use_channel <--id channel id>", "denote the pubkey you want to use."
+
+  option :id, :required => true
+
+  def use_channel()
+    data_hash = {}
+    if File.file?("config.json")
+      data_raw = File.read("config.json")
+      data_hash = JSON.parse(data_raw, symbolize_names: true)
+    end
+    id = { id: options[:id] }
+    data_hash = data_hash.merge(id)
+    data_json = data_hash.to_json
+    file = File.new("config.json", "w")
+    file.syswrite(data_json)
   end
 end
 

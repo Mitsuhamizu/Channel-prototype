@@ -68,7 +68,7 @@ class Gpctest < Minitest::Test
     @listen_port_A = 1000
     @listen_port_B = 2000
 
-    @wallet_A = CKB::Wallet.from_hex(@api, @private_key_A)
+    @wallet_A = CKB::Wallet.from_hex(@api, "0x85ce75a6b678c6930a4f0938588f0240784971bb03632f1a2f1b25102b7cf5f0")
     @wallet_B = CKB::Wallet.from_hex(@api, @private_key_B)
     @logger = Logger.new(@path_to_file + "gpc.log")
   end
@@ -76,7 +76,10 @@ class Gpctest < Minitest::Test
   def deploy_contract(data)
     code_hash = CKB::Blake2b.hexdigest(data)
     data_size = data.bytesize
-    tx_hash = @wallet_A.send_capacity(@wallet_A.address, CKB::Utils.byte_to_shannon(data_size + 10000), CKB::Utils.bin_to_hex(data), fee: 10 ** 6)
+    puts "prepare to send it."
+    puts data_size
+    tx_hash = @wallet_A.send_capacity(@wallet_A.address, CKB::Utils.byte_to_shannon(data_size + 1000), CKB::Utils.bin_to_hex(data), fee: 10 ** 6)
+    puts tx_hash
     return [code_hash, tx_hash]
   end
 
@@ -142,35 +145,36 @@ class Gpctest < Minitest::Test
   # 3. create and disseminate UDT to two account.
   def setup
     # back to 0 block.
-    @rpc.truncate("0x823b2ff5785b12da8b1363cac9a5cbe566d8b715a4311441b119c39a0367488c")
+    # @rpc.truncate("0x823b2ff5785b12da8b1363cac9a5cbe566d8b715a4311441b119c39a0367488c")
     local_height = @api.get_tip_block_number
     # generate 5 blocks to enable the initial cells can be spent.
 
     # send gpc contract to the chain.
-    gpc_data = File.read(@path_to_binary + "gpc")
-    gpc_code_hash, gpc_tx_hash = deploy_contract(gpc_data)
+    # gpc_data = File.read(@path_to_binary + "gpc")
+    # gpc_code_hash, gpc_tx_hash = deploy_contract(gpc_data)
 
-    puts "gpc sent"
-    sleep(10)
+    # puts "gpc sent"
+    # sleep(10)
     # send udt contract to the chain.
     udt_data = File.read(@path_to_binary + "simple_udt")
-    udt_code_hash, udt_tx_hash = deploy_contract(udt_data)
+    # udt_code_hash, udt_tx_hash = deploy_contract(udt_data)
+    udt_code_hash = CKB::Blake2b.hexdigest(udt_data)
     puts "udt sent"
     # ensure the tx onchain.
-    tx_checked = [gpc_tx_hash, udt_tx_hash]
-    while true
-      remote_height = @api.get_tip_block_number
-      for i in (local_height + 1..remote_height)
-        block = @api.get_block_by_number(i)
-        for transaction in block.transactions
-          if tx_checked.include? transaction.hash
-            tx_checked.delete(transaction.hash)
-          end
-        end
-      end
-      break if tx_checked == []
-    end
-
+    # tx_checked = [gpc_tx_hash, udt_tx_hash]
+    # while true
+    #   remote_height = @api.get_tip_block_number
+    #   for i in (local_height + 1..remote_height)
+    #     block = @api.get_block_by_number(i)
+    #     for transaction in block.transactions
+    #       if tx_checked.include? transaction.hash
+    #         tx_checked.delete(transaction.hash)
+    #       end
+    #     end
+    #   end
+    #   break if tx_checked == []
+    # end
+    udt_tx_hash = "0x63bb08c125c028c556789a1d6e095c89577ecb4d133d5e642c225bdbdc70ab29"
     # disseminate udt.
     udt_dep = CKB::Types::CellDep.new(out_point: CKB::Types::OutPoint.new(tx_hash: udt_tx_hash, index: 0))
 
@@ -194,17 +198,18 @@ class Gpctest < Minitest::Test
     tx.outputs_data[0] = CKB::Utils.bin_to_hex([10000000].pack("Q<"))
 
     signed_tx = tx.sign(@wallet_A.key)
-    root_udt_tx_hash = @api.send_transaction(signed_tx)
+    # root_udt_tx_hash = @api.send_transaction(signed_tx)
+    # puts root_udt_tx_hash
 
-    system("rm #{@path_to_file}result.json")
-    # system("rm #{@path_to_file}gpc.log")
-    # record these info to json. So the gpc client can read them.
-    script_info = { gpc_code_hash: gpc_code_hash, gpc_tx_hash: gpc_tx_hash,
-                    udt_code_hash: udt_code_hash, udt_tx_hash: udt_tx_hash,
-                    type_script: type_script.to_h.to_json }
-    file = File.new(@path_to_file + "contract_info.json", "w")
-    file.syswrite(script_info.to_json)
-    file.close()
+    # system("rm #{@path_to_file}result.json")
+    # # system("rm #{@path_to_file}gpc.log")
+    # # record these info to json. So the gpc client can read them.
+    # script_info = { gpc_code_hash: gpc_code_hash, gpc_tx_hash: gpc_tx_hash,
+    #                 udt_code_hash: udt_code_hash, udt_tx_hash: udt_tx_hash,
+    #                 type_script: type_script.to_h.to_json }
+    # file = File.new(@path_to_file + "contract_info.json", "w")
+    # file.syswrite(script_info.to_json)
+    # file.close()
 
     puts "done!"
   end

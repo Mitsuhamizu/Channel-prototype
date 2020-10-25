@@ -64,6 +64,7 @@ class Minotor
 
   def monitor_chain()
     while true
+      puts "In working!"
       current_height = @api.get_tip_block_number
       # @logger.info("#{@key.privkey}")
       # @logger.info("#{@coll_sessions.find({ id: 0 }).first == nil}")
@@ -165,6 +166,7 @@ class Minotor
         end
         # check whether there are available to be sent.
         if current_height >= doc[:settlement_time] && doc[:stage] == 3
+          puts "111"
           tx_hash = send_tx(doc, "settlement")
           @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_hash: tx_hash } }) if tx_hash
           puts "send settlement tx about #{doc[:id]} at block number #{i}."
@@ -179,9 +181,7 @@ class Minotor
       end
 
       @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { current_block_num: current_height } })
-      # just update the checked block!
 
-      # add and remove live cells pool.
       sleep(1)
     end
   end
@@ -241,8 +241,8 @@ class Minotor
       type: nil,
     )
 
-    closing_fee_unilateral = STDIN.gets.chomp.to_i
-    settle_fee_unilateral = STDIN.gets.chomp.to_i
+    closing_fee_unilateral = 3000
+    settle_fee_unilateral = 3000
 
     if type == "closing"
       fee = closing_fee_unilateral
@@ -273,7 +273,6 @@ class Minotor
     # end
     # require the change ckbyte is greater than the min capacity.
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
-
     fee_cell = gather_fee_cell([@lock_hash], fee_total, @coll_cells, 0)
     return false if fee_cell == nil
 

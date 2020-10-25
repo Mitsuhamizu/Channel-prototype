@@ -1290,7 +1290,7 @@ class Communication
             nounce: 0, ctx_info: 0, stx_info: local_empty_stx_h.to_json, local_cells: local_cells_h,
             timeout: timeout.to_s, msg_cache: msg.to_json, local_asset: funding_type_script_version.to_json, fee_fund: fee_fund,
             stage: 0, settlement_time: 0, sig_index: 0, closing_time: 0, local_change: local_change_h.to_json,
-            stx_pend: 0, ctx_pend: 0 }
+            stx_pend: 0, ctx_pend: 0, remote_ip: remote_ip, remote_port: remote_port }
     return false if !insert_with_check(@coll_sessions, doc)
     @logger.info("#{@key.pubkey} send msg1.")
 
@@ -1469,6 +1469,7 @@ class Communication
     ctx_info = @tx_generator.update_ctx(ctx_info)
 
     if stx_info.is_a? Numeric
+      puts "Your balance is not enough, please check it."
       record_result({ "sender_make_payments_error_insufficient": stx_info })
       return false
     end
