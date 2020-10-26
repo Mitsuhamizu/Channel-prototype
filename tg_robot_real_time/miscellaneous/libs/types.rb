@@ -12,7 +12,7 @@ def find_type(type_script_hash)
   encoder = nil
 
   # we need more options, here I only consider this case.
-  if type_script_hash == "0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"
+  if type_script_hash == "0xecc762badc4ed2a459013afd5f82ec9b47d83d6e4903db1207527714c06f177b"
     decoder = method(:decoder)
     encoder = method(:encoder)
   end

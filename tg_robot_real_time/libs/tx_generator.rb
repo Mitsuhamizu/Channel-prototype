@@ -394,7 +394,7 @@ class Tx_generator
           return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity - amount if output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity + amount if output.lock.args == pubkey_payee
-        elsif payment_type_hash == "0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"
+        elsif payment_type_hash == "0xecc762badc4ed2a459013afd5f82ec9b47d83d6e4903db1207527714c06f177b"
           @logger.info("update_stx: udt branch.")
           return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer

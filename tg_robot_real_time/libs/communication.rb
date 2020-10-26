@@ -798,9 +798,9 @@ class Communication
         local_ctx_info = @coll_sessions.find({ id: id }).first[:ctx_info]
         local_stx_info = @coll_sessions.find({ id: id }).first[:stx_info]
 
+
         local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
         local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
-
         # check the value is right.
         # payment
         if payment.length == 1
@@ -811,7 +811,7 @@ class Communication
           end
           # exchange
         elsif payment.length == 2
-          if payment["0x993f830ecf003a9053c9af7c1d422dd9f612924a6e92aed153461725f19967b4"] * 10 ** 8 != -payment[""]
+          if payment["0xecc762badc4ed2a459013afd5f82ec9b47d83d6e4903db1207527714c06f177b"] * 10 ** 8 != -payment[""]
             puts "The data is wrong."
           end
         end
@@ -1468,7 +1468,7 @@ class Communication
     stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)
     ctx_info = @tx_generator.update_ctx(ctx_info)
 
-    if stx_info.is_a? Numeric
+    if stx_info.is_a? Numeric or stx_info.is_a? String
       puts "Your balance is not enough, please check it."
       record_result({ "sender_make_payments_error_insufficient": stx_info })
       return false

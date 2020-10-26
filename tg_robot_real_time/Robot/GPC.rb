@@ -25,13 +25,14 @@ class GPCCLI < Thor
   end
 
   # --------------listen
-  desc "listen <pubkey> <port>", "Listen the port."
+  desc "listen --pubkey <pubkey> --port <port>", "Listen the port."
 
-  def listen(pubkey, port = 1000)
-    if ARGV.length != 3
-      puts "The arg number is not right."
-      return false
-    end
+  option :pubkey, :required => true
+  option :port, :required => true
+
+  def listen()
+    pubkey = options[:pubkey]
+    port = options[:port]
     private_key = pubkey_to_privkey(pubkey)
     communicator = Communication.new(private_key)
     communicator.listen(port)
@@ -133,7 +134,6 @@ class GPCCLI < Thor
     communicator.send_closing_request(options[:ip], options[:port], options[:id], options[:fee].to_i) if options[:fee]
     communicator.send_closing_request(options[:ip], options[:port], options[:id]) if !options[:fee]
   end
-
 end
 
 $VERBOSE = nil

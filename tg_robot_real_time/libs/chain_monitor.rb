@@ -64,7 +64,6 @@ class Minotor
 
   def monitor_chain()
     while true
-      puts "In working!"
       current_height = @api.get_tip_block_number
       # @logger.info("#{@key.privkey}")
       # @logger.info("#{@coll_sessions.find({ id: 0 }).first == nil}")
@@ -126,14 +125,14 @@ class Minotor
                 # remote cheat
                 ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h, stage: 2 } })
-                send_tx(doc, "closing")
+                tx_hash = send_tx(doc, "closing")
                 puts "send closing tx about #{doc[:id]} at block number #{i}."
               elsif remote[:output_nounce] == nounce_local
                 # my or remote latest ctx is accepted by chain, so prepare to settle.
                 timeout = parse_since(doc[:timeout])
                 stx_input_h = @tx_generator.convert_input(transaction, index, doc[:timeout].to_i).to_h
                 @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_time: i + timeout, stx_input: stx_input_h, stage: 3 } })
-                puts "#{doc[:id]} is closing at block number #{i}."
+                puts "#{doc[:id]} is closing at block number #{i}, the tx hash is #{transaction.hash}"
               elsif stx_pend != 0 && remote[:output_nounce] - nounce_local == 1
                 # remote party break his promise, so just prepare to send the pending stx.
                 timeout = parse_since(doc[:timeout])
@@ -143,12 +142,12 @@ class Minotor
             elsif (remote.include? :input_nounce) && !(remote.include? :output_nounce)
               # this is the settlement tx.
               @coll_sessions.find_one_and_delete(id: doc[:id])
-              puts "#{doc[:id]} is settled at block number #{i}."
+              puts "#{doc[:id]} is settled at block number #{i}, the tx hash is #{transaction.hash}."
             elsif !(remote.include? :input_nounce) && (remote.include? :output_nounce)
               # this is the fund tx.
               ctx_input_h = @tx_generator.convert_input(transaction, index, 0).to_h
               @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { ctx_input: ctx_input_h, stage: 1 } })
-              puts "#{doc[:id]}'s fund tx on chain at block number #{i}."
+              puts "#{doc[:id]}'s fund tx on chain at block number #{i}, the tx hash is #{transaction.hash}."
             end
           end
         end
@@ -161,12 +160,11 @@ class Minotor
         # well, if the ctx I sent can not be seen, just send it again.
         next if doc[:"id"] == 0
         if doc[:stage] == 2 && doc[:settlement_time] == 0 && doc[:closing_time] == 0
-          send_tx(doc, "closing")
+          tx_hash = send_tx(doc, "closing")
           puts "send closing tx about #{doc[:id]} at block number #{i}."
         end
         # check whether there are available to be sent.
         if current_height >= doc[:settlement_time] && doc[:stage] == 3
-          puts "111"
           tx_hash = send_tx(doc, "settlement")
           @coll_sessions.find_one_and_update({ id: doc[:id] }, { "$set" => { settlement_hash: tx_hash } }) if tx_hash
           puts "send settlement tx about #{doc[:id]} at block number #{i}."
@@ -175,7 +173,7 @@ class Minotor
         # If remote party refuses the closing request, and the closing_time is passed.
         # Just submit the closing tx.
         if current_height >= doc[:closing_time] && doc[:stage] == 2 && doc[:closing_time] != 0
-          send_tx(doc, "closing")
+          tx_hash = send_tx(doc, "closing")
           puts "send closing tx about #{doc[:id]} at block number #{i}."
         end
       end

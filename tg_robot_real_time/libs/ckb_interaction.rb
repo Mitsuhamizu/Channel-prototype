@@ -12,8 +12,6 @@ def insert_with_check(coll, doc)
 end
 
 # gather fund amount.
-# if decoder == nil and type_script_hash == ""
-# it means the asset type is ckbyte.
 def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, coll_cells, from_block_number = 0)
   return [] if amount_required == 0
   final_inputs = []
@@ -56,7 +54,7 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
   return amount_gathered < amount_required ? amount_gathered - amount_required : final_inputs
 end
 
-def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 0)
+def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 590000)
   return [] if fee == 0
   final_inputs = []
   capacity_gathered = 0
@@ -104,7 +102,7 @@ def get_minimal_capacity(lock, type, output_data)
   return output.calculate_min_capacity(output_data)
 end
 
-def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_script, refund_lock_script, coll_cells, from_block_number = 0)
+def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_script, refund_lock_script, coll_cells, from_block_number = 590000)
   input_cells = []
   change_minimal_capacity = 0
   refund_minimal_capacity = 0
@@ -247,7 +245,6 @@ def check_cells(cells, remote_asset, fee_required, changes, stx_info)
   return "error_settle_container_insufficient", stx_actual - stx_min if stx_actual < stx_min
 
   change = assemble_change(changes)
-
 
   capacity_gathered = get_total_capacity(cells)
   return "error_cell_dead", true if !capacity_gathered
