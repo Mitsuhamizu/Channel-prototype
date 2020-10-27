@@ -21,6 +21,7 @@ class Communication
     $VERBOSE = nil
     @key = CKB::Key.new(private_key)
     @api = CKB::API::new
+    @rpc = CKB::RPC.new(host: "http://localhost:8116", timeout_config: {})
     @tx_generator = Tx_generator.new(@key)
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
@@ -229,7 +230,7 @@ class Communication
       remote_stx_info = hash_to_info(msg[:stx_info])
       timeout = msg[:timeout].to_i
       local_pubkey = CKB::Key.blake160(@key.pubkey)
-      lock_hashes = [@lock_hash]
+      locks = [@lock]
       refund_lock_script = @lock
       change_lock_script = refund_lock_script
 
@@ -310,7 +311,7 @@ class Communication
       @logger.info("#{@key.pubkey} send msg_2: gather input begin.")
       # gather local fund inputs.
 
-      local_cells = gather_inputs(local_asset, local_fee_fund, lock_hashes, change_lock_script,
+      local_cells = gather_inputs(local_asset, local_fee_fund, locks, change_lock_script,
                                   refund_lock_script, @coll_cells)
 
       if local_cells.is_a? Numeric
@@ -706,14 +707,17 @@ class Communication
       # the logic is, I only sign the inputs in my local cells.
       fund_tx = @tx_generator.sign_tx(fund_tx, local_inputs).to_h
 
+      remote_ctx_info_h = info_to_hash(remote_ctx_info)
+      remote_stx_info_h = info_to_hash(remote_stx_info)
+
       msg_reply = { id: msg[:id], type: 5, fund_tx: fund_tx }.to_json
       client.puts(msg_reply)
       # update the database
-      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: local_ctx_info_h.to_json, stx_info: local_stx_info_h.to_json,
+      @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { fund_tx: fund_tx, ctx_info: remote_ctx_info_h.to_json, stx_info: remote_stx_info_h.to_json,
                                                                         status: 6, msg_cache: msg_reply } })
 
       client.close()
-      puts "channel is established, please wait the transaction is on chain."
+      puts "channel is established, please wait the transaction on chain."
       return "done"
     when 5
       @logger.info("#{@key.pubkey} receive msg 5.")
@@ -772,16 +776,16 @@ class Communication
 
       @logger.info("#{@key.pubkey} check msg 6: basic value parsed.")
 
-      # check the stage.
-      if stage != 1
-        puts "the fund tx is not on chain, so the you can not make payment now..."
-        return false
-      end
-
       # there are two type msg when type is 6.
       # 1. payment request.
       # 2. closing request.
       if msg_type == "payment"
+        # check the stage.
+        if stage != 1
+          puts "the fund tx is not on chain, so the you can not make payment now..."
+          return false
+        end
+
         @logger.info("#{@key.pubkey} check msg 6: branch payment.")
         local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
         sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
@@ -797,7 +801,6 @@ class Communication
         @logger.info("#{@key.pubkey} check msg 6 payment: msg parsed.")
         local_ctx_info = @coll_sessions.find({ id: id }).first[:ctx_info]
         local_stx_info = @coll_sessions.find({ id: id }).first[:stx_info]
-
 
         local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
         local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
@@ -847,7 +850,7 @@ class Communication
         # sign ctx and stx and send them.
         witness_new = Array.new()
         for witness in remote_stx_info[:witnesses]
-          witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+          witness_new << @tx_generator.generate_witness(id, witness, msg_signed, sig_index)
         end
         remote_stx_info[:witnesses] = witness_new
         msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
@@ -855,7 +858,7 @@ class Communication
         # sign ctx and stx and send them.
         witness_new = Array.new()
         for witness in remote_ctx_info[:witnesses]
-          witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
+          witness_new << @tx_generator.generate_witness(id, witness, msg_signed, sig_index)
         end
         remote_ctx_info[:witnesses] = witness_new
 
@@ -908,12 +911,9 @@ class Communication
           client.puts(generate_text_msg(msg[:id], "sry, the container of change is not enough."))
           return false
         end
-        puts "#{remote_pubkey} wants to close the channel with id #{id}. Remote fee is #{remote_fee}"
-        puts "Tell me whether you are willing to accept this request"
 
         while true
-          response = STDIN.gets.chomp
-          # response = STDIN.gets.chomp
+          response = "yes"
           if response == "yes"
             break
           elsif response == "no"
@@ -925,8 +925,7 @@ class Communication
           end
         end
         while true
-          puts "Please input fee you want to use for settlement"
-          local_fee = STDIN.gets.chomp.to_i
+          local_fee = 3000
           break
         end
 
@@ -939,8 +938,11 @@ class Communication
         )
 
         get_total_capacity = local_change_output.calculate_min_capacity("0x") + local_fee
-        local_fee_cell = gather_fee_cell([@lock_hash], get_total_capacity, @coll_cells, 0)
+        local_fee_cell = gather_fee_cell([@lock], get_total_capacity, @coll_cells)
         fee_cell_capacity = get_total_capacity(local_fee_cell)
+
+        @logger.info("#{@key.pubkey} check msg 6 closing: get fee cell.")
+
         return false if local_fee_cell == nil
         local_change_output.capacity = fee_cell_capacity - local_fee
 
@@ -963,6 +965,8 @@ class Communication
             @tx_generator.parse_witness(witness)
           end
         end
+
+        @logger.info("#{@key.pubkey} check msg 6 closing: witness get.")
 
         type_dep = []
 
@@ -1026,7 +1030,7 @@ class Communication
       msg_signed = generate_msg_from_info(remote_ctx_info, "closing")
       witness_new = Array.new()
       for witness in remote_ctx_info[:witnesses]
-        witness_new << @tx_generator.generate_witness(id, 0, witness, msg_signed, sig_index)
+        witness_new << @tx_generator.generate_witness(id, witness, msg_signed, sig_index)
       end
       remote_ctx_info[:witnesses] = witness_new
 
@@ -1160,12 +1164,8 @@ class Communication
         return false
       end
 
-      puts "#{remote_pubkey} reply your closign request about id #{id}. Remote fee is #{remote_fee}"
-      puts "Tell me whether you are willing to accept this request"
-
       while true
-        response = STDIN.gets.chomp
-        # response = STDIN.gets.chomp
+        response = "yes"
         if response == "yes"
           break
         elsif response == "no"
@@ -1181,12 +1181,14 @@ class Communication
       # add my signature and send it to blockchain.
       local_fee_cell = local_fee_cell.map { |cell| CKB::Types::Input.from_h(cell) }
       terminal_tx = @tx_generator.sign_tx(terminal_tx, local_fee_cell)
-      terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, 0, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
+      terminal_tx.witnesses[0] = @tx_generator.generate_witness(id, terminal_tx.witnesses[0], terminal_tx.hash, sig_index)
 
       begin
         exist = @api.get_transaction(terminal_tx.hash)
-        @api.send_transaction(terminal_tx) if exist == nil
+        tx_hash = @api.send_transaction(terminal_tx) if exist == nil
+        @logger.info("Send settlement tx (the good case.) with hash #{tx_hash}.")
       rescue Exception => e
+        # puts e
       end
       return "done"
     end
@@ -1235,7 +1237,7 @@ class Communication
     s = TCPSocket.open(remote_ip, remote_port)
     change_lock_script = refund_lock_script
     local_pubkey = CKB::Key.blake160(@key.pubkey)
-    lock_hashes = [@lock_hash]
+    locks = [@lock]
 
     # check all amount are positive.
     for funding_amount in funding.values()
@@ -1255,7 +1257,7 @@ class Communication
     funding_type_script_version = convert_text_to_hash(funding)
 
     # prepare the msg components.
-    local_cells = gather_inputs(funding_type_script_version, fee_fund, lock_hashes, change_lock_script,
+    local_cells = gather_inputs(funding_type_script_version, fee_fund, locks, change_lock_script,
                                 refund_lock_script, @coll_cells)
     if local_cells.is_a? Numeric
       record_result({ "sender_gather_funding_error_insufficient": local_cells })
@@ -1283,8 +1285,6 @@ class Communication
 
     # send the msg.
     s.puts(msg)
-
-    #insert the doc into database.
 
     doc = { id: session_id, local_pubkey: local_pubkey, remote_pubkey: "", status: 2,
             nounce: 0, ctx_info: 0, stx_info: local_empty_stx_h.to_json, local_cells: local_cells_h,
@@ -1360,7 +1360,7 @@ class Communication
     # the msg ready.
     witness_new = Array.new()
     for witness in stx_info[:witnesses]
-      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+      witness_new << @tx_generator.generate_witness(id, witness, msg_signed, sig_index)
     end
     stx_info[:witnesses] = witness_new
     ctx_info_h = info_to_hash(ctx_info)
@@ -1404,7 +1404,7 @@ class Communication
       type: nil,
     )
     total_fee = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], total_fee, @coll_cells, 0)
+    fee_cell = gather_fee_cell([@lock], total_fee, @coll_cells)
     return false if fee_cell == nil
 
     fee_cell_capacity = get_total_capacity(fee_cell)
@@ -1480,7 +1480,7 @@ class Communication
     # the msg ready.
     witness_new = Array.new()
     for witness in stx_info[:witnesses]
-      witness_new << @tx_generator.generate_witness(id, 1, witness, msg_signed, sig_index)
+      witness_new << @tx_generator.generate_witness(id, witness, msg_signed, sig_index)
     end
     stx_info[:witnesses] = witness_new
     ctx_info_h = info_to_hash(ctx_info)

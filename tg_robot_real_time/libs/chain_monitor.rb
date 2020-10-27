@@ -11,8 +11,10 @@ class Minotor
   def initialize(private_key)
     @key = CKB::Key.new(private_key)
     @api = CKB::API::new
+    @rpc = CKB::RPC.new(host: "http://localhost:8116", timeout_config: {})
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
+
 
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
@@ -54,8 +56,6 @@ class Minotor
       view.each do |doc|
         timeout = doc[:revival].to_i
         current_time = (Time.new).to_i
-        puts "revivl: #{timeout}"
-        puts "current: #{current_time}"
         @coll_cells.find_one_and_delete(id: doc[:id]) if current_time >= timeout
       end
       sleep(1)
@@ -271,8 +271,9 @@ class Minotor
     # end
     # require the change ckbyte is greater than the min capacity.
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
-    fee_cell = gather_fee_cell([@lock_hash], fee_total, @coll_cells, 0)
+    fee_cell = gather_fee_cell([@lock], fee_total, @coll_cells)
     return false if fee_cell == nil
+
 
     fee_cell_capacity = get_total_capacity(fee_cell)
     input += fee_cell
@@ -309,7 +310,7 @@ class Minotor
 
     begin
       tx_hash = @api.send_transaction(tx) if exist == nil
-      @logger.info("#{@key.pubkey} send tx with type #{type} fee #{fee}.")
+      @logger.info("#{@key.pubkey} send tx with type #{type} fee #{fee}, the hash is tx_hash #{tx_hash}.")
     rescue Exception => e
       # puts e
     end

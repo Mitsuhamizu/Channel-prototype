@@ -109,7 +109,7 @@ class Tx_generator
   end
 
   # need modification
-  def generate_witness(id, flag, witness, message, sig_index)
+  def generate_witness(id, witness, message, sig_index)
     prefix_len = 52
     witness_recover = case witness
       when CKB::Types::Witness
@@ -305,8 +305,9 @@ class Tx_generator
     org_args[:nounce] += 1
     output.lock.args = generate_lock_args(id, 1, org_args[:timeout], org_args[:nounce],
                                           org_args[:pubkey_A], org_args[:pubkey_B])
+
     msg = CKB::Serializers::OutputSerializer.new(output).serialize + output_data[2..]
-    witness = generate_witness(id, 1, witness, msg, sig_index)
+    witness = generate_witness(id, witness, msg, sig_index)
     result = { outputs: [output], outputs_data: [output_data], witnesses: [witness] }
     return result
   end
@@ -344,7 +345,7 @@ class Tx_generator
 
     msg = "0x" + part1 + part2
 
-    witness = generate_witness(id, 0, witness, msg, sig_index)
+    witness = generate_witness(id, witness, msg, sig_index)
     result = { outputs: stx_info[:outputs], outputs_data: stx_info[:outputs_data], witnesses: [witness] }
     return result
   end
@@ -457,7 +458,7 @@ class Tx_generator
 
     tx.hash = tx.compute_hash
     empty_witness = generate_empty_witness(id, 0, nounce, witness[0].input_type, witness[0].output_type)
-    tx.witnesses[0] = generate_witness(id, 0, empty_witness, tx.hash, sig_index)
+    tx.witnesses[0] = generate_witness(id, empty_witness, tx.hash, sig_index)
 
     return tx
   end

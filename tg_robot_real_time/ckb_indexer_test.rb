@@ -1,6 +1,6 @@
 require "./miscellaneous/libs/setup.rb"
 
-@api = CKB::API::new
+# @api = CKB::API::new
 @rpc = CKB::RPC.new(host: "http://localhost:8116", timeout_config: {})
 
 # @secp_args = "0xf261ea0fca37e5dbaf797640d36d382ca66c22f5"
@@ -9,7 +9,17 @@ require "./miscellaneous/libs/setup.rb"
                                        args: @secp_args, hash_type: CKB::ScriptHashType::TYPE)
 search_key = { script: @default_lock.to_h, script_type: "lock" }
 
-cells_indexer = @rpc.get_cells(search_key, "asc", "0x64")
+search_result1 = @rpc.get_cells(search_key, "asc", "0x4")
+search_result2 = @rpc.get_cells(search_key, "asc", "0x4", search_result1[:last_cursor])
 
-cells_api = @api.get_cells_by_lock_hash(@default_lock.compute_hash, 0, 60000000)
-puts cells[:objects][0]
+# cells_api = @api.get_cells_by_lock_hash(@default_lock.compute_hash, 0, 60000000)
+# puts cells_indexer1[:objects]
+# puts "\n\n"
+# puts cells_indexer2[:objects]
+puts search_result1[:objects][0][:output][:type] == nil
+puts search_result1[:objects][1][:output][:type] == nil
+puts search_result1[:objects][1][:output][:type] 
+puts search_result1[:objects][2][:output][:type] == nil
+# puts search_result1[:objects][0][:output][:capa`city].to_i(16)
+# puts CKB::Types::OutPoint.from_h(search_result1[:objects][0][:out_point]).class
+# puts search_result1[:objects][1][:output_data]

@@ -12,40 +12,60 @@ def insert_with_check(coll, doc)
 end
 
 # gather fund amount.
-def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, coll_cells, from_block_number = 0)
+def gather_fund_input(locks, amount_required, type_script_hash, decoder, coll_cells)
+  @logger.info("gather_input: begin to gather funding.")
   return [] if amount_required == 0
   final_inputs = []
   amount_gathered = 0
-  current_height = @api.get_tip_block_number()
 
-  for lock_hash in lock_hashes
-    while from_block_number <= current_height
-      current_to = [from_block_number + 100, current_height].min
-      cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
+  for lock in locks
+    # iter the cells.
+    search_key = { script: lock.to_h, script_type: "lock" }
+    search_result = @rpc.get_cells(search_key, "asc", "0x64")
+
+    # iter all cells
+    while true
+      last_cursor = search_result[:last_cursor]
+      cells = search_result[:objects]
+
       for cell in cells
-        tx = @api.get_transaction(cell.out_point.tx_hash).transaction
-        type_script = tx.outputs[cell.out_point.index].type
-        next if cell.output_data_len != 0 && type_script == nil
+
+        # load type and check the type is same as required.
+        type_script = CKB::Types::Script.from_h(cell[:output][:type])
         cell_type_script_hash = type_script == nil ? "" : type_script.compute_hash
         next if cell_type_script_hash != type_script_hash
+        # If I fund ckb, I should make there is no data in the output.
+        next if cell[:output_data] != "0x" && type_script == nil
+
+        # construct the input.
         current_input = CKB::Types::Input.new(
-          previous_output: cell.out_point,
+          previous_output: CKB::Types::OutPoint.from_h(cell[:out_point]),
           since: 0,
         )
+
+        # inquiry whether the cell is in the cell pool.
+        # This is to ensure that the same cell can not be sent to two party at the same time.
         view = coll_cells.find({ cell: current_input.to_h })
         next if view.count_documents() != 0
+
+        # add the amount to toal amount and add it to fund input.
         amount_gathered += decoder == nil ?
-          tx.outputs[cell.out_point.index].capacity :
-          decoder.call(tx.outputs_data[cell.out_point.index])
+          cell[:output][:capacity].to_i(16) :
+          decoder.call(cell[:output_data])
         final_inputs << current_input
+
+        # add it to the cell pool.
         doc = { cell: current_input.to_h, revival: (Time.new).to_i + 60 }
         coll_cells.insert_one(doc)
+
         break if amount_gathered >= amount_required
       end
 
       break if amount_gathered >= amount_required
-      from_block_number = current_to + 1
+      break if last_cursor == "0x"
+      search_result = @rpc.get_cells(search_key, "asc", "0x64", last_cursor)
     end
+
     break if amount_gathered >= amount_required
   end
 
@@ -54,36 +74,50 @@ def gather_fund_input(lock_hashes, amount_required, type_script_hash, decoder, c
   return amount_gathered < amount_required ? amount_gathered - amount_required : final_inputs
 end
 
-def gather_fee_cell(lock_hashes, fee, coll_cells, from_block_number = 590000)
+def gather_fee_cell(locks, fee, coll_cells)
   return [] if fee == 0
   final_inputs = []
   capacity_gathered = 0
   capacity_required = fee
-  current_height = @api.get_tip_block_number()
 
-  for lock_hash in lock_hashes
-    while from_block_number <= current_height
-      current_to = [from_block_number + 100, current_height].min
-      cells = @api.get_cells_by_lock_hash(lock_hash, from_block_number, current_to)
+  for lock in locks
+    search_key = { script: lock.to_h, script_type: "lock" }
+    search_result = @rpc.get_cells(search_key, "asc", "0x64")
+
+    while true
+      last_cursor = search_result[:last_cursor]
+      cells = search_result[:objects]
+
       for cell in cells
-        # testinghahaha
-        next if cell.output_data_len != 0
-        next if cell.type != nil
-        # add the input.
+        # make sure the cell is ckb-only.
+        type_script = CKB::Types::Script.from_h(cell[:output][:type])
+        next if cell[:output_data] != "0x" || type_script != nil
+
+        # construct the input.
         current_input = CKB::Types::Input.new(
-          previous_output: cell.out_point,
+          previous_output: CKB::Types::OutPoint.from_h(cell[:out_point]),
           since: 0,
         )
-        # next if current_output_data != "0x" && type_script == nil
+
+        # inquiry whether the cell is in the cell pool.
+        # This is to ensure that the same cell can not be sent to two party at the same time.
         view = coll_cells.find({ cell: current_input.to_h })
         next if view.count_documents() != 0
-        capacity_gathered += cell.capacity
+
+        # add the amount to toal amount and add it to fund input.
+        capacity_gathered += cell[:output][:capacity].to_i(16)
         final_inputs << current_input
+
+        # add it to the cell pool.
+        doc = { cell: current_input.to_h, revival: (Time.new).to_i + 60 }
+        coll_cells.insert_one(doc)
+
         break if capacity_gathered >= capacity_required
+        break if last_cursor == "0x"
+        search_result = @rpc.get_cells(search_key, "asc", "0x64", last_cursor)
       end
 
       break if capacity_gathered >= capacity_required
-      from_block_number = current_to + 1
     end
 
     break if capacity_gathered >= capacity_required
@@ -102,7 +136,7 @@ def get_minimal_capacity(lock, type, output_data)
   return output.calculate_min_capacity(output_data)
 end
 
-def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_script, refund_lock_script, coll_cells, from_block_number = 590000)
+def gather_inputs(funding_type_script_version, fee, locks, change_lock_script, refund_lock_script, coll_cells)
   input_cells = []
   change_minimal_capacity = 0
   refund_minimal_capacity = 0
@@ -110,7 +144,7 @@ def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_scr
     current_type = find_type(asset_type_hash)
 
     # gather fund inputs according to the type script.
-    fund_inputs = gather_fund_input(lock_hashes, funding_type_script_version[asset_type_hash], asset_type_hash, current_type[:decoder], coll_cells, from_block_number)
+    fund_inputs = gather_fund_input(locks, funding_type_script_version[asset_type_hash], asset_type_hash, current_type[:decoder], coll_cells)
     return fund_inputs if fund_inputs.is_a? Numeric
     input_cells += fund_inputs
     output_data = current_type[:encoder] == nil ? "0x" : current_type[:encoder].call(0)
@@ -134,7 +168,7 @@ def gather_inputs(funding_type_script_version, fee, lock_hashes, change_lock_scr
   return input_cells if diff_capacity <= 0
 
   # gather fee cells.
-  fee_inputs = gather_fee_cell(lock_hashes, diff_capacity, coll_cells, from_block_number)
+  fee_inputs = gather_fee_cell(locks, diff_capacity, coll_cells)
   return fee_inputs if fee_inputs.is_a? Numeric
   input_cells += fee_inputs
   return input_cells
