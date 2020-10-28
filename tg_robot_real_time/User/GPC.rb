@@ -331,7 +331,7 @@ class GPCCLI < Thor
     udt_required = tg_msg_len * 1
     udt_actual = balance[info[:id]][:local][:udt]
 
-    if udt_actual < udt_actual
+    if udt_actual < udt_required
       puts "you do not have enough udt, please exchange it with ckb first."
     end
 
