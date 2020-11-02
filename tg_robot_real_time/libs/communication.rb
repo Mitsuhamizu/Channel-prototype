@@ -1191,6 +1191,16 @@ class Communication
         # puts e
       end
       return "done"
+    when 10
+      # process inquiry msg
+      @msg_coll = @db[@group_id.to_s + "_msg_pool"]
+      text = msg[:text]
+      view = @msg_coll.find({ text: text })
+      records = []
+      view.each do |doc|
+        records << "'#{doc[:text]}' sent by #{doc[:sender]} in #{doc[:group]} at #{Time.at(doc[:date]).to_datetime}, the id of this msg is #{doc[:id]}."
+      end
+      client.puts(msg)
     end
   end
 

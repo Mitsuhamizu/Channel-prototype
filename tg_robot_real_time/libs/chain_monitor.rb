@@ -3,6 +3,7 @@ require "rubygems"
 require "bundler/setup"
 require "ckb"
 require "mongo"
+require "telegram/bot"
 require_relative "tx_generator.rb"
 require_relative "ckb_interaction.rb"
 require_relative "verification.rb"
@@ -15,7 +16,6 @@ class Minotor
     @wallet = CKB::Wallet.from_hex(@api, @key.privkey)
     @tx_generator = Tx_generator.new(@key)
 
-
     @client = Mongo::Client.new(["127.0.0.1:27017"], :database => "GPC")
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
@@ -25,6 +25,7 @@ class Minotor
     @logger = Logger.new(@path_to_file + "gpc.log")
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
+    @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
   end
 
   def json_to_info(json)
@@ -59,6 +60,22 @@ class Minotor
         @coll_cells.find_one_and_delete(id: doc[:id]) if current_time >= timeout
       end
       sleep(1)
+    end
+  end
+
+  def monitor_tg_group()
+    while true
+      begin
+        Telegram::Bot::Client.run(@token) do |bot|
+          bot.listen do |message|
+            # record the msg
+            @msg_coll = @db[message.chat.id.to_s + "_msg_pool"]
+            doc = { id: message.message_id, text: message.text, sender: message.from.first_name, group: message.chat.title, date: message.date }
+            @msg_coll.insert_one(doc)
+          end
+        end
+      rescue
+      end
     end
   end
 
@@ -273,7 +290,6 @@ class Minotor
     fee_total = local_change_output.calculate_min_capacity("0x") + fee
     fee_cell = gather_fee_cell([@lock], fee_total, @coll_cells)
     return false if fee_cell == nil
-
 
     fee_cell_capacity = get_total_capacity(fee_cell)
     input += fee_cell
