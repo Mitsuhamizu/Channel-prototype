@@ -269,4 +269,5 @@ min_final_cltv_expiry: 2R+G+S
 2. Should we use multiple pubkey?
 3. HTLC dust? (any-one-can-pay)
 4. retransmission mechanism
-5. About on-shot GPC.
+5. About one-shot GPC.
+6. About the mempool replacement.
