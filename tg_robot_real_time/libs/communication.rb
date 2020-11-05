@@ -174,6 +174,20 @@ class Communication
     # msg has two fixed field, type and id.
     type = msg[:type]
     view = @coll_sessions.find({ id: msg[:id] })
+    # exception, this is the only server does not need id.
+    if type == 10
+      # process inquiry msg
+      @msg_coll = @db[@group_id.to_s + "_msg_pool"]
+      text = msg[:text]
+      view = @msg_coll.find({ text: text })
+      records = []
+      view.each do |doc|
+        records << "'#{doc[:text]}' sent by #{doc[:sender]} in #{doc[:group]} at #{Time.at(doc[:date]).to_datetime}, the id of this msg is #{doc[:id]}."
+      end
+
+      client.puts(records.to_json)
+      return "done"
+    end
 
     # if there is no record and the msg is not the first step.
     @logger.info("#{@key.pubkey} msg#{type} comes, the number of record in the db is #{view.count_documents()}, id: #{msg[:id]}")
@@ -1191,16 +1205,6 @@ class Communication
         # puts e
       end
       return "done"
-    when 10
-      # process inquiry msg
-      @msg_coll = @db[@group_id.to_s + "_msg_pool"]
-      text = msg[:text]
-      view = @msg_coll.find({ text: text })
-      records = []
-      view.each do |doc|
-        records << "'#{doc[:text]}' sent by #{doc[:sender]} in #{doc[:group]} at #{Time.at(doc[:date]).to_datetime}, the id of this msg is #{doc[:id]}."
-      end
-      client.puts(msg)
     end
   end
 

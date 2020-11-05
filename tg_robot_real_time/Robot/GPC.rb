@@ -208,6 +208,20 @@ class GPCCLI < Thor
     communicator.send_establish_channel(config[:robot_ip], config[:robot_port], fundings)
   end
 
+  # --------------listen
+  desc "listen --pubkey <pubkey> --port <port>", "Listen the port."
+
+  option :pubkey, :required => true
+  option :port, :required => true
+
+  def listen()
+    pubkey = options[:pubkey]
+    port = options[:port]
+    private_key = pubkey_to_privkey(pubkey)
+    communicator = Communication.new(private_key)
+    communicator.listen(port)
+  end
+
   # --------------monitor
   desc "monitor [--pubkey public key]", "Monitor the chain."
 

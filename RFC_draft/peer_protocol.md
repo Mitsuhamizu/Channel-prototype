@@ -10,58 +10,59 @@
 
 1. type: 259 (`announcement_signatures`)
 2. data:
-    * [`channel_id`:`channel_id`]
-    * [`short_channel_id`:`short_channel_id`]
-    * [`signature`:`node_signature`]
-    * [`signature`:`bitcoin_signature`] 
+    - [`channel_id`:`channel_id`]
+    - [`short_channel_id`:`short_channel_id`]
+    - [`signature`:`node_signature`]
+    - [`signature`:`bitcoin_signature`] 
 
 ## The `channel_announcement` Message
 
 1. type: 256 (`channel_announcement`)
 2. data:
-    * [`signature`:`node_signature_1`]
-    * [`signature`:`node_signature_2`]
-    * [`signature`:`bitcoin_signature_1`]
-    * [`signature`:`bitcoin_signature_2`]
-    * [`u16`:`len`]
-    * [`len*byte`:`features`]
-    * [`chain_hash`:`chain_hash`]
-    * [`short_channel_id`:`short_channel_id`]
-    * [`point`:`node_id_1`]
-    * [`point`:`node_id_2`]
-    * [`point`:`bitcoin_key_1`]
-    * [`point`:`bitcoin_key_2`]
+    - [`signature`:`node_signature_1`]
+    - [`signature`:`node_signature_2`]
+    - [`signature`:`bitcoin_signature_1`]
+    - [`signature`:`bitcoin_signature_2`]
+    - [`u16`:`len`]
+    - [`len*byte`:`features`]
+    - [`chain_hash`:`chain_hash`]
+    - [`short_channel_id`:`short_channel_id`]
+    - [`point`:`node_id_1`]
+    - [`point`:`node_id_2`]
+    - [`point`:`bitcoin_key_1`]
+    - [`point`:`bitcoin_key_2`]
 
 ## The `node_announcement` Message
 
 1. type: 257 (`node_announcement`)
 2. data:
-   * [`signature`:`signature`]
-   * [`u16`:`flen`]
-   * [`flen*byte`:`features`]
-   * [`u32`:`timestamp`]
-   * [`point`:`node_id`]
-   * [`3*byte`:`rgb_color`]
-   * [`32*byte`:`alias`]
-   * [`u16`:`addrlen`]
-   * [`addrlen*byte`:`addresses`]
+
+   * [ `signature` : `signature` ]
+   * [ `u16` : `flen` ]
+   * [ `flen*byte` : `features` ]
+   * [ `u32` : `timestamp` ]
+   * [ `point` : `node_id` ]
+   * [ `3*byte` : `rgb_color` ]
+   * [ `32*byte` : `alias` ]
+   * [ `u16` : `addrlen` ]
+   * [ `addrlen*byte` : `addresses` ]
    
+
 ## The `channel_update` Message
 
 1. type: 258 (`channel_update`)
 2. data:
-    * [`signature`:`signature`]
-    * [`chain_hash`:`chain_hash`]
-    * [`short_channel_id`:`short_channel_id`]
-    * [`u32`:`timestamp`]
-    * [`byte`:`message_flags`]
-    * [`byte`:`channel_flags`]
-    * [`u16`:`cltv_expiry_delta`]
-    * [`u64`:`htlc_minimum_msat`]
-    * [`u32`:`fee_base_msat`]
-    * [`u32`:`fee_proportional_millionths`]
-    * [`u64`:`htlc_maximum_msat`] (option_channel_htlc_max)
-
+    - [`signature`:`signature`]
+    - [`chain_hash`:`chain_hash`]
+    - [`short_channel_id`:`short_channel_id`]
+    - [`u32`:`timestamp`]
+    - [`byte`:`message_flags`]
+    - [`byte`:`channel_flags`]
+    - [`u16`:`cltv_expiry_delta`]
+    - [`u64`:`htlc_minimum_msat`]
+    - [`u32`:`fee_base_msat`]
+    - [`u32`:`fee_proportional_millionths`]
+    - [`u64`:`htlc_maximum_msat`] (option_channel_htlc_max)
 
 # Single-hop
 
@@ -259,9 +260,6 @@ min_final_cltv_expiry: 2R+G+S
 `S` : blocks between transaction broadcast and the transaction being included in a block. 12 in LN.
 
 # Watch tower
-
-
-
 
 #### TODO
 
