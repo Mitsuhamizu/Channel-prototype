@@ -5,7 +5,6 @@ require "mongo"
 require "json"
 require "ckb"
 require "logger"
-require_relative "types.rb"
 
 # udt_code: https://github.com/ZhichunLu-11/ckb-gpc-contract/blob/f39fd7774019d0333857f8e6861300a67fb1e266/c/simple_udt.c
 # note that I change the byte of amount in UDT from 16 to 8.

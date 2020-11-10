@@ -4,6 +4,7 @@ require "bundler/setup"
 require "ckb"
 require "mongo"
 require "telegram/bot"
+require "date"
 require_relative "tx_generator.rb"
 require_relative "ckb_interaction.rb"
 require_relative "verification.rb"
@@ -82,8 +83,6 @@ class Minotor
   def monitor_chain()
     while true
       current_height = @api.get_tip_block_number
-      # @logger.info("#{@key.privkey}")
-      # @logger.info("#{@coll_sessions.find({ id: 0 }).first == nil}")
       checked_height = @coll_sessions.find({ id: 0 }).first[:current_block_num]
       # check whether there are some related ctx or fund tx submitted to chain.
       for i in (checked_height + 1..current_height)

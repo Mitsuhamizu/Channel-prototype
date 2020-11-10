@@ -1,6 +1,7 @@
 # find the type_script, type_dep, decoder and encoder by type_script_hash.
 # the decoder and encoder denotes the logic of udt. Here, we only parse the
 # first 8 bytes.
+
 def decoder(data)
   result = CKB::Utils.hex_to_bin(data).unpack("Q<")[0]
   return result.to_i
@@ -10,7 +11,7 @@ def encoder(data)
   return CKB::Utils.bin_to_hex([data].pack("Q<"))
 end
 
-def find_type(type_script_hash)
+def find_type(type_script_hash, chain)
   @path_to_file = __dir__ + "/../miscellaneous/files/"
   type_script = nil
   decoder = nil
@@ -18,7 +19,12 @@ def find_type(type_script_hash)
   type_dep = nil
 
   # load the type in the file...
-  data_raw = File.read(@path_to_file + "contract_info.json")
+  if chain == "dev"
+    data_raw = File.read(@path_to_file + "contract_info_dev.json")
+  elsif chain == "testnet"
+    data_raw = File.read(@path_to_file + "contract_info_testnet.json")
+  end
+
   data_json = JSON.parse(data_raw, symbolize_names: true)
   type_script_json = data_json[:type_script]
   type_script_h = JSON.parse(type_script_json, symbolize_names: true)

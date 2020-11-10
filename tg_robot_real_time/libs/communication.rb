@@ -30,11 +30,18 @@ class Communication
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
+    @coll_refund = @db[@key.pubkey + "_refund_pool"]
 
     @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
+
+    # test
     @group_id = -1001372639358
+    # # channel
+    # @group_id = -339134242
+    # # cryptape
+    # @group_id = -1001372639358
   end
 
   # Generate the plain text msg, client will print it.
@@ -807,6 +814,7 @@ class Communication
         payment = msg[:payment].map() { |key, value| [key.to_s, value] }.to_h
         remote_investment = convert_hash_to_text(payment)
         tg_msg = nil
+        offer_price = nil
 
         # recv the new signed stx and unsigned ctx.
         remote_ctx_info = hash_to_info(msg[:ctx_info])
@@ -821,11 +829,44 @@ class Communication
         # check the value is right.
         # payment
         if payment.length == 1
+          current_time = Time.now.to_i
+
+          # load offered msg info.
           tg_msg = msg[:tg_msg]
+          offered_duration = msg[:duration]
+
           if payment.values()[0] < 0
             record_result({ "receiver_step6_make_payments_error_negative": payment_value })
             return false
           end
+
+          if offered_duration < 0
+            client.puts(generate_text_msg(msg[:id], "Duration can not be negtive."))
+            return false
+          elsif offered_duration > 3000
+            client.puts(generate_text_msg(msg[:id], "Duration can not be larger than 3000 seconds"))
+            return false
+          end
+
+          current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
+          current_price = current_pinned_msg[:price]
+          offered_price = payment.values()[0] / offered_duration
+
+          # check the price is good.
+          if current_price >= offered_price
+            client.puts(generate_text_msg(msg[:id], "sry, the price of current pinned msg is greater than or equal to yours."))
+            return false
+          end
+
+          # check the time is good.
+          expire_date = current_pinned_msg[:expire_date]
+          current_duration = expire_date - current_time
+
+          if current_duration >= offered_duration
+            client.puts(generate_text_msg(msg[:id], "sry, the left time of current pinned msg is greater than or equal to yours."))
+            return false
+          end
+
           # exchange
         elsif payment.length == 2
           if payment["0xecc762badc4ed2a459013afd5f82ec9b47d83d6e4903db1207527714c06f177b"] * 10 ** 8 != -payment[""]
@@ -886,7 +927,9 @@ class Communication
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
                                                                     stx_pend: stx_info_h.to_json,
-                                                                    status: 8, msg_cache: msg, tg_msg: tg_msg } })
+                                                                    status: 8, msg_cache: msg,
+                                                                    tg_msg: tg_msg, price: offered_price,
+                                                                    duration: offered_duration } })
       elsif msg_type == "closing"
         @logger.info("#{@key.pubkey} check msg 6: branch closing.")
 
@@ -1073,6 +1116,9 @@ class Communication
       local_ctx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:ctx_pend], symbolize_names: true))
       local_stx_info_pend = hash_to_info(JSON.parse(@coll_sessions.find({ id: msg[:id] }).first[:stx_pend], symbolize_names: true))
       nounce = @coll_sessions.find({ id: id }).first[:nounce]
+      price = @coll_sessions.find({ id: id }).first[:price]
+      duration = @coll_sessions.find({ id: id }).first[:duration]
+      current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
 
       tg_msg = @coll_sessions.find({ id: id }).first[:tg_msg]
 
@@ -1102,13 +1148,38 @@ class Communication
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                   status: 6, stx_pend: 0, ctx_pend: 0,
                                                                   nounce: nounce + 1 } })
-
       # if the msg to be sent is not empty, just send the msg to telegra group.
+
       if tg_msg != nil
+
+        # parse tg_msg
+        pinned_text = tg_msg[:text]
+        pinned_id = tg_msg[:id]
         Telegram::Bot::Client.run(@token) do |bot|
-          bot.api.send_message(chat_id: @group_id, text: "#{tg_msg}")
+          # pin msg with id.
+
+          # If current msg is not empty, just unpin it and then set the refund.
+          if current_pinned_msg[:expire_date] != 0
+            bot.api.unpinChatMessage(chat_id: @group_id, message_id: current_pinned_msg[:id], disable_notification: false)
+            refund_amount = ((current_pinned_msg[:expire_date] - Time.now.to_i) * current_pinned_msg[:price]).ceil
+
+            # insert the refund info of UDT.
+            refund_doc = { id: msg[:id], refund_amount: refund_amount }
+            @coll_refund.insert_one(refund_doc)
+          end
+
+          if pinned_text == nil && pinned_id != nil
+            bot.api.pinChatMessage(chat_id: @group_id, message_id: pinned_id, disable_notification: false)
+            # pin msg with specific text.
+          elsif pinned_text != nil && pinned_id == nil
+            ret = bot.api.send_message(chat_id: @group_id, text: pinned_text)
+            bot.api.pinChatMessage(chat_id: @group_id, message_id: ret["result"]["message_id"], disable_notification: false)
+          end
         end
+        @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: pinned_id, price: price, expire_date: Time.now.to_i + duration } } })
       end
+
+      # update the current highest price.
 
       @logger.info("payment done, now the version in local db is #{nounce + 1}")
       return "done"

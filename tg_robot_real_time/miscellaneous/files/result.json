@@ -1,1 +1,4 @@
-{"sender_gather_funding_error_insufficient":-20000000000,"sender_make_payments_error_insufficient":-3}
+{
+    "sender_gather_funding_error_insufficient": -20000000000,
+    "sender_make_payments_error_insufficient": -3
+}

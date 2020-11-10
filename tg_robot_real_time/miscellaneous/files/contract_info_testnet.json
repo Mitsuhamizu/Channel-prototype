@@ -1,0 +1,7 @@
+{
+    "gpc_code_hash": "0x5f91704a53e2cedbfda80903b472b917be2c0e0c78fdc786b3639147081676bc",
+    "gpc_tx_hash": "0xe3c7e4153446da632a8fb85216513ff5ffedacc37b8ab09413b1377cf533831d",
+    "udt_code_hash": "0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a",
+    "udt_tx_hash": "0x63bb08c125c028c556789a1d6e095c89577ecb4d133d5e642c225bdbdc70ab29",
+    "type_script": "{\"code_hash\":\"0x2a02e8725266f4f9740c315ac7facbcc5d1674b3893bd04d482aefbb4bdfdd8a\",\"args\":\"0xa941c81edd029d5bfd9a516930f5a784bd74bda89b2dabb4fc23ed8d7483e70b\",\"hash_type\":\"data\"}"
+}
