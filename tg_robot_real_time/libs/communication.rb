@@ -35,8 +35,8 @@ class Communication
     @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
-
     @chain = "testnet"
+    @udt_type_script_hash = load_type()
     # test
     @group_id = -1001372639358
     # # channel
@@ -875,7 +875,7 @@ class Communication
 
           # exchange
         elsif payment.length == 2
-          if payment["0xecc762badc4ed2a459013afd5f82ec9b47d83d6e4903db1207527714c06f177b"] * 10 ** 8 != -payment[""]
+          if payment[@udt_type_script_hash] * 10 ** 8 != -payment[""]
             puts "The data is wrong."
           end
         end
