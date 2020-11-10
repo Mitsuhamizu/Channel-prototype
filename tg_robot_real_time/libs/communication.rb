@@ -36,6 +36,7 @@ class Communication
     @logger = Logger.new(@path_to_file + "gpc.log")
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
 
+    @chain = "testnet"
     # test
     @group_id = -1001372639358
     # # channel
@@ -142,7 +143,13 @@ class Communication
 
   def load_type()
     # type of asset.
-    data_json = load_json_file(@path_to_file + "contract_info.json")
+
+    if @chain == "dev"
+      data_json = load_json_file(@path_to_file + "contract_info_dev.json")
+    elsif @chain == "testnet"
+      data_json = load_json_file(@path_to_file + "contract_info_testnet.json")
+    end
+
     type_script_json = data_json[:type_script]
     type_script_h = JSON.parse(type_script_json, symbolize_names: true)
     type_script = CKB::Types::Script.from_h(type_script_h)
@@ -380,11 +387,10 @@ class Communication
       # generate the info of gpc output
       gpc_capacity -= (remote_fee_fund + local_fee_fund)
 
-      udt_type_script_hash = load_type()
       total_asset = {}
-
-      total_asset[""] = [local_asset, remote_asset].map { |h| h[""] }.sum
-      total_asset[udt_type_script_hash] = [local_asset, remote_asset].map { |h| h[udt_type_script_hash] }.sum
+      for key in local_asset.keys() + remote_asset.keys()
+        total_asset[key] = [local_asset, remote_asset].map { |h| h[key] }.sum
+      end
 
       gpc_cell = @tx_generator.construct_gpc_output(gpc_capacity, total_asset,
                                                     channel_id, timeout, remote_pubkey[2..-1], local_pubkey[2..-1])
@@ -461,11 +467,11 @@ class Communication
       gpc_output_data = fund_tx.outputs_data[0]
 
       # construct total asset.
-      udt_type_script_hash = load_type()
 
       total_asset = {}
-      total_asset[""] = [local_asset, remote_asset].map { |h| h[""] }.sum
-      total_asset[udt_type_script_hash] = [local_asset, remote_asset].map { |h| h[udt_type_script_hash] }.sum
+      for key in local_asset.keys() + remote_asset.keys()
+        total_asset[key] = [local_asset, remote_asset].map { |h| h[key] }.sum
+      end
 
       @logger.info("#{@key.pubkey} check msg_2: msg parsed.")
 

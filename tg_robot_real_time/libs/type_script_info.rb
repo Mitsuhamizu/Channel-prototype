@@ -11,7 +11,7 @@ def encoder(data)
   return CKB::Utils.bin_to_hex([data].pack("Q<"))
 end
 
-def find_type(type_script_hash, chain)
+def find_type(type_script_hash, chain = "testnet")
   @path_to_file = __dir__ + "/../miscellaneous/files/"
   type_script = nil
   decoder = nil

@@ -21,7 +21,7 @@ class Tx_generator
   def initialize(key)
     @key = key
     @path_to_file = __dir__ + "/../miscellaneous/files/"
-    data_raw = File.read(@path_to_file + "contract_info.json")
+    data_raw = File.read(@path_to_file + "contract_info_testnet.json")
     data_json = JSON.parse(data_raw, symbolize_names: true)
     @api = CKB::API::new
     @gpc_code_hash = data_json[:gpc_code_hash]
