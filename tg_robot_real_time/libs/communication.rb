@@ -1282,6 +1282,37 @@ class Communication
         # puts e
       end
       return "done"
+    when 10
+      # look up the refund collection.
+      refund_amount = @coll_refund.find({ id: id }).first[:refund_amount]
+      msg_hash = generate_payment_msg(id, { udt: refund_amount })
+      # send the refund request
+      
+      msg = msg_hash.to_json
+      s.puts(msg)
+      stx_info_h = msg_hash[:stx_info]
+      ctx_info_h = msg_hash[:ctx_info]
+      # update the local database.
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
+                                                                  status: 7, msg_cache: msg } })
+      @logger.info("#{local_pubkey} sent payment")
+
+      begin
+        timeout(5) do
+          while (1)
+            msg = JSON.parse(s.gets, symbolize_names: true)
+            ret = process_recv_message(s, msg)
+            if ret == "done"
+              s.close()
+              break
+            end
+          end
+        end
+      rescue Timeout::Error
+        puts "Timed out!"
+      rescue => exception
+        s.close()
+      end
     end
   end
 
@@ -1299,8 +1330,6 @@ class Communication
               msg = JSON.parse(msg, symbolize_names: true)
               ret = process_recv_message(client, msg)
             end
-
-            break if ret == 100
           rescue => exception
             break if exception.class == Errno::ECONNRESET
           end
@@ -1406,14 +1435,7 @@ class Communication
     end
   end
 
-  def send_payments(remote_ip, remote_port, id, payment, tg_msg = nil)
-    s = TCPSocket.open(remote_ip, remote_port)
-
-    remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
-    local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
-    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
-    stage = @coll_sessions.find({ id: id }).first[:stage]
-
+  def generate_payment_msg(id, payment, tg_msg = nil)
     stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
     ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
 
@@ -1459,9 +1481,16 @@ class Communication
 
     # send the msg.
     msg = { id: id, type: 6, ctx_info: ctx_info_h, stx_info: stx_info_h, tg_msg: tg_msg,
-            payment: payment, msg_type: "payment" }.to_json
-    s.puts(msg)
+            payment: payment, msg_type: "payment" }
+  end
 
+  def send_payments(remote_ip, remote_port, id, payment, tg_msg = nil)
+    s = TCPSocket.open(remote_ip, remote_port)
+    msg_hash = generate_payment_msg(id, payment)
+    msg = msg_hash.to_json
+    s.puts(msg)
+    stx_info_h = msg_hash[:stx_info]
+    ctx_info_h = msg_hash[:ctx_info]
     # update the local database.
     @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
                                                                 status: 7, msg_cache: msg } })

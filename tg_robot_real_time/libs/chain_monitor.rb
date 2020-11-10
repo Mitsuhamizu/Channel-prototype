@@ -21,12 +21,20 @@ class Minotor
     @db = @client.database
     @coll_sessions = @db[@key.pubkey + "_session_pool"]
     @coll_cells = @db[@key.pubkey + "_cell_pool"]
+    @coll_refund = @db[@key.pubkey + "_refund_pool"]
 
     @path_to_file = __dir__ + "/../miscellaneous/files/"
     @logger = Logger.new(@path_to_file + "gpc.log")
     @lock = CKB::Types::Script.new(code_hash: CKB::SystemCodeHash::SECP256K1_BLAKE160_SIGHASH_ALL_TYPE_HASH, args: CKB::Key.blake160(@key.pubkey), hash_type: CKB::ScriptHashType::TYPE)
     @lock_hash = @lock.compute_hash
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
+
+    # test
+    @group_id = -1001372639358
+    # # channel
+    # @group_id = -339134242
+    # # cryptape
+    # @group_id = -1001372639358
   end
 
   def json_to_info(json)
@@ -54,7 +62,7 @@ class Minotor
 
   def monitor_pending_cells()
     while true
-      view = @coll_cells.find { }
+      view = @coll_cells.find({})
       view.each do |doc|
         timeout = doc[:revival].to_i
         current_time = (Time.new).to_i
@@ -64,8 +72,32 @@ class Minotor
     end
   end
 
+  def monitor_pinned_msg()
+    while true
+      view = @coll_sessions.find({ id: 0 })
+      view.each do |doc|
+        # load the current pinned msg.
+        pinned_msg = doc[:pinned_msg]
+        pinned_id = pinned_msg[:id]
+        pinned_price = pinned_msg[:price]
+        expire_date = pinned_msg[:expire_date]
+        current_time = Time.now.to_i + duration
+
+        # if there is pinned msg, then check the time, then unpin it and clear these info.
+        if expire_date != 0 && current_time >= expire_date
+          Telegram::Bot::Client.run(@token) do |bot|
+            bot.api.unpinChatMessage(chat_id: @group_id, message_id: pinned_id, disable_notification: false)
+            @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: 0, price: 0, expire_date: 0 } } })
+          end
+        end
+      end
+      sleep(1)
+    end
+  end
+
   def monitor_tg_group()
     while true
+      # record messages.
       begin
         Telegram::Bot::Client.run(@token) do |bot|
           bot.listen do |message|
