@@ -168,6 +168,7 @@ def verify_change(tx, input_cells, input_capacity, fee, pubkey)
 end
 
 def verify_info_args(info1, info2)
+  @logger.info("verify_info_args: begin to verify.")
   # parse the witness.
   prefix_len = 52
   witness_array1 = info1[:witnesses]
@@ -180,7 +181,7 @@ def verify_info_args(info1, info2)
       when CKB::Types::Witness
         witness1
       else
-        parse_witness(witness1)
+        @tx_generator.parse_witness(witness1)
       end
     witness1.lock[prefix_len..-1] = "00" * 130
     witness_array << witness1
@@ -193,11 +194,13 @@ def verify_info_args(info1, info2)
       when CKB::Types::Witness
         witness2
       else
-        parse_witness(witness2)
+        @tx_generator.parse_witness(witness2)
       end
     witness2.lock[prefix_len..-1] = "00" * 130
     witness_array << witness2
   end
+
+  @logger.info("verify_info_args: witness is clean.")
 
   witness_array2 = witness_array
 
@@ -205,7 +208,6 @@ def verify_info_args(info1, info2)
   witness_array1 = witness_array1.map { |witness| CKB::Serializers::WitnessArgsSerializer.from(witness).serialize }
   witness_array2 = witness_array2.map { |witness| CKB::Serializers::WitnessArgsSerializer.from(witness).serialize }
   # compare.
-
   return false if info1[:witnesses].length != info2[:witnesses].length ||
                   info1[:outputs].length != info2[:outputs].length ||
                   info1[:outputs_data].length != info2[:outputs_data].length

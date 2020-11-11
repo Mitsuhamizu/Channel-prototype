@@ -6,6 +6,7 @@ require "ckb"
 require "json"
 require "secp256k1"
 require_relative "ckb_interaction.rb"
+require_relative "type_script_info.rb"
 
 class MyECDSA < Secp256k1::BaseKey
   include Secp256k1::Utils, Secp256k1::ECDSA
@@ -25,6 +26,7 @@ class Tx_generator
     data_json = JSON.parse(data_raw, symbolize_names: true)
     @api = CKB::API::new
     @gpc_code_hash = data_json[:gpc_code_hash]
+    @udt_type_script_hash = load_type()
     @gpc_tx = data_json[:gpc_tx_hash]
     @gpc_hash_type = "data"
     @logger = Logger.new(@path_to_file + "gpc.log")
@@ -390,23 +392,18 @@ class Tx_generator
         @logger.info("update_stx: output: #{output}, output_data: #{output_data}")
         type = find_type(payment_type_hash)
         amount = payments[payment_type_hash]
-        # ckb
         if payment_type_hash == ""
           @logger.info("update_stx: ckb branch.")
           return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity - amount if output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity + amount if output.lock.args == pubkey_payee
-          # others
+        elsif payment_type_hash == @udt_type_script_hash
+          @logger.info("update_stx: udt branch.")
+          return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
+          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
+          stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         else
-          # If we can find the decoder and encoder.
-          if type[:type_script] != nil
-            @logger.info("update_stx: udt branch.")
-            return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
-            stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
-            stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
-          else
-            return "not support"
-          end
+          return "not support"
         end
       end
     end

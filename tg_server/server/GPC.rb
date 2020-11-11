@@ -239,9 +239,11 @@ class GPCCLI < Thor
     thread_monitor_chain = Thread.start { monitor.monitor_chain() }
     thread_monitor_cell = Thread.start { monitor.monitor_pending_cells() }
     thread_monitor_msg = Thread.start { monitor.monitor_tg_group() }
+    thread_monitor_pinned_msg = Thread.start { monitor.monitor_pinned_msg() }
     thread_monitor_chain.join
     thread_monitor_cell.join
     thread_monitor_msg.join
+    thread_monitor_pinned_msg.join
   end
 
   # --------------close the channel unilateral

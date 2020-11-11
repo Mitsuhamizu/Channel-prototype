@@ -184,10 +184,10 @@ class Communication
 
   # The main part of communcator
   def process_recv_message(client, msg)
-
     # msg has two fixed field, type and id.
     type = msg[:type]
-    view = @coll_sessions.find({ id: msg[:id] })
+    id = msg[:id]
+    view = @coll_sessions.find({ id: id })
     # exception, this is the only server does not need id.
     if type == 10
       # process inquiry msg
@@ -201,6 +201,36 @@ class Communication
 
       client.puts(records.to_json)
       return "done"
+    elsif type == 11
+      # look up the refund collection.
+      refund_amount = @coll_refund.find({ id: id }).first[:refund_amount]
+      msg_hash = generate_payment_msg(id, { udt: refund_amount })
+
+      msg = msg_hash.to_json
+      client.puts(msg)
+      stx_info_h = msg_hash[:stx_info]
+      ctx_info_h = msg_hash[:ctx_info]
+      # update the local database.
+      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
+                                                                  status: 7, msg_cache: msg } })
+
+      begin
+        timeout(5) do
+          while (1)
+            msg = JSON.parse(client.gets, symbolize_names: true)
+            ret = process_recv_message(client, msg)
+            if ret == "done"
+              client.close()
+              break
+            end
+          end
+        end
+      rescue Timeout::Error
+        puts "Timed out!"
+      rescue => exception
+        s.close()
+      end
+      return "done."
     end
 
     # if there is no record and the msg is not the first step.
@@ -627,10 +657,12 @@ class Communication
       remote_ctx_info = hash_to_info(msg[:ctx_info])
       remote_stx_info = hash_to_info(msg[:stx_info])
 
+      @logger.info("#{@key.pubkey} check msg_3: load local info.")
       # check the ctx_info and stx_info args are right.
       # just generate it by myself and compare.
       witness_closing = @tx_generator.generate_empty_witness(msg[:id], 1, 1)
       witness_settlement = @tx_generator.generate_empty_witness(msg[:id], 0, 1)
+      @logger.info("#{@key.pubkey} check msg_3: witness generated.")
 
       output = Marshal.load(Marshal.dump(fund_tx.outputs[0]))
       local_ctx_info = @tx_generator.generate_closing_info(msg[:id], output, fund_tx.outputs_data[0], witness_closing, sig_index)
@@ -642,6 +674,7 @@ class Communication
         record_result({ "receiver_step3_error_info_modified": true })
         return false
       end
+      @logger.info("#{@key.pubkey} check msg_3: check the witness is right.")
 
       # veirfy the remote signature is right.
       # sig_index is the the signature index. 0 or 1.
@@ -653,6 +686,8 @@ class Communication
         record_result({ "receiver_step3_error_signature_invalid": true })
         return false
       end
+
+      @logger.info("#{@key.pubkey} check msg_3: check the signature is right.")
 
       output = Marshal.load(Marshal.dump(fund_tx.outputs[0]))
 
@@ -795,7 +830,6 @@ class Communication
 
       return "done"
     when 6
-      id = msg[:id]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       msg_type = msg[:msg_type]
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
@@ -833,8 +867,10 @@ class Communication
         local_ctx_info = hash_to_info(JSON.parse(local_ctx_info, symbolize_names: true))
         local_stx_info = hash_to_info(JSON.parse(local_stx_info, symbolize_names: true))
         # check the value is right.
+        @logger.info("#{@key.pubkey} check msg 6 payment: check payments.")
         # payment
         if payment.length == 1
+          @logger.info("#{@key.pubkey} check msg 6 payment: Branch payment.")
           current_time = Time.now.to_i
 
           # load offered msg info.
@@ -853,6 +889,8 @@ class Communication
             client.puts(generate_text_msg(msg[:id], "Duration can not be larger than 3000 seconds"))
             return false
           end
+
+          @logger.info("#{@key.pubkey} check msg 6 payment: amount and duration are right.")
 
           current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
           current_price = current_pinned_msg[:price]
@@ -873,10 +911,14 @@ class Communication
             return false
           end
 
+          @logger.info("#{@key.pubkey} check msg 6 payment: price and duration are satisfactory.")
+
           # exchange
         elsif payment.length == 2
-          if payment[@udt_type_script_hash] * 10 ** 8 != -payment[""]
-            puts "The data is wrong."
+          @logger.info("#{@key.pubkey} check msg 6 payment: Branch exchange.")
+          if payment[@udt_type_script_hash] * 10 ** 9 != -payment[""]
+            client.puts(generate_text_msg(msg[:id], "The exchange rate between CKB and UDT is incorrect."))
+            return false
           end
         end
 
@@ -1055,7 +1097,6 @@ class Communication
     when 7
 
       # It is the feedback msg of payments.
-      id = msg[:id]
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
@@ -1102,7 +1143,7 @@ class Communication
 
       msg = { id: id, type: 8, ctx_info: ctx_info_h }.to_json
       client.puts(msg)
-
+      @coll_refund.find_one_and_delete(id: id)
       # update the local database.
       @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_info: ctx_info_h.to_json,
                                                                   stx_info: stx_info_h.to_json,
@@ -1114,7 +1155,6 @@ class Communication
       # it is the final step of making payments.
       # the payer just check the remote signatures are right,
       # and send the signed ctx to him.
-      id = msg[:id]
       remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
       local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
@@ -1182,9 +1222,11 @@ class Communication
             # pin msg with specific text.
           elsif pinned_text != nil && pinned_id == nil
             ret = bot.api.send_message(chat_id: @group_id, text: pinned_text)
+            pinned_id = ret["result"]["message_id"]
             bot.api.pinChatMessage(chat_id: @group_id, message_id: ret["result"]["message_id"], disable_notification: false)
           end
         end
+
         @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: pinned_id, price: price, expire_date: Time.now.to_i + duration } } })
       end
 
@@ -1193,7 +1235,6 @@ class Communication
       @logger.info("payment done, now the version in local db is #{nounce + 1}")
       return "done"
     when 9
-      id = msg[:id]
       terminal_tx = CKB::Types::Transaction.from_h(msg[:terminal_tx])
       sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
       local_fee_cell = @coll_sessions.find({ id: id }).first[:settlement_fee_cell]
@@ -1285,37 +1326,6 @@ class Communication
         # puts e
       end
       return "done"
-    when 10
-      # look up the refund collection.
-      refund_amount = @coll_refund.find({ id: id }).first[:refund_amount]
-      msg_hash = generate_payment_msg(id, { udt: refund_amount })
-      # send the refund request
-
-      msg = msg_hash.to_json
-      s.puts(msg)
-      stx_info_h = msg_hash[:stx_info]
-      ctx_info_h = msg_hash[:ctx_info]
-      # update the local database.
-      @coll_sessions.find_one_and_update({ id: id }, { "$set" => { stx_pend: stx_info_h.to_json, ctx_pend: ctx_info_h.to_json,
-                                                                  status: 7, msg_cache: msg } })
-      @logger.info("#{local_pubkey} sent payment")
-
-      begin
-        timeout(5) do
-          while (1)
-            msg = JSON.parse(s.gets, symbolize_names: true)
-            ret = process_recv_message(s, msg)
-            if ret == "done"
-              s.close()
-              break
-            end
-          end
-        end
-      rescue Timeout::Error
-        puts "Timed out!"
-      rescue => exception
-        s.close()
-      end
     end
   end
 
@@ -1365,7 +1375,7 @@ class Communication
     # check all amount are positive.
     for funding_amount in funding.values()
       if funding_amount < 0
-        record_result({ "sender_gather_funding_error_negative": funding_amount })
+        record_result({ "sender_gather_fundin_error_negative": funding_amount })
         return false
       end
     end
@@ -1439,10 +1449,15 @@ class Communication
   end
 
   def generate_payment_msg(id, payment, tg_msg = nil)
-    stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
-    ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
+    remote_pubkey = @coll_sessions.find({ id: id }).first[:remote_pubkey]
+    local_pubkey = @coll_sessions.find({ id: id }).first[:local_pubkey]
+    sig_index = @coll_sessions.find({ id: id }).first[:sig_index]
+    stage = @coll_sessions.find({ id: id }).first[:stage]
 
     @logger.info("#{local_pubkey} send_payments: prepare to send #{payment}")
+
+    stx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:stx_info], symbolize_names: true))
+    ctx_info = hash_to_info(JSON.parse(@coll_sessions.find({ id: id }).first[:ctx_info], symbolize_names: true))
 
     if stage != 1
       puts "the fund tx is not on chain, so the you can not make payment now..."
@@ -1455,11 +1470,7 @@ class Communication
         return false
       end
     end
-
     payment = convert_text_to_hash(payment)
-
-    @logger.info("#{local_pubkey} is payer.")
-    @logger.info("#{remote_pubkey} is payee.")
 
     # just read and update the latest stx, the new
     stx_info = @tx_generator.update_stx(payment, stx_info, local_pubkey, remote_pubkey)
@@ -1469,7 +1480,6 @@ class Communication
       record_result({ "sender_make_payments_error_insufficient": stx_info })
       return false
     end
-
     # sign the stx.
     msg_signed = generate_msg_from_info(stx_info, "settlement")
 

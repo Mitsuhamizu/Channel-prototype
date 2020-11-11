@@ -73,6 +73,7 @@ class Minotor
   end
 
   def monitor_pinned_msg()
+    puts "begin to monitor pinned msg."
     while true
       view = @coll_sessions.find({ id: 0 })
       view.each do |doc|
@@ -81,14 +82,14 @@ class Minotor
         pinned_id = pinned_msg[:id]
         pinned_price = pinned_msg[:price]
         expire_date = pinned_msg[:expire_date]
-        current_time = Time.now.to_i + duration
-
+        current_time = Time.now.to_i
         # if there is pinned msg, then check the time, then unpin it and clear these info.
         if expire_date != 0 && current_time >= expire_date
+          puts "unpin msg #{pinned_id}"
           Telegram::Bot::Client.run(@token) do |bot|
             bot.api.unpinChatMessage(chat_id: @group_id, message_id: pinned_id, disable_notification: false)
-            @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: 0, price: 0, expire_date: 0 } } })
           end
+          @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: 0, price: 0, expire_date: 0 } } })
         end
       end
       sleep(1)
