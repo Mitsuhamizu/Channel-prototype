@@ -243,10 +243,13 @@ class Communication
       expire_date = current_pinned_msg[:expire_date]
       current_duration = expire_date - current_time
       records = []
-      view.each do |doc|
-        records << "current bid's price: #{current_price udt/s}, #{current_duration} seconds left."
+      if current_price == 0 &&current_duration==0
+        records << "There is no bid."
+      else
+        records << "current bid's price: #{current_price udt / s}, #{current_duration} seconds left."
       end
       
+
       client.puts(records.to_json)
       return "done"
     end
