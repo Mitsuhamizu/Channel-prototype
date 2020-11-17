@@ -40,7 +40,6 @@ class Communication
 
     config = load_config()
     @group_id = config[:group_id]
-
   end
 
   def load_config()
@@ -235,6 +234,21 @@ class Communication
         s.close()
       end
       return "done."
+    elsif type == 12
+      # find current bid
+      current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
+      current_price = current_pinned_msg[:price]
+
+      current_time = Time.now.to_i
+      expire_date = current_pinned_msg[:expire_date]
+      current_duration = expire_date - current_time
+      records = []
+      view.each do |doc|
+        records << "current bid's price: #{current_price udt/s}, #{current_duration} seconds left."
+      end
+      
+      client.puts(records.to_json)
+      return "done"
     end
 
     # if there is no record and the msg is not the first step.
