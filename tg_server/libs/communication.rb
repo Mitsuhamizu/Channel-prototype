@@ -37,12 +37,16 @@ class Communication
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
     @chain = "testnet"
     @udt_type_script_hash = load_type()
-    # test
-    @group_id = -1001372639358
-    # # channel
-    # @group_id = -339134242
-    # # cryptape
-    # @group_id = -1001372639358
+
+    config = load_config()
+    @group_id = config[:group_id]
+
+  end
+
+  def load_config()
+    data_raw = File.read("../server/config.json")
+    data_json = JSON.parse(data_raw, symbolize_names: true)
+    return data_json
   end
 
   # Generate the plain text msg, client will print it.

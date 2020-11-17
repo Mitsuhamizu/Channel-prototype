@@ -29,12 +29,15 @@ class Minotor
     @lock_hash = @lock.compute_hash
     @token = "896274990:AAEOmszCWLd2dLCL7PGWFlBjJjtxQOHmJpU"
 
-    # test
-    @group_id = -1001372639358
-    # # channel
-    # @group_id = -339134242
-    # # cryptape
-    # @group_id = -1001372639358
+    config = load_config()
+    @group_id = config[:group_id]
+  
+  end
+
+  def load_config()
+    data_raw = File.read("../server/config.json")
+    data_json = JSON.parse(data_raw, symbolize_names: true)
+    return data_json
   end
 
   def json_to_info(json)
