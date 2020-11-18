@@ -253,6 +253,7 @@ class Communication
       else
         records << "current bid's price: #{current_price}, #{current_duration} seconds left."
       end
+      puts "closed=#{client.closed?}"
       client.puts(records.to_json)
       return "done"
     end
@@ -994,8 +995,10 @@ class Communication
         stx_info_h = info_to_hash(remote_stx_info)
 
         msg = { id: id, type: 7, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
+        puts "step 6: closed=#{client.closed?}"
         client.puts(msg)
         client.flush
+        puts "step 6: closed=#{client.closed?}"
         @logger.info("#{@key.pubkey} send msg_7: msg sent.")
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
