@@ -254,7 +254,6 @@ class Communication
       end
 
       client.puts(records.to_json)
-      client.flush
       return "done"
     end
 
