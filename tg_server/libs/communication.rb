@@ -243,18 +243,21 @@ class Communication
 
       current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
       current_price = current_pinned_msg[:price]
-      puts("wait!!")
+      puts("1")
 
       current_time = Time.now.to_i
       expire_date = current_pinned_msg[:expire_date]
       current_duration = expire_date - current_time
+      puts("1")
       records = []
+      puts("2")
       if current_price == 0 && current_duration == 0
+        puts("3")
         records << "There is no bid."
       else
+        puts("4")
         records << "current bid's price: #{current_price udt / s}, #{current_duration} seconds left."
       end
-      puts("done!!")
 
       client.puts(records.to_json)
       return "done"
