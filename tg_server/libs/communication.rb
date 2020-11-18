@@ -188,6 +188,7 @@ class Communication
   # The main part of communcator
   def process_recv_message(client, msg)
     # msg has two fixed field, type and id.
+    puts msg
     type = msg[:type]
     id = msg[:id]
     view = @coll_sessions.find({ id: id })
@@ -240,9 +241,9 @@ class Communication
       return "done."
     elsif type == 12
       # find current bid
+      puts "here here here."
       current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
       current_price = current_pinned_msg[:price]
-      puts "here here here."
       client.puts("wait!!")
 
       current_time = Time.now.to_i
