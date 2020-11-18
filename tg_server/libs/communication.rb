@@ -248,7 +248,7 @@ class Communication
       expire_date = current_pinned_msg[:expire_date]
       current_duration = expire_date - current_time
       records = []
-      if current_price == 0 && current_duration == 0
+      if current_price == 0 && expire_date == 0
         records << "There is no bid."
       else
         records << "current bid's price: #{current_price}, #{current_duration} seconds left."
