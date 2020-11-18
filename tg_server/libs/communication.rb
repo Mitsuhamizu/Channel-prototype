@@ -366,7 +366,7 @@ class Communication
 
       # Get the capacity and fee. These code need to be more robust.
       while true
-        local_funding = { ckb: 0, udt: 2000000 }
+        local_funding = { ckb: 0, udt: 100000 }
         for asset_type in local_funding.keys()
           local_funding[asset_type] = asset_type == :ckb ? CKB::Utils.byte_to_shannon(BigDecimal(local_funding[asset_type])) : BigDecimal(local_funding[asset_type])
           local_funding[asset_type] = local_funding[asset_type].to_i
@@ -998,7 +998,7 @@ class Communication
         puts "step 6: closed=#{client.closed?}"
         client.puts(msg)
         client.flush
-        puts "step 6: closed=#{client.closed?}"
+        puts "step 6:closed=#{client.closed?}"
         @logger.info("#{@key.pubkey} send msg_7: msg sent.")
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
