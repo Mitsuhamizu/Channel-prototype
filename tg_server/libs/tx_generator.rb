@@ -401,7 +401,7 @@ class Tx_generator
         elsif payment_type_hash == @udt_type_script_hash
           @logger.info("update_stx: udt branch.")
           return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0 && output.lock.args == pubkey_payer
-          return type[:decoder].call(output_data) + amount if type[:decoder].call(output_data) - amount < 0 && output.lock.args == pubkey_payee
+          return type[:decoder].call(output_data) + amount if type[:decoder].call(output_data) + amount < 0 && output.lock.args == pubkey_payee
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         else
