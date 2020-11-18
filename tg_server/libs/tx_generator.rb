@@ -395,11 +395,13 @@ class Tx_generator
         if payment_type_hash == ""
           @logger.info("update_stx: ckb branch.")
           return (output.capacity - output.calculate_min_capacity(output_data)) - amount if output.capacity - amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payer
+          return (output.capacity - output.calculate_min_capacity(output_data)) + amount if output.capacity + amount < output.calculate_min_capacity(output_data) && output.lock.args == pubkey_payee
           stx_info[:outputs][index].capacity = output.capacity - amount if output.lock.args == pubkey_payer
           stx_info[:outputs][index].capacity = output.capacity + amount if output.lock.args == pubkey_payee
         elsif payment_type_hash == @udt_type_script_hash
           @logger.info("update_stx: udt branch.")
-          return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0
+          return type[:decoder].call(output_data) - amount if type[:decoder].call(output_data) - amount < 0 if output.lock.args == pubkey_payer
+          return type[:decoder].call(output_data) + amount if type[:decoder].call(output_data) - amount < 0 if output.lock.args == pubkey_payee
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) - amount) if output.lock.args == pubkey_payer
           stx_info[:outputs_data][index] = type[:encoder].call(type[:decoder].call(output_data) + amount) if output.lock.args == pubkey_payee
         else

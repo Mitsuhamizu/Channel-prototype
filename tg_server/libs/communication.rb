@@ -209,7 +209,9 @@ class Communication
       # look up the refund collection.
       refund_amount = @coll_refund.find({ id: id }).first[:refund_amount]
       msg_hash = generate_payment_msg(id, { udt: refund_amount })
-
+      if !msg_hash
+        return false
+      end
       msg = msg_hash.to_json
       client.puts(msg)
       client.flush
