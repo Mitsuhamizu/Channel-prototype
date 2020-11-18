@@ -203,6 +203,7 @@ class Communication
       end
 
       client.puts(records.to_json)
+      client.flush
       return "done"
     elsif type == 11
       # look up the refund collection.
@@ -211,6 +212,7 @@ class Communication
 
       msg = msg_hash.to_json
       client.puts(msg)
+      client.flush
       stx_info_h = msg_hash[:stx_info]
       ctx_info_h = msg_hash[:ctx_info]
       # update the local database.
@@ -243,14 +245,14 @@ class Communication
       expire_date = current_pinned_msg[:expire_date]
       current_duration = expire_date - current_time
       records = []
-      if current_price == 0 &&current_duration==0
+      if current_price == 0 && current_duration == 0
         records << "There is no bid."
       else
         records << "current bid's price: #{current_price udt / s}, #{current_duration} seconds left."
       end
-      
 
       client.puts(records.to_json)
+      client.flush
       return "done"
     end
 
@@ -722,7 +724,7 @@ class Communication
       # send the info
       msg_reply = { id: msg[:id], type: 4, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
       client.puts(msg_reply)
-
+      client.flush
       @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { ctx_info: ctx_info_h.to_json, stx_info: stx_info_h.to_json,
                                                                         status: 5, msg_cache: msg_reply, nounce: 1 } })
 
@@ -992,6 +994,7 @@ class Communication
 
         msg = { id: id, type: 7, ctx_info: ctx_info_h, stx_info: stx_info_h }.to_json
         client.puts(msg)
+        client.flush
         @logger.info("#{@key.pubkey} send msg_7: msg sent.")
         # update the local database.
         @coll_sessions.find_one_and_update({ id: id }, { "$set" => { ctx_pend: ctx_info_h.to_json,
@@ -1113,6 +1116,7 @@ class Communication
 
         msg_reply = { id: msg[:id], type: 9, terminal_tx: terminal_tx }.to_json
         client.puts(msg_reply)
+        client.flush
         @coll_sessions.find_one_and_update({ id: msg[:id] }, { "$set" => { stage: 2, closing_time: current_height + 20 } })
       end
     when 7
