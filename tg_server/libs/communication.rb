@@ -258,7 +258,8 @@ class Communication
         puts("4")
         records << "current bid's price: #{current_price udt / s}, #{current_duration} seconds left."
       end
-
+      puts("5")
+      puts client.closed?
       client.puts(records.to_json)
       return "done"
     end
