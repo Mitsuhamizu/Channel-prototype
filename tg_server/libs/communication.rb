@@ -243,6 +243,8 @@ class Communication
       current_pinned_msg = @coll_sessions.find({ id: 0 }).first[:pinned_msg]
       current_price = current_pinned_msg[:price]
 
+      client.puts("wait!!")
+
       current_time = Time.now.to_i
       expire_date = current_pinned_msg[:expire_date]
       current_duration = expire_date - current_time
