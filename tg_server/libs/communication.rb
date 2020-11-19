@@ -1375,6 +1375,9 @@ class Communication
             if msg != nil
               msg = JSON.parse(msg, symbolize_names: true)
               ret = process_recv_message(client, msg)
+              if ret == "done"
+                break
+              end
             end
           rescue => exception
             if exception.class == Errno::ECONNRESET
