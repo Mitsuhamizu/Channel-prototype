@@ -238,7 +238,7 @@ class Communication
       rescue => exception
         s.close()
       end
-      puts "done!!!!"
+      puts "refund done!!!!"
       return "done."
     elsif type == 12
       # find current bid
