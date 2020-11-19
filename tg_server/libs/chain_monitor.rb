@@ -106,7 +106,9 @@ class Minotor
           bot.listen do |message|
             # record the msg
             @msg_coll = @db[message.chat.id.to_s + "_msg_pool"]
+            puts message.text
             doc = { id: message.message_id, text: message.text, sender: message.from.first_name, group: message.chat.title, date: message.date }
+            puts doc
             @msg_coll.insert_one(doc)
           end
         end
