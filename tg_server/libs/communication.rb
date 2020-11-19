@@ -204,6 +204,7 @@ class Communication
 
       client.puts(records.to_json)
       client.flush
+
       return "done"
     elsif type == 11
       # look up the refund collection.
@@ -237,6 +238,7 @@ class Communication
       rescue => exception
         s.close()
       end
+
       return "done."
     elsif type == 12
       # find current bid
@@ -1179,7 +1181,7 @@ class Communication
                                                                   nounce: nounce + 1,
                                                                   stx_pend: 0, ctx_pend: 0,
                                                                   status: 6, msg_cache: msg } })
-      client.close
+      return "done"
     when 8
       # it is the final step of making payments.
       # the payer just check the remote signatures are right,
@@ -1373,6 +1375,7 @@ class Communication
             if msg != nil
               msg = JSON.parse(msg, symbolize_names: true)
               ret = process_recv_message(client, msg)
+              break if ret == "done"
             end
           rescue => exception
             break if exception.class == Errno::ECONNRESET
