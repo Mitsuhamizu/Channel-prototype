@@ -1248,11 +1248,15 @@ class Communication
             refund_amount = ((current_pinned_msg[:expire_date] - Time.now.to_i) * current_pinned_msg[:price]).ceil
 
             view = @coll_refund.find({ id: msg[:id] })
+            puts "current record: #{view.count_documents()}"
             if view.count_documents() == 0
+              puts "insert one: #{refund_amount}"
               refund_doc = { id: msg[:id], refund_amount: refund_amount }
               @coll_refund.insert_one(refund_doc)
             else
               current_refund_amount = @coll_refund.find({ id: msg[:id] }).first[:refund_amount]
+              puts "update one org: #{current_refund_amount}"
+              puts "update one now: #{refund_amount + current_refund_amount}"
               @coll_refund.find_one_and_update({ id: msg[:id] }, { "$set" => { refund_amount: current_refund_amount + refund_amount } })
             end
 

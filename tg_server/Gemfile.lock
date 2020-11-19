@@ -1,0 +1,59 @@
+GIT
+  remote: https://github.com/nervosnetwork/ckb-sdk-ruby.git
+  revision: 7b8d0100e91eb7872a769437bb9bc3ac9dc10de9
+  specs:
+    ckb-sdk-ruby (0.37.0)
+      bitcoin-secp256k1 (~> 0.5.2)
+      net-http-persistent (~> 3.1.0)
+      rbnacl (~> 7.1.1)
+
+GEM
+  specs:
+    axiom-types (0.1.1)
+      descendants_tracker (~> 0.0.4)
+      ice_nine (~> 0.11.0)
+      thread_safe (~> 0.3, >= 0.3.1)
+    bitcoin-secp256k1 (0.5.2)
+      ffi (>= 1.9.25)
+    bson (4.11.1)
+    coercible (1.0.0)
+      descendants_tracker (~> 0.0.1)
+    connection_pool (2.2.2)
+    descendants_tracker (0.0.4)
+      thread_safe (~> 0.3, >= 0.3.1)
+    equalizer (0.0.11)
+    faraday (1.0.1)
+      multipart-post (>= 1.2, < 3)
+    ffi (1.13.1)
+    ice_nine (0.11.2)
+    inflecto (0.0.2)
+    mongo (2.12.1)
+      bson (>= 4.8.2, < 5.0.0)
+    multipart-post (2.1.1)
+    net-http-persistent (3.1.0)
+      connection_pool (~> 2.2)
+    rbnacl (7.1.1)
+      ffi
+    telegram-bot-ruby (0.12.0)
+      faraday
+      inflecto
+      virtus
+    thor (1.0.1)
+    thread_safe (0.3.6)
+    virtus (1.0.5)
+      axiom-types (~> 0.1)
+      coercible (~> 1.0)
+      descendants_tracker (~> 0.0, >= 0.0.3)
+      equalizer (~> 0.0, >= 0.0.9)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  ckb-sdk-ruby!
+  mongo (~> 2.4)
+  telegram-bot-ruby
+  thor
+
+BUNDLED WITH
+   2.1.4
