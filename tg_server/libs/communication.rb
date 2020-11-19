@@ -209,9 +209,16 @@ class Communication
     elsif type == 11
       # look up the refund collection.
       refund_amount = @coll_refund.find({ id: id }).first[:refund_amount]
+      if !refund_amount
+        msg_reply = generate_text_msg(msg[:id], "There is no record about your refund.")
+        client.puts(msg_reply)
+        return "done"
+      end
       msg_hash = generate_payment_msg(id, { udt: refund_amount })
       if !msg_hash
-        return false
+        msg_reply = generate_text_msg(msg[:id], "Something wrong.")
+        client.puts(msg_reply)
+        return "done"
       end
       msg = msg_hash.to_json
       client.puts(msg)
@@ -1240,9 +1247,14 @@ class Communication
             bot.api.unpinChatMessage(chat_id: @group_id, message_id: current_pinned_msg[:id], disable_notification: false)
             refund_amount = ((current_pinned_msg[:expire_date] - Time.now.to_i) * current_pinned_msg[:price]).ceil
 
-            # insert the refund info of UDT.
-            refund_doc = { id: msg[:id], refund_amount: refund_amount }
-            @coll_refund.insert_one(refund_doc)
+            view = coll_sessions.find({ id: msg[:id] })
+            if view.count_documents() == 0
+              refund_doc = { id: msg[:id], refund_amount: refund_amount }
+              @coll_refund.insert_one(refund_doc)
+            else
+              current_refund_amount = @coll_refund.find({ id: msg[:id] }).first[:refund_amount]
+              @coll_refund.find_one_and_update({ id: msg[:id] }, { "$set" => { refund_amount: current_refund_amount + refund_amount } })
+            end
 
             # notify him to refund.
             ret = bot.api.send_message(chat_id: @group_id, text: "#{remote_pubkey}, please initiate a refund.")
