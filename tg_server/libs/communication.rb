@@ -239,7 +239,7 @@ class Communication
         s.close()
       end
       puts "refund done!!!!"
-      return "done."
+      return "done"
     elsif type == 12
       # find current bid
 
