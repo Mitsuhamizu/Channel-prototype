@@ -1256,6 +1256,8 @@ class Communication
           end
         end
 
+        @logger.info("#{@key.pubkey} tg msg done.")
+
         @coll_sessions.find_one_and_update({ id: 0 }, { "$set" => { pinned_msg: { id: pinned_id, price: price, expire_date: Time.now.to_i + duration } } })
       end
 

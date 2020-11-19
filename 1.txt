@@ -1,0 +1,38 @@
+I, [2020-11-19T11:46:17.745021 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 msg6 comes, the number of record in the db is 1, id: c2e73907df48103a99c0af157306df9e
+I, [2020-11-19T11:46:17.750722 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6: basic value parsed.
+I, [2020-11-19T11:46:17.750781 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6: branch payment.
+I, [2020-11-19T11:46:17.753695 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: msg parsed.
+I, [2020-11-19T11:46:17.755546 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: check payments.
+I, [2020-11-19T11:46:17.755606 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: Branch payment.
+I, [2020-11-19T11:46:17.755676 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: amount and duration are right.
+I, [2020-11-19T11:46:17.756350 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: price and duration are satisfactory.
+I, [2020-11-19T11:46:17.756416 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: load local ctx and stx.
+I, [2020-11-19T11:46:17.759428 #11879]  INFO -- : update_stx: begin.
+I, [2020-11-19T11:46:17.759486 #11879]  INFO -- : update_stx: output: #<CKB::Types::Output:0x000055ed6e14ab20>, output_data: 0x0800000000000000
+I, [2020-11-19T11:46:17.759892 #11879]  INFO -- : update_stx: udt branch.
+I, [2020-11-19T11:46:17.759947 #11879]  INFO -- : update_stx: begin.
+I, [2020-11-19T11:46:17.759976 #11879]  INFO -- : update_stx: output: #<CKB::Types::Output:0x000055ed6e14a648>, output_data: 0x78841e0000000000
+I, [2020-11-19T11:46:17.760283 #11879]  INFO -- : update_stx: udt branch.
+I, [2020-11-19T11:46:17.760407 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: construct local stx and ctx.
+I, [2020-11-19T11:46:17.760445 #11879]  INFO -- : verify_info_args: begin to verify.
+I, [2020-11-19T11:46:17.760518 #11879]  INFO -- : verify_info_args: witness is clean.
+I, [2020-11-19T11:46:17.761347 #11879]  INFO -- : verify_info_args: length is right!
+I, [2020-11-19T11:46:17.761397 #11879]  INFO -- : verify_info_args: witnesses are right!
+I, [2020-11-19T11:46:17.761452 #11879]  INFO -- : verify_info_args: outputs and outputs_data are right!
+I, [2020-11-19T11:46:17.761497 #11879]  INFO -- : verify_info_args: begin to verify.
+I, [2020-11-19T11:46:17.761560 #11879]  INFO -- : verify_info_args: witness is clean.
+I, [2020-11-19T11:46:17.762314 #11879]  INFO -- : verify_info_args: length is right!
+I, [2020-11-19T11:46:17.762371 #11879]  INFO -- : verify_info_args: witnesses are right!
+I, [2020-11-19T11:46:17.762426 #11879]  INFO -- : verify_info_args: outputs and outputs_data are right!
+I, [2020-11-19T11:46:17.782825 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 6 payment: check stx and ctx are consistent.
+I, [2020-11-19T11:46:17.807634 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 send msg_7: msg sent.
+I, [2020-11-19T11:46:17.941538 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 msg8 comes, the number of record in the db is 1, id: c2e73907df48103a99c0af157306df9e
+I, [2020-11-19T11:46:17.953660 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 8: msg parsed.
+I, [2020-11-19T11:46:17.953769 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 8: ctx_info checked.
+I, [2020-11-19T11:46:17.953813 #11879]  INFO -- : verify_info_args: begin to verify.
+I, [2020-11-19T11:46:17.953887 #11879]  INFO -- : verify_info_args: witness is clean.
+I, [2020-11-19T11:46:17.954702 #11879]  INFO -- : verify_info_args: length is right!
+I, [2020-11-19T11:46:17.954769 #11879]  INFO -- : verify_info_args: witnesses are right!
+I, [2020-11-19T11:46:17.954841 #11879]  INFO -- : verify_info_args: outputs and outputs_data are right!
+I, [2020-11-19T11:46:17.974069 #11879]  INFO -- : 0x03babbec0930eb604d89520055f45d7e33e0f6c34e52a97e665c7fe52896044602 check msg 8: finished.
+I, [2020-11-19T11:46:22.935556 #11879]  INFO -- : payment done, now the version in local db is 20

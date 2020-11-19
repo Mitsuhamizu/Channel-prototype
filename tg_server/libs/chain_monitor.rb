@@ -31,7 +31,6 @@ class Minotor
 
     config = load_config()
     @group_id = config[:group_id]
-  
   end
 
   def load_config()
@@ -113,6 +112,7 @@ class Minotor
         end
       rescue
       end
+      sleep(1)
     end
   end
 
