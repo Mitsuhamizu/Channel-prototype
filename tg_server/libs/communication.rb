@@ -1375,14 +1375,16 @@ class Communication
             if msg != nil
               msg = JSON.parse(msg, symbolize_names: true)
               ret = process_recv_message(client, msg)
-              break if ret == "done"
             end
           rescue => exception
-            break if exception.class == Errno::ECONNRESET
+            if exception.class == Errno::ECONNRESET
+              break
+            end
           end
         end
+        puts "one thread died."
       end
-      puts "one thread died."
+      puts "In iter."
     }
   end
 
