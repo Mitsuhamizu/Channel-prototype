@@ -238,7 +238,7 @@ class Communication
       rescue => exception
         s.close()
       end
-
+      puts "done!!!!"
       return "done."
     elsif type == 12
       # find current bid
@@ -1367,7 +1367,7 @@ class Communication
     server = TCPServer.open(src_port)
     loop {
       Thread.start(server.accept) do |client|
-
+        puts "one thread live."
         #parse the msg
         while (1)
           begin
@@ -1382,6 +1382,7 @@ class Communication
           end
         end
       end
+      puts "one thread died."
     }
   end
 
