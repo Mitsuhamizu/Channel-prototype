@@ -1247,7 +1247,7 @@ class Communication
             bot.api.unpinChatMessage(chat_id: @group_id, message_id: current_pinned_msg[:id], disable_notification: false)
             refund_amount = ((current_pinned_msg[:expire_date] - Time.now.to_i) * current_pinned_msg[:price]).ceil
 
-            view = coll_refund.find({ id: msg[:id] })
+            view = @coll_refund.find({ id: msg[:id] })
             if view.count_documents() == 0
               refund_doc = { id: msg[:id], refund_amount: refund_amount }
               @coll_refund.insert_one(refund_doc)
