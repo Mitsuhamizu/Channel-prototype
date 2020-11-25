@@ -1,6 +1,6 @@
 This article indexes some of the information currently available about the CKB channel.
 
-# Current info
+# Current docs
 
 [Outline](https://hackmd.io/crQnHgBJQcK4sG3984bWSA) (In progress)
 
