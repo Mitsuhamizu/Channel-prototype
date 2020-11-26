@@ -83,15 +83,15 @@ capacity: 110
 lock script: 
 	code_hash: <HTLC>  
 	hash_type: type 
-	args: <Alice's pubkey> <Bob's pubkey> 
+	args: <Pubkey of Alice> <Pubkey of Bob> 
           <200> <H1> 
           <250> <H2> 
           <300> <H3> 
 type script: <Collector type>  
 data:{
     <32 * "0">         <10> 
-    <UDT1's type hash> <UDT1_ENCODER(15)> 
-    <UDT2's type hash> <UDT2_ENCODER(20)> 
+    <Type hash of UDT1> <UDT1_ENCODER(15)> 
+    <Type hash of UDT2> <UDT2_ENCODER(20)> 
 }
 ```
 1. 32 * "0" represents this asset is CKB.
@@ -105,7 +105,7 @@ After that, the user simply sends a transaction to modify the data in the `outpu
 Current block height: 190
 
 capacity: 110
-lock script: Bob's secp lock
+lock script: Secp lock of Bob
 type script: nil
 data:{
     1 && p1
@@ -121,7 +121,7 @@ data:{
 Current block height: 190
 
 capacity: 110
-lock script: Bob's secp lock
+lock script: Bob secp lock
 type script: nil
 data:{
     1 && p1
@@ -135,7 +135,7 @@ data:{
 Current block height: 260
 
 capacity: 110
-lock script: Bob's secp lock
+lock script: Bob secp lock
 type script: nil
 data:{
     3 && p3
@@ -159,19 +159,19 @@ Inputs:
         lock script: 
             code_hash: <HTLC>  
             hash_type: type 
-            args: <Alice's pubkey> <Bob's pubkey> 
+            args: <Alice pubkey> <Bob pubkey> 
                 <200> <H1> 
                 <250> <H2> 
                 <300> <H3> 
         type script: <Collector type>  
         data:{
             <32 * "0">         <10> 
-            <UDT1's type hash> <UDT1_ENCODER(15)> 
-            <UDT2's type hash> <UDT2_ENCODER(20)> 
+            <Type hash of UDT1> <UDT1_ENCODER(15)> 
+            <Type hash of UDT2> <UDT2_ENCODER(20)> 
         }
     Container cell:
         capacity: 500
-        lock script: Bob's secp lock
+        lock script: Secp lock of Bob
         type script: nil
         data{
             "0x"
@@ -179,28 +179,28 @@ Inputs:
 Outputs:
     CKB cell:
         capacity: 71
-        lock script: Bob's secp lock
+        lock script: Secp lock of Bob
         type script: nil
         data{
             "0x"
         }    
     UDT1 cell:
         capacity: 100
-        lock script: Bob's secp lock
+        lock script: Secp lock of Bob
         type script: UDT1 type script
         data{
             <UDT1_ENCODER(15)> 
         }
     UDT2 cell:
         capacity: 100
-        lock script: Bob's secp lock
+        lock script: Secp lock of Bob
         type script: UDT2 type script
         data{
             <UDT2_ENCODER(20)> 
         }
     change cell:
         capacity: 228
-        lock script: Bob's secp lock
+        lock script: Secp lock of Bob
         type script: nil
         data{
             "0x"
@@ -246,4 +246,4 @@ There are two possible solutions to this.
 
 ## Future work
 
-We can use the merkle tree to consolidate the corresponding HTLC entries so that the storage of the Fused HTLC cell will be O(1). Thus, we can also break the Concurrent_HTLCs due to the transaction size. However, it will result in a swollen **proof transaction**. 
+We can use the merkle tree to consolidate the corresponding HTLC entries so that the storage of the Fused HTLC cell will be O(1). Thus, we can also break the Concurrent_HTLCs due to the transaction size. However, it will result in a swollen **proof transaction**.
