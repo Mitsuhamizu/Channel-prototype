@@ -52,24 +52,35 @@ Witnesses
 
 In short, every HTLC payment is split into two parts. `lock.args` stores the information needed for unlocking, while `output_data` stores the type and amount of assets to be unlocked. At this point, the contract looks for the corresponding HTLC based on the `HTLC_index` provided by the user and checks if the unlock logic is correct. Nevertheless, this scheme has the state sharing problem, when both Alice and Bob try to unlock two different HTLCs, only one will succeed.
 
+ My colleague Chao Luo proposed a possible scheme. The principal is HTLCs is fused off-chain, but split on-chain. i.e., users should provide the container (61 CKBytes usually) to break down the fused HTLCs when they decide to settle them on-chain. The advantage is users can make payments without container off-chain. However, they still need to lock some CKBytes when HTLCs are on-chain.
+
 # Fused HTLC with state sharing
 
 Inspired by [Hydra](https://eprint.iacr.org/2020/299.pdf), I have found that some blockchain applications with specific deadlines can share state. First, let's explain why contracts in UTXO model have state sharing problems. In fact, you can think of a transaction as an **action** on **cell**. In UTXO model, **action** specifies a concrete input **cell state** where account model does not. Therefore, if there are two **action**, **action1** and **action2**, both of them want to change **state_init** of a **cell**. If **action1** is successful, then **state_init** will be changed into **state_changed**. It is a bad news for **action2** since the **state** is inconsistent with what it expects. 
 
 ![](./fig_htlc/htlc_state_sharing_problem.png)
 
-As we can see, two reasons contribute this problem
+As we can see, two reasons contribute the problem
 
 1. **action** in UTXO model specifies the input **state**.
 2. **action** takes effect immediately.
 
-The first reason is a natural property of UTXO, so we cannot change it. But it seems that we can solve this problem by modifying the second property. The answer is to **postpone** the effective time of the action.
+The first reason is caused by the natural property of UTXO, so we cannot fix it. But we can solve this problem by removing the second one. The answer is to **postpone** the effective time of the action.
 
 ![](./fig_htlc/htlc_state_sharing.png)
 
-In a nutshell, we first submit the **action** to the chain, you can choose to write it to your cell's **output_data**. Note that at this point the **action** does not take effect, it is just a record. Then, after waiting for a specific block height, we prove to the contract that you have previously submitted these **actions** on the blockchain and ask it to execute them in order. 
+In a nutshell, we first submit the **action** to the chain, you can choose to write it to your cell's **output_data**. Note that at this point the **action** does not take effect, it is just a record. Then, after waiting for a specific block height, you prove to the contract that you have previously submitted these **actions** on the blockchain and ask it to execute them in order. 
 
-Then let's go back to the HTLC scenario and you'll see that this solves the state sharing problem. The users no longer need to compete for the usage of the cell, but writes preimage directly their own cells. That's how it works. Next, I'd like give a example to illustrate it. 
+Moreover, this design introduces a new mechanism to CKB, **until**. We know that there is a filed called **since** in CKB transaction, which is utilized to allow some transactions **can** only be committed after a specific block height or have passed a required time interval. But there is no mechanism about **until**, which means these transactions **can not** be submitted from a specific block height. With **proof cell**, we can implement **until** mechanism without changing the Layer 1 rules. The rationale is very simple, users can not create valid (before the deadline) **proof cell** after the deadline.
+
+Another interesting discussion about this mechanism is how to make the proof. There are two choices:
+
+1. Put the **proof cell** in the **cell_deps** field and add the block hash to **header_deps**.
+2. Put the **proof cell** and merkle proof in the **outputs_data** field and the block hash to **header_deps**.
+
+These two schemes have their pros and cons. For the former, the final **proof transaction** will be succinct, but it requires the **proof cell** is live, i.e., you can not spend it before the final deadline. For the latter, you can expend it after it is on-chain. However, the final **proof transaction** may be swollen. You can choose either of them according to your preference.
+
+Then let's go back to the HTLC scenario and you'll see that this solves the state sharing problem. The users no longer need to compete for the usage of the cell, but writes preimage directly their own cells. That's how it works. Next, I'd like give an example to illustrate it. I will adopt the merkle proof mechanism in this example. 
 
 ## Example
 
@@ -213,8 +224,8 @@ Witnesses
 
 Here, Bob proves the existence of the corresponding **proof transaction** in `witnesses` . At the same time, we put the hash corresponding to **B** in the `head_deps` so that the HTLC script can verify that the block height where **B** is generated satisfies the requirement. The refund transaction is similar to this one, except that Alice have to wait a little longer and without any proof. This means that if Bob fails to submit the appropriate proof, Alice can take all the left money.
 
-
 However, this scheme requires all the coins in HTLC can not be withdrawn before the last deadline. For example, there are two HTLCs, one will expire at 100 blocks and another will expire at 500 blocks. They can only get their all money after 500 blocks. One naive mitigation is settling HTLCs in batches. If there are HTLCs which will expire at 100, 110, 120, 500. We can set two batches, one includes 100, 110, 120 and another includes 500. Therefore, the deadline of the first batch is 120 blocks. In this case, the lock time of these coins will not be prolonged very much.  
+
 # Discussion
 
 First, I would like to describe some of the areas of confusion by way of QA.
@@ -233,13 +244,22 @@ Pros:
 
 * HTLCs can share a single container.
 * User can make proof concurrently (state sharing).
+* Less Timelock_delta.
+
+It may be confusing for the 3rd one. I will give a simple example to illustrate it. Let's talk about the CLTV_DELTA in LN. In bitcoin, there is no **until** mechanism. As a result, even the promise between Alice and Bob is: If Bob show preimage before block height **N**, He can get the money. Otherwise, Alice gets the refund. However, Bob can still submit the preimage after **N**. So, how does LN solve this problem? The answer is a well-designed **CLTV_DELTA**.
+
+Assume Alice wants to pay Carol some coins via Bob. There is **HTLC1** between Alice and Bob which will expire at block height **H1**, and **HTLC2** will expire at **H2**. Now lets suppose all of them decide to settle HTLC on-chain, and current block height is **H2**. 
+
+* **N1** -- Carol still refuses to give the preimage, but Bob is a good man, he decides to give Carol a little bit extra time (grace period), which equals **g** blocks.
+* **N1+r** -- Bob becomes impatient and submits the refund transaction. Now Carol has two choices, submitting the transaction with preimage or just waiting. As we all know, there is a time gap between you submitting the transaction and the transaction is on-chain. Let's call this gap as **s**.
+* **N1+r+s** -- Now, either the refund transaction or the transaction with preimage is on-chain. Also, we needs to make sure this transaction will not be forked. So we needs wait confirmation period **c**. If the transaction with preimage is on-chain, now Bob needs to show the preimage to Alice since the payment happens.  
+* **N1+r+s+c** -- Now, Bob subtmits the transaction with preimage.
+
 
 Cons
 
 * All funds can not be withdrawn until the latest HTLC expires.
 * To perform merle tree validation, the corresponding block **B** must be mature (after four epochs).
 * If there are multiple **proof transaction**, the size of payment transaction will be massive.
-
-One more scheme is proposed by my colleague Chao Luo. The principal is HTLCs is fused off-chain, but split on-chain. i.e., users should provide the container to break down the fused HTLCs when they decide to settle the channel on-chain. The advantage of this scheme is user did not need CKBytes in the channel to act as the container. However, they still need to lock some CKBytes when htlcs are on-chain.
 
 These are my thoughts on the implementation of HTLC on CKB, and I would appreciate any comments and questions you may have.
