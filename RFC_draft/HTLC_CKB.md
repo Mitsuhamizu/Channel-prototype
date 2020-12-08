@@ -248,25 +248,27 @@ Pros:
 
 It may be confusing for the 3rd one. I will give a simple example to illustrate it. Let's talk about the CLTV_DELTA in LN. In bitcoin, there is no **until** mechanism. As a result, even the promise between Alice and Bob is: If Bob show preimage before block height **N**, He can get the money. Otherwise, Alice gets the refund. However, Bob can still submit the preimage after **N**. So, how does LN solve this problem? The answer is a well-designed **CLTV_DELTA**.
 
-Assume Alice wants to pay Carol some coins via Bob. There is **HTLC1** between Alice and Bob which will expire at block height **H1**, and **HTLC2** will expire at **H2**. Now lets suppose all of them decide to settle HTLC on-chain, and current block height is **H2**. 
+Assume Alice wants to pay Carol some coins via Bob. There is **HTLC1** between Alice and Bob which will expire at block height **H1**, and **HTLC2** will expire at **H2**. Now lets suppose all of them decide to settle HTLC on-chain, and current block height is **H2**, i.e., Alice still has enough time to submit the preimage to her upstream after she sees Bob's transaction being on-chain.
 
 |       | A | B                                | C                | worst event                 |
 | ----- | - | -------------------------------- | ---------------- | --------------------------- |
-| N1    |   | send closing tx.                 | send closing tx. |                             |
+| N1    |   | send closing tx.                 | send old closing tx. |                             |
 | N1+T  |   | send closing tx.                 |                  | C's closing tx is on-chain. |
 | N1+2T |   | challenge period.                |                  |                             |
 | N1+3T |   | send settlement tx && refund tx. | send payment tx. |                             |
 | N1+4T |   | ask A's reply                    |                  | payment tx is on-chain.     |
 
-Here, `N2-N1` must be greater than 8T, T equals to `S + R` , where `S` is the time between the transaction being broadcast and the transaction being on-chain. `R` is reorganization block depth. 
+For the sake of brevity, I will only write the flow between BCs. Here, `N2-N1` must be greater than 8 `T` (4 `T` between BC and another 4 `T` between AB), `T` equals to `S + R` , where `S` is the time between the transaction being broadcast and the transaction being on-chain. `R` is reorganization block depth.
 
 |      | A | B                                  | C                | worst event                 |
 | ---- | - | ---------------------------------- | ---------------- | --------------------------- |
 | N1   |   | send closing tx.                   | send closing tx. | C's proof cell is on-chain. |
 | N1+T |   | send closing tx and ask A's reply. |                  |                             |
 
-Here, `N2-N1` must be greater than T.
+Here, `N2-N1` must be greater than `T`. We were able to do this thanks to two main things.
 
+1. We split the proof from the comment so that the user does not have to wait for the comment to be linked before proving it.
+2. We have introduced the `until` mechanism, which allows users to report on the next hop after the expiration date with confidence.
 
 Cons
 
