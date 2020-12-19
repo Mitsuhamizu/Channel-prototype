@@ -8,7 +8,9 @@ This article indexes some of the information currently available about the CKB c
 
 [Implementation](https://github.com/ZhichunLu-11/Channel-prototype) (done)
 
-[HTLC proposal](https://talk.nervos.org/t/htlc-in-ckb/5062) (In progress)
+[Discussion about container about HTLC](https://talk.nervos.org/t/htlc-in-ckb/5062) (In progress)
+
+[Discussion about lock time about HTLC](https://talk.nervos.org/t/a-discussion-on-lock-time-of-multi-hop-payment-in-payment-channel-network/5124) (In progress)
 
 [GPC demo](https://github.com/ZhichunLu-11/channel_demo_tg_msg_sender) (done)
 
@@ -17,3 +19,5 @@ This article indexes some of the information currently available about the CKB c
 # TO-DO list
 
 * Find a good HTLC design.
+* Routing algorithm.
+    * [lnd's routing alg](https://www.youtube.com/watch?v=p8toOF-imk4&ab_channel=JoostJager) with reliability.
