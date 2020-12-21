@@ -66,6 +66,14 @@ Sprites is an Ether-based multi-hop payment solution that consist of two contrac
 
 Now, let's go back to the payment scenarios. Likewise, Dave submits the preimage to **$contract_{pm}$** before **$E-\Delta$** and the transaction is on-chain before **$E$**. Now, Bob can initiate a dispute in **$contract_{htlc}^{AB}$** without knowing the preimage, because Dave's behaviour affects all HTLCs with preimage **$P$** through a globally shared **$contract_{pm}$**.
 
+Now, you might think that global sharing is the key to achieving constant lock time, but I would like to give an example to illustrate the importance of `until`. Let's assume Sprite without the `until` mechanism. it's simple, we just need to remove the block num when submitting the preimage. In other words, the **$revealedBefore$** only looks for the existence of the corresponding hash without paying attention to when it was committed. Now let's still assume the scenario where Alice pays Carol. The expiration time **$E$** has now been reached. Alice and Bob both initiate disputed transactions **$Tx_{AB}$** and **$Tx_{BC}$**, Carol submits the preimage transaction **$Tx_{preimage}$**. At this point all three transactions can be accepted by the blockchain, a possible order is.
+
+1. **$Tx_{AB}$**
+2. **$Tx_{preimage}$**
+3. **$Tx_{BC}$**
+
+Since the preimage had not been submitted at the time, **$Tx_{AB}$** ended up with a refund, i.e., Alice got money. However, **$Tx_{BC}$** had succeeded because the preimage has been revealed (Carol got coins). At this point, Bob suffered a loss. Thus a pair of conscious nodes can use this to scam money. A good protocol should not have the possibility of rational nodes losing money. Therefore, the `until` mechanism is essential.
+
 # Story in CKB
 
 [Sprites](https://arxiv.org/pdf/1702.05812.pdf) relies on a globally shared contract, the simplest equivalence is **$cell_{pm}$**. However, there would be the state sharing problem. First, collisions occur when two users want to submit preimages with the same **$cell_{pm}$** as input. Secondly, when I want to unlock HTLC with **$cell_{pm}$** as a `cell_dep` , someone else may change it too.
@@ -108,7 +116,7 @@ As I discussed above, Sprites must have irreversibility. Then when we want to po
 
 If you choose to clean up regularly, that's actually adding a challenge period. You are telling the user: "Please come and reference this contract before I clean it up or you won't find the record you need for dispute". So a simple thought, can I wait until all the HTLC disputes that require this preimage have been processed and then clean it up? Unfortunately, not all users are willing to settle disputes on-chain. Because it means they need to close the channel between them. So you will most likely not be able to collect a complete dispute record. On the contrary, proof cell is economical in terms of the cost it requires. All proof cells need to be locked only during the grace period, and users can spend them after that. 
 
-Therefore, if you wish to port Sprites, then I suggest you think about the following two questions.
+Therefore, if you wish to implement Sprites in CKB, then I suggest you think about the following two questions.
 
 1. How to solve the state sharing problem?
 2. How do you address the continued growth in space occupation that Sprites bring?
