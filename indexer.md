@@ -6,9 +6,9 @@ This article indexes some of the information currently available about the CKB c
 
 [Initial Design of GPC](https://talk.nervos.org/t/a-generic-payment-channel-construction-and-its-composability/4697) (done)
 
-[Implementation](https://github.com/ZhichunLu-11/Channel-prototype) (done)
+[Implementation](https://github.com/ZhichunLu-11/Channel-prototype) (done but lacking "one-shot" mechanism.)
 
-[Discussion about container about HTLC](https://talk.nervos.org/t/htlc-in-ckb/5062) (In progress)
+[Discussion about container about HTLC](https://talk.nervos.org/t/a-discussion-on-container-capacity-of-multi-hop-payment-in-payment-channel-network/5062) (In progress)
 
 [Discussion about lock time about HTLC](https://talk.nervos.org/t/a-discussion-on-lock-time-of-multi-hop-payment-in-payment-channel-network/5124) (In progress)
 
