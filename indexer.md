@@ -21,3 +21,7 @@ This article indexes some of the information currently available about the CKB c
 * Find a good HTLC design.
 * Routing algorithm.
     * [lnd's routing alg](https://www.youtube.com/watch?v=p8toOF-imk4&ab_channel=JoostJager) with reliability.
+* Watch tower
+    * Introduction about watch tower in [LND](https://www.youtube.com/watch?v=2tyr05tLF4g&ab_channel=Bolt-A-Thon).
+    * [discussion](https://diyhpl.us/wiki/transcripts/blockchain-protocol-analysis-security-engineering/2018/hardening-lightning/) from Lightning lab co-founder.
+    
