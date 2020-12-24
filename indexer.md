@@ -22,6 +22,11 @@ This article indexes some of the information currently available about the CKB c
 * Routing algorithm.
     * [lnd's routing alg](https://www.youtube.com/watch?v=p8toOF-imk4&ab_channel=JoostJager) with reliability.
 * Watch tower
-    * Introduction about watch tower in [LND](https://www.youtube.com/watch?v=2tyr05tLF4g&ab_channel=Bolt-A-Thon).
-    * [discussion](https://diyhpl.us/wiki/transcripts/blockchain-protocol-analysis-security-engineering/2018/hardening-lightning/) from Lightning lab co-founder.
+    * Introduction about watchtower in LND.
+        * [video](https://www.youtube.com/watch?v=2tyr05tLF4g&ab_channel=Bolt-A-Thon)
+        * [text](http://diyhpl.us/wiki/transcripts/boltathon/2019-04-06-conner-fromknecht-watchtowers/)
+    * discussion from Lightning lab co-founder.
+        * [text](https://diyhpl.us/wiki/transcripts/blockchain-protocol-analysis-security-engineering/2018/hardening-lightning/)
+    * eltoo watchtower
+        * [text](https://lists.linuxfoundation.org/pipermail/lightning-dev/2018-May/001264.html)
     
