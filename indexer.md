@@ -29,4 +29,5 @@ This article indexes some of the information currently available about the CKB c
         * [text](https://diyhpl.us/wiki/transcripts/blockchain-protocol-analysis-security-engineering/2018/hardening-lightning/)
     * eltoo watchtower
         * [text](https://lists.linuxfoundation.org/pipermail/lightning-dev/2018-May/001264.html)
+    * [pisa](https://eprint.iacr.org/2018/582.pdf)
     
