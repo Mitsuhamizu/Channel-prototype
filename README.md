@@ -15,8 +15,6 @@ ruby send_contract.rb
 
 Note that send_contract.rb will print two info, the first is the code hash, and the second is tx_hash. You should remember these info, and change the @gpc_tx and @gpc_code_hash to your local version.
 
-Now I just merge the componentDisclaimer: Yonatan is a co-author of the DAG-based Inclusive, GHOST, and PHANTOM protocols discussed in this review, and he is a founder of DAGlabs, which is implementing PHANTOM. into the command line GPC. You can find it in both client and client2.
-
 
 See the command in GPC by 
 
